@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import api from "@/lib/api";
 import {
   getToolingReturnDefaultForm,
+  normalizeToolingQuantityInput,
   resolveToolingImageUrl,
   validateToolingReturnForm
 } from "@/lib/toolingUi.mjs";
@@ -153,11 +154,15 @@ function ToolingReturnContent({ headers, session }) {
           <label>
             <span>Quantity</span>
             <input
+              className="quantity-input"
               inputMode="decimal"
               min="0"
               step="0.01"
+              type="number"
               value={form.quantity}
-              onChange={(event) => updateField("quantity", event.target.value)}
+              onChange={(event) =>
+                updateField("quantity", normalizeToolingQuantityInput(event.target.value))
+              }
             />
             {errors.quantity ? <small>{errors.quantity}</small> : null}
           </label>
@@ -286,6 +291,9 @@ const returnStyles = `
   color: #0f172a;
   padding: 0 12px;
   font-weight: 850;
+}
+.return-form .quantity-input {
+  text-align: right;
 }
 .return-form small {
   color: #b91c1c;

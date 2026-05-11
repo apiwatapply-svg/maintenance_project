@@ -17,6 +17,7 @@ import {
   getToolingScanFormPatch,
   getToolingSessionRedirect,
   normalizeToolingScanCode,
+  normalizeToolingQuantityInput,
   resolveToolingImageUrl,
   toolingCriticalLevelOptions,
   toolingFilterStorageKeys,
@@ -112,6 +113,12 @@ test("normalizeToolingScanCode trims scanner and manual input", () => {
   assert.equal(normalizeToolingScanCode(undefined), "");
 });
 
+test("normalizeToolingQuantityInput keeps only decimal quantity characters", () => {
+  assert.equal(normalizeToolingQuantityInput("abc12.5x"), "12.5");
+  assert.equal(normalizeToolingQuantityInput("1.2.3"), "1.23");
+  assert.equal(normalizeToolingQuantityInput("-5"), "5");
+});
+
 test("buildToolingScanLookupPath returns an encoded QR lookup path", () => {
   assert.equal(buildToolingScanLookupPath(" SP/001 A "), "/tooling/items/qr/SP%2F001%20A");
   assert.equal(buildToolingScanLookupPath("   "), "");
@@ -142,12 +149,17 @@ test("validateToolingMovementForm requires item, location, and positive quantity
   assert.deepEqual(validateToolingMovementForm({ itemId: "", locationId: "", quantity: 0 }), {
     itemId: "Item is required.",
     locationId: "Location is required.",
-    quantity: "Quantity must be greater than zero."
+    quantity: "Quantity must be a number greater than zero."
   });
 
   assert.deepEqual(
     validateToolingMovementForm({ itemId: 1, locationId: 2, quantity: 3 }),
     {}
+  );
+
+  assert.deepEqual(
+    validateToolingMovementForm({ itemId: 1, locationId: 2, quantity: "abc" }),
+    { quantity: "Quantity must be a number greater than zero." }
   );
 });
 
@@ -268,12 +280,17 @@ test("validateToolingReturnForm requires item, location, quantity, and valid con
   assert.deepEqual(validateToolingReturnForm({ condition: "scrap" }), {
     itemId: "Item is required.",
     locationId: "Location is required.",
-    quantity: "Quantity must be greater than zero.",
+    quantity: "Quantity must be a number greater than zero.",
     condition: "Condition must be good, damaged, or lost."
   });
 
   assert.deepEqual(
     validateToolingReturnForm({ itemId: 1, locationId: 2, quantity: 1, condition: "good" }),
     {}
+  );
+
+  assert.deepEqual(
+    validateToolingReturnForm({ itemId: 1, locationId: 2, quantity: "text", condition: "good" }),
+    { quantity: "Quantity must be a number greater than zero." }
   );
 });

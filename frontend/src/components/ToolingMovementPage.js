@@ -9,6 +9,7 @@ import {
   getToolingMovementConfig,
   getToolingReferenceOptions,
   getToolingScanFormPatch,
+  normalizeToolingQuantityInput,
   resolveToolingImageUrl,
   validateToolingMovementForm
 } from "@/lib/toolingUi.mjs";
@@ -334,12 +335,16 @@ function ToolingMovementContent({ config, headers, session }) {
             <label>
               <span>{config.quantityLabel}</span>
               <input
+                className="quantity-input"
                 inputMode="decimal"
                 min="0"
                 pattern="[0-9]+([.][0-9]+)?"
                 step="0.01"
+                type="number"
                 value={form.quantity}
-                onChange={(event) => updateField("quantity", event.target.value)}
+                onChange={(event) =>
+                  updateField("quantity", normalizeToolingQuantityInput(event.target.value))
+                }
               />
               {errors.quantity ? <small>{errors.quantity}</small> : null}
             </label>
@@ -535,6 +540,9 @@ const movementStyles = `
   color: #0f172a;
   padding: 0 12px;
   font-weight: 850;
+}
+.form-grid .quantity-input {
+  text-align: right;
 }
 .scan-field {
   border: 1px solid #fde68a;

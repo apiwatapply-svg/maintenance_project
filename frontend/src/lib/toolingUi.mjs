@@ -184,6 +184,27 @@ export function normalizeToolingScanCode(value) {
   return String(value || "").trim();
 }
 
+export function normalizeToolingQuantityInput(value) {
+  const text = String(value || "");
+  let hasDecimalPoint = false;
+
+  return text
+    .split("")
+    .filter((character) => {
+      if (character >= "0" && character <= "9") {
+        return true;
+      }
+
+      if (character === "." && !hasDecimalPoint) {
+        hasDecimalPoint = true;
+        return true;
+      }
+
+      return false;
+    })
+    .join("");
+}
+
 export function buildToolingScanLookupPath(value) {
   const code = normalizeToolingScanCode(value);
   return code ? `/tooling/items/qr/${encodeURIComponent(code)}` : "";
@@ -204,6 +225,7 @@ export function getToolingScanFormPatch(item, current = {}) {
 
 export function validateToolingMovementForm(form, options = {}) {
   const errors = {};
+  const quantity = Number(form?.quantity);
   const availableBalance =
     options.currentBalance?.quantityOnHand ?? options.selectedItem?.quantityOnHand ?? 0;
 
@@ -215,13 +237,14 @@ export function validateToolingMovementForm(form, options = {}) {
     errors.locationId = "Location is required.";
   }
 
-  if (Number(form?.quantity || 0) <= 0) {
-    errors.quantity = "Quantity must be greater than zero.";
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    errors.quantity = "Quantity must be a number greater than zero.";
   }
 
   if (
     options.movementKey === "stockOut" &&
-    Number(form?.quantity || 0) > Number(availableBalance)
+    Number.isFinite(quantity) &&
+    quantity > Number(availableBalance)
   ) {
     errors.quantity = "Quantity exceeds current balance.";
   }
@@ -322,6 +345,7 @@ export function getToolingReturnDefaultForm() {
 
 export function validateToolingReturnForm(form) {
   const errors = {};
+  const quantity = Number(form?.quantity);
 
   if (!form?.itemId) {
     errors.itemId = "Item is required.";
@@ -331,8 +355,8 @@ export function validateToolingReturnForm(form) {
     errors.locationId = "Location is required.";
   }
 
-  if (Number(form?.quantity || 0) <= 0) {
-    errors.quantity = "Quantity must be greater than zero.";
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    errors.quantity = "Quantity must be a number greater than zero.";
   }
 
   if (!["good", "damaged", "lost"].includes(form?.condition)) {
