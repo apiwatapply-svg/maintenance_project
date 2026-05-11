@@ -8,6 +8,7 @@
     "start": "node server.js",
     "test": "jest --runInBand",
     "db:setup": "node scripts/setupDatabase.js",
+    "db:migrate": "node scripts/migrateDatabase.js",
     "db:check": "node scripts/checkDatabase.js"
   },
   "dependencies": {

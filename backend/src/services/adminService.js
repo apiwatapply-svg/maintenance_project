@@ -36,6 +36,8 @@ function assertPayload(resource, payload) {
   if (resource === "machine-types" && !payload.name) missing.push("name");
   if (resource === "machine-numbers" && !payload.machineTypeId) missing.push("machineTypeId");
   if (resource === "machine-numbers" && !payload.machineNumber) missing.push("machineNumber");
+  if (resource === "users" && !payload.empId) missing.push("empId");
+  if (resource === "users" && !payload.name) missing.push("name");
   if (resource === "users" && !payload.username) missing.push("username");
   if (resource === "users" && !payload.departmentId) missing.push("departmentId");
 
@@ -82,8 +84,9 @@ async function login(credentials) {
       token: "admin-local-token",
       user: {
         id: user.id,
+        empId: user.empId,
+        name: user.name,
         username: user.username,
-        fullName: user.fullName,
         departmentId: user.departmentId,
         role: user.role || "user",
         permissions: parsePermissions(user.permissions)

@@ -32,9 +32,10 @@ const resources = [
   {
     resource: "users",
     payload: {
+      empId: "OP-001",
+      name: "Operator One",
       username: "operator01",
       password: "operator01",
-      fullName: "Operator One",
       departmentId: 1,
       status: "active",
       role: "user",
@@ -56,9 +57,10 @@ describe("admin auth endpoints", () => {
   test("POST /api/admin/login accepts admin credentials", async () => {
     adminRepository.findUserByUsername.mockResolvedValue({
       id: 1,
+      empId: "ADM-001",
+      name: "System Administrator",
       username: "admin",
       password: "admin",
-      fullName: "System Administrator",
       departmentId: 1,
       role: "admin",
       permissions:
@@ -71,6 +73,8 @@ describe("admin auth endpoints", () => {
       .expect(200);
 
     expect(response.body.user.username).toBe("admin");
+    expect(response.body.user.empId).toBe("ADM-001");
+    expect(response.body.user.name).toBe("System Administrator");
     expect(response.body.user.role).toBe("admin");
     expect(response.body.user.permissions.adminMode).toBe("admin");
     expect(response.body.token).toBe("admin-local-token");

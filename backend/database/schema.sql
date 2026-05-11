@@ -48,9 +48,10 @@ CREATE TABLE dbo.tbm_machine_number (
 
 CREATE TABLE dbo.tbm_user (
   id INT IDENTITY(1,1) PRIMARY KEY,
+  empId NVARCHAR(50) NOT NULL UNIQUE,
+  name NVARCHAR(150) NOT NULL,
   username NVARCHAR(80) NOT NULL UNIQUE,
   password NVARCHAR(255) NOT NULL,
-  fullName NVARCHAR(150) NULL,
   departmentId INT NOT NULL,
   status NVARCHAR(20) NOT NULL DEFAULT 'active',
   role NVARCHAR(20) NOT NULL DEFAULT 'user',
@@ -99,11 +100,12 @@ SELECT id, 'FILL-A-001', 'Line A Filling 1', 'active' FROM dbo.tbm_machine_type 
 UNION ALL
 SELECT id, 'TOOL-ST-001', 'Main Tool Cabinet', 'active' FROM dbo.tbm_machine_type WHERE code = 'TOOL';
 
-INSERT INTO dbo.tbm_user (username, password, fullName, departmentId, status, role, permissions)
+INSERT INTO dbo.tbm_user (empId, name, username, password, departmentId, status, role, permissions)
 SELECT
-  'admin',
-  'admin',
+  'ADM-001',
   'System Administrator',
+  'admin',
+  'admin',
   id,
   'active',
   'admin',
@@ -111,11 +113,12 @@ SELECT
 FROM dbo.tbm_department
 WHERE code = 'ADMIN';
 
-INSERT INTO dbo.tbm_user (username, password, fullName, departmentId, status, role, permissions)
+INSERT INTO dbo.tbm_user (empId, name, username, password, departmentId, status, role, permissions)
 SELECT
-  'engineer01',
-  'engineer01',
+  'ENG-001',
   'Maintenance Engineer',
+  'engineer01',
+  'engineer01',
   id,
   'active',
   'user',

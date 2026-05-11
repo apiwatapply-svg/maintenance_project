@@ -4,12 +4,13 @@ const cors = require("cors");
 const routes = require("./routes");
 const errorHandler = require("./middlewares/errorHandler");
 const notFound = require("./middlewares/notFound");
+const { getCorsOrigins } = require("./config/cors");
 
 const app = express();
 
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000"
+    origin: getCorsOrigins()
   })
 );
 app.use(express.json());

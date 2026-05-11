@@ -36,10 +36,10 @@ const adminResources = {
   },
   users: {
     table: "dbo.tbm_user",
-    defaultSort: "username",
-    fields: ["username", "password", "fullName", "departmentId", "status", "role", "permissions"],
+    defaultSort: "empId",
+    fields: ["empId", "name", "username", "password", "departmentId", "status", "role", "permissions"],
     filters: ["search", "status", "departmentId", "feature", "role"],
-    searchColumns: ["username", "fullName"]
+    searchColumns: ["empId", "name", "username"]
   }
 };
 
