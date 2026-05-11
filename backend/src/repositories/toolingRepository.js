@@ -741,6 +741,58 @@ async function stockOutWithinTransaction(transaction, payload) {
   return insertStockTransaction(transaction, payload, currentBalance, balanceAfter);
 }
 
+async function returnItem(payload) {
+  const pool = await getPool();
+  const transaction = new sql.Transaction(pool);
+
+  await transaction.begin();
+
+  try {
+    const balanceResult = await new sql.Request(transaction)
+      .input("itemId", sql.Int, Number(payload.itemId))
+      .input("locationId", sql.Int, Number(payload.locationId))
+      .query(`
+        SELECT TOP 1 *
+        FROM dbo.tb_tooling_stock_balance WITH (UPDLOCK)
+        WHERE itemId = @itemId AND locationId = @locationId
+      `);
+    const currentBalance = Number(balanceResult.recordset[0]?.quantityOnHand || 0);
+    const balanceAfter = payload.condition === "good"
+      ? currentBalance + Number(payload.quantity)
+      : currentBalance;
+
+    if (payload.condition === "good") {
+      if (balanceResult.recordset[0]) {
+        await new sql.Request(transaction)
+          .input("itemId", sql.Int, Number(payload.itemId))
+          .input("locationId", sql.Int, Number(payload.locationId))
+          .input("quantityOnHand", sql.Decimal(18, 2), balanceAfter)
+          .query(`
+            UPDATE dbo.tb_tooling_stock_balance
+            SET quantityOnHand = @quantityOnHand, updatedAt = SYSDATETIME()
+            WHERE itemId = @itemId AND locationId = @locationId
+          `);
+      } else {
+        await new sql.Request(transaction)
+          .input("itemId", sql.Int, Number(payload.itemId))
+          .input("locationId", sql.Int, Number(payload.locationId))
+          .input("quantityOnHand", sql.Decimal(18, 2), balanceAfter)
+          .query(`
+            INSERT INTO dbo.tb_tooling_stock_balance (itemId, locationId, quantityOnHand)
+            VALUES (@itemId, @locationId, @quantityOnHand)
+          `);
+      }
+    }
+
+    const movement = await insertStockTransaction(transaction, payload, currentBalance, balanceAfter);
+    await transaction.commit();
+    return movement;
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
+}
+
 module.exports = {
   dashboard,
   list,
@@ -758,5 +810,6 @@ module.exports = {
   getRequestById,
   approveRequest,
   rejectRequest,
-  issueRequest
+  issueRequest,
+  returnItem
 };

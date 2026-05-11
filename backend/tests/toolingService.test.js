@@ -11,7 +11,8 @@ jest.mock("../src/repositories/toolingRepository", () => ({
   createRequest: jest.fn(),
   approveRequest: jest.fn(),
   rejectRequest: jest.fn(),
-  issueRequest: jest.fn()
+  issueRequest: jest.fn(),
+  returnItem: jest.fn()
 }));
 
 jest.mock("../src/services/socketService", () => ({
@@ -401,5 +402,60 @@ describe("tooling service request and approval", () => {
     expect(emitToolingChange).toHaveBeenCalledWith(
       expect.objectContaining({ action: "stock_out", resource: "stock", itemId: 1 })
     );
+  });
+});
+
+describe("tooling service returns", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test("returnItem records good returns and emits stock changed event", async () => {
+    const toolingService = require("../src/services/toolingService");
+
+    toolingRepository.validateActiveItemLocation.mockResolvedValue({
+      item: { id: 1, minimumStock: 5 },
+      location: { id: 1 }
+    });
+    toolingRepository.returnItem.mockResolvedValue({
+      id: 9,
+      movementType: "return_good",
+      itemId: 1,
+      locationId: 1,
+      balanceAfter: 12
+    });
+
+    const result = await toolingService.returnItem({
+      itemId: 1,
+      locationId: 1,
+      quantity: 2,
+      condition: "good"
+    });
+
+    expect(result.movementType).toBe("return_good");
+    expect(toolingRepository.returnItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        movementType: "return_good",
+        transactionNo: expect.stringMatching(/^TRTN-/)
+      })
+    );
+    expect(emitToolingChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "return_good",
+        resource: "stock",
+        itemId: 1
+      })
+    );
+  });
+
+  test("returnItem rejects invalid condition", async () => {
+    const toolingService = require("../src/services/toolingService");
+
+    await expect(
+      toolingService.returnItem({ itemId: 1, locationId: 1, quantity: 1, condition: "scrap" })
+    ).rejects.toMatchObject({
+      message: "Return condition must be good, damaged, or lost",
+      statusCode: 400
+    });
   });
 });

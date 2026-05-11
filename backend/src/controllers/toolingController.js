@@ -136,6 +136,17 @@ async function issueRequest(req, res, next) {
   }
 }
 
+async function returnItem(req, res, next) {
+  try {
+    res.status(201).json(await toolingService.returnItem({
+      ...req.body,
+      userId: req.toolingUser?.id
+    }));
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   dashboard,
   list,
@@ -152,5 +163,6 @@ module.exports = {
   getRequestById,
   approveRequest,
   rejectRequest,
-  issueRequest
+  issueRequest,
+  returnItem
 };

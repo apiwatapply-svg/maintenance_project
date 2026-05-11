@@ -45,6 +45,13 @@ const navItems = [
     label: "Requests",
     icon: "RQ",
     title: "Issue Requests"
+  },
+  {
+    key: "return",
+    href: "/tooling-store/return",
+    label: "Return",
+    icon: "RT",
+    title: "Return"
   }
 ];
 
@@ -217,6 +224,39 @@ export function validateToolingRequestForm(form) {
 
   if (hasInvalidItem) {
     errors.items = "Every item needs item, location, and quantity greater than zero.";
+  }
+
+  return errors;
+}
+
+export function getToolingReturnDefaultForm() {
+  return {
+    itemId: "",
+    locationId: "",
+    quantity: "",
+    condition: "good",
+    referenceNo: "",
+    remark: ""
+  };
+}
+
+export function validateToolingReturnForm(form) {
+  const errors = {};
+
+  if (!form?.itemId) {
+    errors.itemId = "Item is required.";
+  }
+
+  if (!form?.locationId) {
+    errors.locationId = "Location is required.";
+  }
+
+  if (Number(form?.quantity || 0) <= 0) {
+    errors.quantity = "Quantity must be greater than zero.";
+  }
+
+  if (!["good", "damaged", "lost"].includes(form?.condition)) {
+    errors.condition = "Condition must be good, damaged, or lost.";
   }
 
   return errors;

@@ -11,17 +11,19 @@ import {
   getToolingPageMeta,
   getToolingPageRange,
   getToolingRequestDefaultForm,
+  getToolingReturnDefaultForm,
   getToolingSessionRedirect,
   toolingFilterStorageKeys,
   validateToolingItemForm,
   validateToolingMovementForm,
-  validateToolingRequestForm
+  validateToolingRequestForm,
+  validateToolingReturnForm
 } from "../src/lib/toolingUi.mjs";
 
 test("getToolingNavItems exposes UI-1 pages in order", () => {
   assert.deepEqual(
     getToolingNavItems().map((item) => item.key),
-    ["dashboard", "items", "stock", "stockIn", "stockOut", "requests"]
+    ["dashboard", "items", "stock", "stockIn", "stockOut", "requests", "return"]
   );
   assert.equal(getToolingNavItems()[0].href, "/tooling-store");
 });
@@ -182,6 +184,31 @@ test("validateToolingRequestForm requires at least one valid item", () => {
     validateToolingRequestForm({
       items: [{ itemId: 1, locationId: 2, quantity: 3 }]
     }),
+    {}
+  );
+});
+
+test("getToolingReturnDefaultForm gives safe return defaults", () => {
+  assert.deepEqual(getToolingReturnDefaultForm(), {
+    itemId: "",
+    locationId: "",
+    quantity: "",
+    condition: "good",
+    referenceNo: "",
+    remark: ""
+  });
+});
+
+test("validateToolingReturnForm requires item, location, quantity, and valid condition", () => {
+  assert.deepEqual(validateToolingReturnForm({ condition: "scrap" }), {
+    itemId: "Item is required.",
+    locationId: "Location is required.",
+    quantity: "Quantity must be greater than zero.",
+    condition: "Condition must be good, damaged, or lost."
+  });
+
+  assert.deepEqual(
+    validateToolingReturnForm({ itemId: 1, locationId: 2, quantity: 1, condition: "good" }),
     {}
   );
 });

@@ -21,7 +21,8 @@ jest.mock("../src/repositories/toolingRepository", () => ({
   getRequestById: jest.fn(),
   approveRequest: jest.fn(),
   rejectRequest: jest.fn(),
-  issueRequest: jest.fn()
+  issueRequest: jest.fn(),
+  returnItem: jest.fn()
 }));
 
 const app = require("../src/app");
@@ -188,6 +189,60 @@ describe("tooling phase 4 request and approval routes", () => {
         transactionNoPrefix: expect.stringMatching(/^TREQ-/)
       })
     );
+  });
+});
+
+describe("tooling phase 5 return routes", () => {
+  test("POST /api/tooling/return records a good spare part return", async () => {
+    toolingRepository.returnItem.mockResolvedValue({
+      id: 8,
+      movementType: "return_good",
+      itemId: 1,
+      locationId: 1,
+      quantity: 2,
+      balanceAfter: 12
+    });
+
+    const response = await request(app)
+      .post("/api/tooling/return")
+      .set("x-username", "admin")
+      .send({ itemId: 1, locationId: 1, quantity: 2, condition: "good" })
+      .expect(201);
+
+    expect(response.body.movementType).toBe("return_good");
+    expect(toolingRepository.returnItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        itemId: 1,
+        locationId: 1,
+        quantity: 2,
+        condition: "good"
+      })
+    );
+  });
+
+  test("POST /api/tooling/return rejects invalid condition", async () => {
+    await request(app)
+      .post("/api/tooling/return")
+      .set("x-username", "admin")
+      .send({ itemId: 1, locationId: 1, quantity: 2, condition: "scrap" })
+      .expect(400);
+
+    expect(toolingRepository.returnItem).not.toHaveBeenCalled();
+  });
+
+  test("POST /api/tooling/return requires admin access", async () => {
+    adminRepository.findUserByUsername.mockResolvedValue({
+      id: 7,
+      departmentId: 2,
+      username: "engineer01",
+      permissions: '{"toolingStore":"user"}'
+    });
+
+    await request(app)
+      .post("/api/tooling/return")
+      .set("x-username", "engineer01")
+      .send({ itemId: 1, locationId: 1, quantity: 2, condition: "good" })
+      .expect(403);
   });
 });
 

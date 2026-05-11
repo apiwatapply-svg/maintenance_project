@@ -46,6 +46,16 @@ function assertStockMovementPayload(payload) {
   }
 }
 
+function assertReturnPayload(payload) {
+  assertStockMovementPayload(payload);
+
+  if (!["good", "damaged", "lost"].includes(payload.condition)) {
+    const error = new Error("Return condition must be good, damaged, or lost");
+    error.statusCode = 400;
+    throw error;
+  }
+}
+
 function assertRequestPayload(payload) {
   if (!payload.requesterId) {
     const error = new Error("Requester is required");
@@ -348,6 +358,26 @@ async function issueRequest(id, issuedBy) {
   return request;
 }
 
+async function returnItem(payload) {
+  assertReturnPayload(payload);
+  await toolingRepository.validateActiveItemLocation(payload.itemId, payload.locationId);
+  const movement = await toolingRepository.returnItem({
+    ...payload,
+    transactionNo: createTransactionNo("TRTN"),
+    movementType: `return_${payload.condition}`
+  });
+
+  emitToolingChange({
+    action: movement.movementType,
+    resource: "stock",
+    id: movement.id,
+    itemId: movement.itemId,
+    locationId: movement.locationId
+  });
+
+  return movement;
+}
+
 module.exports = {
   dashboard,
   list,
@@ -364,5 +394,6 @@ module.exports = {
   getRequestById,
   approveRequest,
   rejectRequest,
-  issueRequest
+  issueRequest,
+  returnItem
 };
