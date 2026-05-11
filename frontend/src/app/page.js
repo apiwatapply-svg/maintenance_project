@@ -23,6 +23,14 @@ const systems = [
     description: "Create, approve, and follow maintenance job requests."
   },
   {
+    name: "MMS Dashboard",
+    href: "/mms-dashboard",
+    code: "MMS",
+    theme: "mms",
+    actionLabel: "Open",
+    description: "View machine status, maintenance KPIs, and factory overview."
+  },
+  {
     name: "Admin mode",
     href: "/admin/login",
     code: "AD",
@@ -74,9 +82,9 @@ export default function Home() {
             >
               <GatewayIcon theme={system.theme} code={system.code} />
               <h2>{system.name}</h2>
-              <p>{system.description}</p>
-              <div className="gateway-card-footer">
-                <span>Login</span>
+                <p>{system.description}</p>
+                <div className="gateway-card-footer">
+                <span>{system.actionLabel || "Login"}</span>
                 <strong>&rarr;</strong>
               </div>
             </Link>
@@ -254,19 +262,19 @@ const gatewayStyles = `
 .gear-b { right: 80px; bottom: 4px; width: 48px; height: 48px; animation-direction: reverse; }
 .gateway-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
 }
 .gateway-card {
   position: relative;
   display: flex;
-  min-height: 330px;
+  min-height: 315px;
   flex-direction: column;
   overflow: hidden;
   border: 4px solid #0f172a;
   border-radius: 8px;
   background: white;
-  padding: 22px;
+  padding: 20px;
   color: #0f172a;
   text-decoration: none;
   box-shadow: 9px 11px 0 rgb(15 23 42 / .14);
@@ -292,11 +300,12 @@ const gatewayStyles = `
 .gateway-card-store::before { background: #fde68a; }
 .gateway-card-job::before { background: #bae6fd; }
 .gateway-card-admin::before { background: #ddd6fe; }
+.gateway-card-mms::before { background: #ccfbf1; }
 .gateway-card h2 {
   position: relative;
-  min-height: 66px;
+  min-height: 58px;
   margin: 0;
-  font-size: 25px;
+  font-size: clamp(19px, 1.75vw, 23px);
   font-weight: 950;
   line-height: 1.08;
 }
@@ -329,6 +338,7 @@ const gatewayStyles = `
 .gateway-icon-store { background: #d97706; }
 .gateway-icon-job { background: #0284c7; }
 .gateway-icon-admin { background: #6d28d9; }
+.gateway-icon-mms { background: #0f766e; }
 .icon-code {
   position: relative;
   z-index: 3;
@@ -373,7 +383,7 @@ const gatewayStyles = `
 }
 @media (max-width: 1100px) {
   .gateway-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .gateway-hero {
     grid-template-columns: 1fr;
@@ -385,6 +395,11 @@ const gatewayStyles = `
   }
   .factory-mascot {
     justify-self: start;
+  }
+}
+@media (max-width: 900px) {
+  .gateway-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 640px) {
