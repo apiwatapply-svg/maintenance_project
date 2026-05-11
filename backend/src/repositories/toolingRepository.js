@@ -219,6 +219,149 @@ async function findItemByQrCode(qrCode) {
   return result.recordset[0] || null;
 }
 
+async function stockIn(payload) {
+  const pool = await getPool();
+  const transaction = new sql.Transaction(pool);
+
+  await transaction.begin();
+
+  try {
+    const balanceResult = await new sql.Request(transaction)
+      .input("itemId", sql.Int, Number(payload.itemId))
+      .input("locationId", sql.Int, Number(payload.locationId))
+      .query(`
+        SELECT TOP 1 *
+        FROM dbo.tb_tooling_stock_balance WITH (UPDLOCK)
+        WHERE itemId = @itemId AND locationId = @locationId
+      `);
+    const currentBalance = Number(balanceResult.recordset[0]?.quantityOnHand || 0);
+    const balanceAfter = currentBalance + Number(payload.quantity);
+
+    if (balanceResult.recordset[0]) {
+      await new sql.Request(transaction)
+        .input("itemId", sql.Int, Number(payload.itemId))
+        .input("locationId", sql.Int, Number(payload.locationId))
+        .input("quantityOnHand", sql.Decimal(18, 2), balanceAfter)
+        .query(`
+          UPDATE dbo.tb_tooling_stock_balance
+          SET quantityOnHand = @quantityOnHand, updatedAt = SYSDATETIME()
+          WHERE itemId = @itemId AND locationId = @locationId
+        `);
+    } else {
+      await new sql.Request(transaction)
+        .input("itemId", sql.Int, Number(payload.itemId))
+        .input("locationId", sql.Int, Number(payload.locationId))
+        .input("quantityOnHand", sql.Decimal(18, 2), balanceAfter)
+        .query(`
+          INSERT INTO dbo.tb_tooling_stock_balance (itemId, locationId, quantityOnHand)
+          VALUES (@itemId, @locationId, @quantityOnHand)
+        `);
+    }
+
+    const movement = await insertStockTransaction(transaction, payload, balanceAfter);
+    await transaction.commit();
+    return movement;
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
+}
+
+async function stockOut(payload) {
+  const pool = await getPool();
+  const transaction = new sql.Transaction(pool);
+
+  await transaction.begin();
+
+  try {
+    const balanceResult = await new sql.Request(transaction)
+      .input("itemId", sql.Int, Number(payload.itemId))
+      .input("locationId", sql.Int, Number(payload.locationId))
+      .query(`
+        SELECT TOP 1 *
+        FROM dbo.tb_tooling_stock_balance WITH (UPDLOCK)
+        WHERE itemId = @itemId AND locationId = @locationId
+      `);
+    const currentBalance = Number(balanceResult.recordset[0]?.quantityOnHand || 0);
+
+    if (currentBalance < Number(payload.quantity)) {
+      const error = new Error("Insufficient stock");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const balanceAfter = currentBalance - Number(payload.quantity);
+
+    await new sql.Request(transaction)
+      .input("itemId", sql.Int, Number(payload.itemId))
+      .input("locationId", sql.Int, Number(payload.locationId))
+      .input("quantityOnHand", sql.Decimal(18, 2), balanceAfter)
+      .query(`
+        UPDATE dbo.tb_tooling_stock_balance
+        SET quantityOnHand = @quantityOnHand, updatedAt = SYSDATETIME()
+        WHERE itemId = @itemId AND locationId = @locationId
+      `);
+
+    const movement = await insertStockTransaction(transaction, payload, balanceAfter);
+    await transaction.commit();
+    return movement;
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
+}
+
+async function insertStockTransaction(transaction, payload, balanceAfter) {
+  const request = new sql.Request(transaction);
+
+  request.input("transactionNo", sql.NVarChar, payload.transactionNo);
+  request.input("movementType", sql.NVarChar, payload.movementType);
+  request.input("itemId", sql.Int, Number(payload.itemId));
+  request.input("locationId", sql.Int, Number(payload.locationId));
+  request.input("quantity", sql.Decimal(18, 2), Number(payload.quantity));
+  request.input("balanceAfter", sql.Decimal(18, 2), balanceAfter);
+  request.input("departmentId", sql.Int, payload.departmentId ? Number(payload.departmentId) : null);
+  request.input("userId", sql.Int, payload.userId ? Number(payload.userId) : null);
+  request.input("referenceType", sql.NVarChar, payload.referenceType || null);
+  request.input("referenceId", sql.Int, payload.referenceId ? Number(payload.referenceId) : null);
+  request.input("referenceNo", sql.NVarChar, payload.referenceNo || null);
+  request.input("remark", sql.NVarChar, payload.remark || null);
+
+  const result = await request.query(`
+    INSERT INTO dbo.tb_tooling_stock_transaction (
+      transactionNo,
+      movementType,
+      itemId,
+      locationId,
+      quantity,
+      balanceAfter,
+      departmentId,
+      userId,
+      referenceType,
+      referenceId,
+      referenceNo,
+      remark
+    )
+    OUTPUT INSERTED.*
+    VALUES (
+      @transactionNo,
+      @movementType,
+      @itemId,
+      @locationId,
+      @quantity,
+      @balanceAfter,
+      @departmentId,
+      @userId,
+      @referenceType,
+      @referenceId,
+      @referenceNo,
+      @remark
+    )
+  `);
+
+  return result.recordset[0];
+}
+
 module.exports = {
   dashboard,
   list,
@@ -227,5 +370,7 @@ module.exports = {
   update,
   remove,
   searchItems,
-  findItemByQrCode
+  findItemByQrCode,
+  stockIn,
+  stockOut
 };

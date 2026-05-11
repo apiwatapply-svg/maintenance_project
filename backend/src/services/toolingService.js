@@ -1,5 +1,6 @@
 const toolingRepository = require("../repositories/toolingRepository");
 const { getToolingResourceConfig } = require("../config/toolingResources");
+const { emitToolingChange } = require("./socketService");
 
 function assertPayload(resource, payload) {
   const config = getToolingResourceConfig(resource);
@@ -23,6 +24,26 @@ function assertPayload(resource, payload) {
   }
 
   return sanitized;
+}
+
+function createTransactionNo(prefix) {
+  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+}
+
+function assertStockMovementPayload(payload) {
+  const missing = ["itemId", "locationId"].filter((field) => !payload[field]);
+
+  if (missing.length) {
+    const error = new Error(`Missing required field(s): ${missing.join(", ")}`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (Number(payload.quantity) <= 0) {
+    const error = new Error("Quantity must be greater than zero");
+    error.statusCode = 400;
+    throw error;
+  }
 }
 
 async function dashboard() {
@@ -104,6 +125,44 @@ async function findItemByQrCode(qrCode) {
   return record;
 }
 
+async function stockIn(payload) {
+  assertStockMovementPayload(payload);
+  const movement = await toolingRepository.stockIn({
+    ...payload,
+    transactionNo: createTransactionNo("TIN"),
+    movementType: "stock_in"
+  });
+
+  emitToolingChange({
+    action: "stock_in",
+    resource: "stock",
+    id: movement.id,
+    itemId: movement.itemId,
+    locationId: movement.locationId
+  });
+
+  return movement;
+}
+
+async function stockOut(payload) {
+  assertStockMovementPayload(payload);
+  const movement = await toolingRepository.stockOut({
+    ...payload,
+    transactionNo: createTransactionNo("TOUT"),
+    movementType: "stock_out"
+  });
+
+  emitToolingChange({
+    action: "stock_out",
+    resource: "stock",
+    id: movement.id,
+    itemId: movement.itemId,
+    locationId: movement.locationId
+  });
+
+  return movement;
+}
+
 module.exports = {
   dashboard,
   list,
@@ -112,5 +171,7 @@ module.exports = {
   update,
   remove,
   searchItems,
-  findItemByQrCode
+  findItemByQrCode,
+  stockIn,
+  stockOut
 };

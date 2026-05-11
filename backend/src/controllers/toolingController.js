@@ -64,6 +64,22 @@ async function findItemByQrCode(req, res, next) {
   }
 }
 
+async function stockIn(req, res, next) {
+  try {
+    res.status(201).json(await toolingService.stockIn(req.body));
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function stockOut(req, res, next) {
+  try {
+    res.status(201).json(await toolingService.stockOut(req.body));
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   dashboard,
   list,
@@ -72,5 +88,7 @@ module.exports = {
   update,
   remove,
   searchItems,
-  findItemByQrCode
+  findItemByQrCode,
+  stockIn,
+  stockOut
 };
