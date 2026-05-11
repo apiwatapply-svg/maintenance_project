@@ -2,7 +2,9 @@
 
 ## Goal
 
-Build Toolling & Store as a factory stock and tool movement module. The module should let authorized users request, issue, receive, return, borrow, and track tooling or spare parts while broadcasting important changes to other systems through Socket.IO.
+Build Toolling & Store as a factory spare-part inventory module first. The module should let authorized users request, receive, issue, return, adjust, and track spare parts while broadcasting important changes to other systems through Socket.IO.
+
+Tool borrowing can be added later, but it is not the first priority. The first implementation should focus on accurate stock balance, stock movement, low-stock control, issue requests, and traceability by department, machine, PM task, or job request.
 
 This plan is for design only. It does not include implementation changes.
 
@@ -22,15 +24,15 @@ This plan is for design only. It does not include implementation changes.
 - Can log in when `toolingStore` permission is `user` or `admin`.
 - Can view allowed stock data.
 - Can create issue requests.
-- Can borrow and return assigned tools when allowed.
+- Can create spare-part issue requests.
 - Can view own request and movement history.
 
 ### Toolling & Store Admin
 
 - Can do everything a user can do.
-- Can manage tooling master data.
-- Can approve or reject requests.
-- Can perform stock in, stock out, return, borrow, and adjustment.
+- Can manage spare-part master data.
+- Can approve or reject spare-part issue requests.
+- Can perform stock in, stock out, return, and adjustment.
 - Can view reports and all transaction history.
 
 ## Recommended Feature Set
@@ -42,8 +44,7 @@ Show the operational overview for the store:
 - Total active items.
 - Low stock items.
 - Pending issue requests.
-- Borrowed tools.
-- Overdue borrowed tools.
+- Critical spare parts below minimum stock.
 - Latest stock movement.
 - Critical items that need replenishment.
 
@@ -51,14 +52,14 @@ Socket.IO should update dashboard cards when stock or request status changes.
 
 ### 2. Tooling Item Master
 
-Manage all tooling, spare parts, consumables, and store items.
+Manage all spare parts, consumables, and safety stock items. Tools that require borrow-return tracking should be treated as a later extension.
 
 Fields:
 
 - Item code.
 - Item name.
 - Category.
-- Item type: `tool`, `spare_part`, `consumable`, `safety_stock`.
+- Item type: `spare_part`, `consumable`, `safety_stock`.
 - Unit.
 - Minimum stock.
 - Location/bin.
@@ -113,7 +114,7 @@ Show current stock by item and location.
 Important rule:
 
 - Users should not directly edit stock balance.
-- Balance changes must come from stock transactions: stock in, stock out, return, borrow, or adjustment.
+- Balance changes must come from stock transactions: stock in, stock out, return, or adjustment.
 
 Filters:
 
@@ -220,7 +221,7 @@ Socket.IO events:
 
 ### 9. Return
 
-Return unused items or borrowed tools.
+Return unused spare parts after issue.
 
 Return type:
 
@@ -232,15 +233,15 @@ Return type:
 Flow:
 
 1. Scan QR code or select item from searchable dropdown.
-2. Select linked issue or borrow transaction when available.
+2. Select linked issue transaction when available.
 3. Enter returned quantity and condition.
 4. If condition is good, stock can return to available balance.
 5. If condition is damaged or lost, stock should not return to available balance.
-6. System emits `tooling:stock-changed` or `tooling:borrow-returned`.
+6. System emits `tooling:stock-changed`.
 
-### 10. Borrow Tool
+### 10. Borrow Tool Later Extension
 
-Track tools that must be returned.
+Track tools that must be returned. This is useful, but it should be implemented after the spare-part inventory flow is stable.
 
 Fields:
 
@@ -295,8 +296,6 @@ Movement types:
 - Stock out.
 - Issue request.
 - Return.
-- Borrow.
-- Borrow return.
 - Adjustment.
 - Transfer.
 
@@ -322,15 +321,13 @@ Recommended reports:
 - Issue by department.
 - Issue by machine.
 - Issue by job request.
-- Borrowed tool report.
-- Overdue tool report.
 - Adjustment report.
 
 Export can be added later after core CRUD and movement flow are stable.
 
 ## QR Code and Searchable Dropdown Design
 
-Stock In, Stock Out, Return, Borrow, and Request Item selection should support two input styles:
+Stock In, Stock Out, Return, and Request Item selection should support two input styles:
 
 ### QR Scan
 
@@ -371,9 +368,6 @@ Socket.IO should use feature-specific events and consistent payloads.
 - `tooling:request-approved`
 - `tooling:request-rejected`
 - `tooling:request-issued`
-- `tooling:borrow-created`
-- `tooling:borrow-returned`
-- `tooling:borrow-overdue`
 - `tooling:low-stock`
 - `tooling:stock-recovered`
 
@@ -432,8 +426,11 @@ Use `tbm_` for master data and `tb_` for transaction/general data.
 - `tb_tooling_stock_transaction`
 - `tb_tooling_request`
 - `tb_tooling_request_item`
-- `tb_tooling_borrow`
 - `tb_tooling_adjustment`
+
+Later extension:
+
+- `tb_tooling_borrow`
 
 ## API Plan
 
@@ -458,12 +455,15 @@ Recommended endpoints:
 - `PUT /api/tooling/requests/:id/reject`
 - `PUT /api/tooling/requests/:id/issue`
 - `POST /api/tooling/return`
-- `POST /api/tooling/borrow`
-- `PUT /api/tooling/borrow/:id/return`
 - `POST /api/tooling/adjustment`
 - `GET /api/tooling/transactions`
 - `GET /api/tooling/reports/low-stock`
 - `GET /api/tooling/reports/movement`
+
+Later extension:
+
+- `POST /api/tooling/borrow`
+- `PUT /api/tooling/borrow/:id/return`
 
 ## Frontend Page Plan
 
@@ -487,9 +487,12 @@ Pages:
 - `/tooling-store/stock-out`
 - `/tooling-store/requests`
 - `/tooling-store/return`
-- `/tooling-store/borrow`
 - `/tooling-store/transactions`
 - `/tooling-store/reports`
+
+Later extension:
+
+- `/tooling-store/borrow`
 
 ## Implementation Phases
 
@@ -526,18 +529,19 @@ Pages:
 - Issue approved request.
 - Link request to stock transaction.
 
-### Phase 5: Borrow and Return
+### Phase 5: Reports
+
+- Low stock.
+- Movement.
+- Issue by department/machine/job.
+- Stock adjustment.
+
+### Phase 6: Borrow and Return Later Extension
 
 - Borrow tool.
 - Return tool.
 - Overdue status.
 - Damaged/lost handling.
-
-### Phase 6: Reports
-
-- Low stock.
-- Movement.
-- Issue by department/machine/job.
 - Borrowed and overdue tools.
 
 ## Test Plan
@@ -552,7 +556,6 @@ Backend unit tests should cover:
 - Stock out validation.
 - Insufficient stock rejection.
 - Request create/approve/reject/issue.
-- Borrow create/return.
 - Adjustment with required reason.
 - Transaction history filters.
 - QR/item lookup.
@@ -570,10 +573,16 @@ Frontend unit tests should cover:
 
 ## Open Decision
 
-Before implementation, decide which flow is the first priority:
+The first priority is spare-part stock control.
 
-1. Spare part stock control first.
-2. Borrow-return tool control first.
-3. Request and approval first.
+Implementation should start with:
 
-Recommended first priority: spare part stock control first, because it creates the core stock balance and transaction foundation that later borrow, request, and reports can reuse.
+1. Spare-part item master.
+2. Stock balance.
+3. Stock In.
+4. Stock Out.
+5. Issue request and approval.
+6. Return and adjustment.
+7. Low-stock alerts and reports.
+
+Borrow-return tool control should stay as a later extension after the inventory foundation is stable.
