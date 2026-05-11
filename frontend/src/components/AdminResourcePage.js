@@ -8,10 +8,10 @@ import { getSocket } from "@/lib/socket";
 import { getPaginationPages } from "@/lib/pagination.mjs";
 
 const featureOptions = [
-  { key: "preventiveMaintenance", label: "Preventive Maintenance" },
-  { key: "toolingStore", label: "Toolling & Store" },
-  { key: "jobRequest", label: "Job Request" },
-  { key: "adminMode", label: "Admin mode" }
+  { key: "preventiveMaintenance", label: "Preventive Maintenance", columnLabel: "PM Access" },
+  { key: "toolingStore", label: "Toolling & Store", columnLabel: "Tooling Access" },
+  { key: "jobRequest", label: "Job Request", columnLabel: "Job Request Access" },
+  { key: "adminMode", label: "Admin mode", columnLabel: "Admin Access" }
 ];
 
 const positionOptions = ["Maintenance", "QC", "Production"];
@@ -347,7 +347,10 @@ export default function AdminResourcePage({ resourceKey }) {
                   {columns.map((field) => (
                     <th key={field.key}>{field.label}</th>
                   ))}
-                  {resourceKey === "users" && <th>Permissions</th>}
+                  {resourceKey === "users" &&
+                    featureOptions.map((feature) => (
+                      <th key={feature.key}>{feature.columnLabel}</th>
+                    ))}
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -358,17 +361,14 @@ export default function AdminResourcePage({ resourceKey }) {
                     {columns.map((field) => (
                       <td key={field.key}>{formatValue(field, item, lookups)}</td>
                     ))}
-                    {resourceKey === "users" && (
-                      <td>
-                        <div className="permission-list">
-                          {featureOptions.map((feature) => (
-                            <span key={feature.key}>
-                              {feature.label}: {item.permissions?.[feature.key] || "none"}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                    )}
+                    {resourceKey === "users" &&
+                      featureOptions.map((feature) => (
+                        <td key={feature.key}>
+                          <span className={`permission-badge permission-${item.permissions?.[feature.key] || "none"}`}>
+                            {item.permissions?.[feature.key] || "none"}
+                          </span>
+                        </td>
+                      ))}
                     <td>
                       <div className="row-actions">
                         <button className="edit-button" type="button" onClick={() => openEditModal(item)}>
@@ -383,7 +383,9 @@ export default function AdminResourcePage({ resourceKey }) {
                 ))}
                 {!items.length && (
                   <tr>
-                    <td colSpan={columns.length + 3}>{isLoading ? "Loading..." : "No records"}</td>
+                    <td colSpan={columns.length + (resourceKey === "users" ? featureOptions.length : 0) + 2}>
+                      {isLoading ? "Loading..." : "No records"}
+                    </td>
                   </tr>
                 )}
               </tbody>
@@ -1127,11 +1129,28 @@ tbody tr:hover {
   min-width: 68px;
   padding: 8px 12px;
 }
-.permission-list {
-  display: grid;
-  gap: 4px;
-  color: #334155;
+.permission-badge {
+  display: inline-flex;
+  min-width: 58px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 5px 10px;
   font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.permission-admin {
+  background: #dcfce7;
+  color: #166534;
+}
+.permission-user {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.permission-none {
+  background: #f1f5f9;
+  color: #64748b;
 }
 .pagination {
   display: grid;
