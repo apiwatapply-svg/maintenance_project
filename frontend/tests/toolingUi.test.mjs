@@ -4,17 +4,19 @@ import assert from "node:assert/strict";
 import {
   buildToolingQuery,
   getToolingApiHeaders,
+  getToolingMovementConfig,
   getToolingNavItems,
   getToolingPageMeta,
   getToolingPageRange,
   getToolingSessionRedirect,
-  toolingFilterStorageKeys
+  toolingFilterStorageKeys,
+  validateToolingMovementForm
 } from "../src/lib/toolingUi.mjs";
 
 test("getToolingNavItems exposes UI-1 pages in order", () => {
   assert.deepEqual(
     getToolingNavItems().map((item) => item.key),
-    ["dashboard", "items", "stock"]
+    ["dashboard", "items", "stock", "stockIn", "stockOut"]
   );
   assert.equal(getToolingNavItems()[0].href, "/tooling-store");
 });
@@ -67,4 +69,23 @@ test("getToolingPageRange reports visible result range", () => {
 test("toolingFilterStorageKeys keeps filter state scoped by page", () => {
   assert.equal(toolingFilterStorageKeys.items, "toolingFilters:items");
   assert.equal(toolingFilterStorageKeys.stock, "toolingFilters:stock");
+});
+
+test("getToolingMovementConfig maps movement pages to backend endpoints", () => {
+  assert.equal(getToolingMovementConfig("stockIn").endpoint, "/tooling/stock-in");
+  assert.equal(getToolingMovementConfig("stockOut").endpoint, "/tooling/stock-out");
+  assert.throws(() => getToolingMovementConfig("unknown"), /not found/);
+});
+
+test("validateToolingMovementForm requires item, location, and positive quantity", () => {
+  assert.deepEqual(validateToolingMovementForm({ itemId: "", locationId: "", quantity: 0 }), {
+    itemId: "Item is required.",
+    locationId: "Location is required.",
+    quantity: "Quantity must be greater than zero."
+  });
+
+  assert.deepEqual(
+    validateToolingMovementForm({ itemId: 1, locationId: 2, quantity: 3 }),
+    {}
+  );
 });

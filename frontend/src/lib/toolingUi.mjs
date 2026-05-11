@@ -24,8 +24,41 @@ const navItems = [
     label: "Stock Balance",
     icon: "ST",
     title: "Stock Balance"
+  },
+  {
+    key: "stockIn",
+    href: "/tooling-store/stock-in",
+    label: "Stock In",
+    icon: "IN",
+    title: "Stock In"
+  },
+  {
+    key: "stockOut",
+    href: "/tooling-store/stock-out",
+    label: "Stock Out",
+    icon: "OUT",
+    title: "Stock Out"
   }
 ];
+
+const movementConfigs = {
+  stockIn: {
+    key: "stockIn",
+    endpoint: "/tooling/stock-in",
+    title: "Stock In",
+    actionLabel: "Receive Stock",
+    quantityLabel: "Receive Quantity",
+    referenceLabel: "PO / Invoice / Reference"
+  },
+  stockOut: {
+    key: "stockOut",
+    endpoint: "/tooling/stock-out",
+    title: "Stock Out",
+    actionLabel: "Issue Stock",
+    quantityLabel: "Issue Quantity",
+    referenceLabel: "Job / PM / Reference"
+  }
+};
 
 export function getToolingNavItems() {
   return navItems;
@@ -66,4 +99,32 @@ export function getToolingPageRange(pagination) {
   const from = (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, total);
   return { from, to };
+}
+
+export function getToolingMovementConfig(key) {
+  const config = movementConfigs[key];
+
+  if (!config) {
+    throw new Error("Toolling movement config not found");
+  }
+
+  return config;
+}
+
+export function validateToolingMovementForm(form) {
+  const errors = {};
+
+  if (!form?.itemId) {
+    errors.itemId = "Item is required.";
+  }
+
+  if (!form?.locationId) {
+    errors.locationId = "Location is required.";
+  }
+
+  if (Number(form?.quantity || 0) <= 0) {
+    errors.quantity = "Quantity must be greater than zero.";
+  }
+
+  return errors;
 }
