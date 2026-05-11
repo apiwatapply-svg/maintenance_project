@@ -8,12 +8,27 @@ Project scaffold for:
 
 ## Run
 
+Frontend:
+
 ```bash
 cd frontend
 npm run dev
 ```
 
+Backend:
+
 ```bash
 cd backend
 npm run dev
+```
+
+## Database
+
+Run `backend/database/schema.sql` on Microsoft SQL Server before using the admin CRUD endpoints.
+
+## Tests
+
+```bash
+cd backend
+npm test
 ```
