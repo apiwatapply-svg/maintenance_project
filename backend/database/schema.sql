@@ -50,6 +50,7 @@ CREATE TABLE dbo.tbm_user (
   id INT IDENTITY(1,1) PRIMARY KEY,
   empId NVARCHAR(50) NOT NULL UNIQUE,
   name NVARCHAR(150) NOT NULL,
+  position NVARCHAR(80) NOT NULL,
   username NVARCHAR(80) NOT NULL UNIQUE,
   password NVARCHAR(255) NOT NULL,
   departmentId INT NOT NULL,
@@ -71,7 +72,8 @@ VALUES
   ('ADMIN', 'Administrator', 'active'),
   ('ENG', 'Engineering', 'active'),
   ('PRD', 'Production', 'active'),
-  ('WH', 'Warehouse', 'active');
+  ('WH', 'Warehouse', 'active'),
+  ('MNT', 'Maintenance Operations', 'active');
 
 INSERT INTO dbo.tbm_area (departmentId, code, name, status)
 SELECT id, 'CTRL', 'Control Room', 'active' FROM dbo.tbm_department WHERE code = 'ADMIN'
@@ -82,6 +84,13 @@ SELECT id, 'LINE-B', 'Line B', 'active' FROM dbo.tbm_department WHERE code = 'PR
 UNION ALL
 SELECT id, 'STORE', 'Tooling Store', 'active' FROM dbo.tbm_department WHERE code = 'WH';
 
+INSERT INTO dbo.tbm_area (departmentId, code, name, status)
+SELECT id, 'MNT-A', 'Maintenance Bay A', 'active' FROM dbo.tbm_department WHERE code = 'MNT'
+UNION ALL
+SELECT id, 'MNT-B', 'Maintenance Bay B', 'active' FROM dbo.tbm_department WHERE code = 'MNT'
+UNION ALL
+SELECT id, 'MNT-C', 'Maintenance Bay C', 'active' FROM dbo.tbm_department WHERE code = 'MNT';
+
 INSERT INTO dbo.tbm_machine_type (areaId, code, name, status)
 SELECT id, 'PANEL', 'Control Panel', 'active' FROM dbo.tbm_area WHERE code = 'CTRL'
 UNION ALL
@@ -90,6 +99,20 @@ UNION ALL
 SELECT id, 'FILL', 'Filling Machine', 'active' FROM dbo.tbm_area WHERE code = 'LINE-A'
 UNION ALL
 SELECT id, 'TOOL', 'Tool Cabinet', 'active' FROM dbo.tbm_area WHERE code = 'STORE';
+
+INSERT INTO dbo.tbm_machine_type (areaId, code, name, status)
+SELECT area.id, CONCAT(area.code, '-', typeSeed.code), CONCAT(area.name, ' ', typeSeed.name), 'active'
+FROM dbo.tbm_area AS area
+CROSS JOIN (
+  VALUES
+    ('PMP', 'Pump'),
+    ('MTR', 'Motor'),
+    ('CMP', 'Compressor'),
+    ('FAN', 'Industrial Fan'),
+    ('HST', 'Hoist'),
+    ('PRS', 'Press Machine')
+) AS typeSeed(code, name)
+WHERE area.code IN ('MNT-A', 'MNT-B', 'MNT-C');
 
 INSERT INTO dbo.tbm_machine_number (machineTypeId, machineNumber, name, status)
 SELECT id, 'PANEL-ADMIN-01', 'Admin Control Panel', 'active' FROM dbo.tbm_machine_type WHERE code = 'PANEL'
@@ -100,10 +123,21 @@ SELECT id, 'FILL-A-001', 'Line A Filling 1', 'active' FROM dbo.tbm_machine_type 
 UNION ALL
 SELECT id, 'TOOL-ST-001', 'Main Tool Cabinet', 'active' FROM dbo.tbm_machine_type WHERE code = 'TOOL';
 
-INSERT INTO dbo.tbm_user (empId, name, username, password, departmentId, status, role, permissions)
+INSERT INTO dbo.tbm_machine_number (machineTypeId, machineNumber, name, status)
+SELECT
+  machineType.id,
+  CONCAT(machineType.code, '-', RIGHT(CONCAT('00', machineSeed.machineNo), 2)),
+  CONCAT(machineType.name, ' ', machineSeed.machineNo),
+  'active'
+FROM dbo.tbm_machine_type AS machineType
+CROSS JOIN (VALUES (1), (2), (3), (4), (5), (6)) AS machineSeed(machineNo)
+WHERE machineType.code LIKE 'MNT-%';
+
+INSERT INTO dbo.tbm_user (empId, name, position, username, password, departmentId, status, role, permissions)
 SELECT
   'ADM-001',
   'System Administrator',
+  'Maintenance',
   'admin',
   'admin',
   id,
@@ -113,10 +147,11 @@ SELECT
 FROM dbo.tbm_department
 WHERE code = 'ADMIN';
 
-INSERT INTO dbo.tbm_user (empId, name, username, password, departmentId, status, role, permissions)
+INSERT INTO dbo.tbm_user (empId, name, position, username, password, departmentId, status, role, permissions)
 SELECT
   'ENG-001',
   'Maintenance Engineer',
+  'Maintenance',
   'engineer01',
   'engineer01',
   id,
@@ -125,3 +160,31 @@ SELECT
   '{"preventiveMaintenance":"admin","toolingStore":"user","jobRequest":"admin","adminMode":"none"}'
 FROM dbo.tbm_department
 WHERE code = 'ENG';
+
+INSERT INTO dbo.tbm_user (empId, name, position, username, password, departmentId, status, role, permissions)
+SELECT
+  'QC-001',
+  'QC Inspector',
+  'QC',
+  'qc01',
+  'qc01',
+  id,
+  'active',
+  'user',
+  '{"preventiveMaintenance":"user","toolingStore":"none","jobRequest":"user","adminMode":"none"}'
+FROM dbo.tbm_department
+WHERE code = 'PRD';
+
+INSERT INTO dbo.tbm_user (empId, name, position, username, password, departmentId, status, role, permissions)
+SELECT
+  'PRD-001',
+  'Production Operator',
+  'Production',
+  'production01',
+  'production01',
+  id,
+  'active',
+  'user',
+  '{"preventiveMaintenance":"user","toolingStore":"none","jobRequest":"user","adminMode":"none"}'
+FROM dbo.tbm_department
+WHERE code = 'PRD';

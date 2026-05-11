@@ -34,7 +34,7 @@ function buildWhere(config, filters, request) {
     where.push(`(${config.searchColumns.map((column) => `${column} LIKE @search`).join(" OR ")})`);
   }
 
-  ["status", "departmentId", "areaId", "machineTypeId"].forEach((key) => {
+  ["status", "departmentId", "areaId", "machineTypeId", "position"].forEach((key) => {
     if (filters[key]) {
       addInput(request, key, filters[key]);
       where.push(`${key} = @${key}`);

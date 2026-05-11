@@ -34,6 +34,7 @@ const resources = [
     payload: {
       empId: "OP-001",
       name: "Operator One",
+      position: "Production",
       username: "operator01",
       password: "operator01",
       departmentId: 1,
@@ -59,6 +60,7 @@ describe("admin auth endpoints", () => {
       id: 1,
       empId: "ADM-001",
       name: "System Administrator",
+      position: "Maintenance",
       username: "admin",
       password: "admin",
       departmentId: 1,
@@ -75,6 +77,7 @@ describe("admin auth endpoints", () => {
     expect(response.body.user.username).toBe("admin");
     expect(response.body.user.empId).toBe("ADM-001");
     expect(response.body.user.name).toBe("System Administrator");
+    expect(response.body.user.position).toBe("Maintenance");
     expect(response.body.user.role).toBe("admin");
     expect(response.body.user.permissions.adminMode).toBe("admin");
     expect(response.body.token).toBe("admin-local-token");
@@ -89,6 +92,15 @@ describe("admin auth endpoints", () => {
     await request(app)
       .post("/api/admin/login")
       .send({ username: "admin", password: "wrong" })
+      .expect(401);
+  });
+
+  test("POST /api/admin/login rejects unknown users", async () => {
+    adminRepository.findUserByUsername.mockResolvedValue(null);
+
+    await request(app)
+      .post("/api/admin/login")
+      .send({ username: "missing", password: "admin" })
       .expect(401);
   });
 });
@@ -131,6 +143,11 @@ describe.each(resources)("admin CRUD endpoints for $resource", ({ resource, payl
     expect(adminRepository.create).toHaveBeenCalledWith(resource, expect.objectContaining(payload));
   });
 
+  test(`POST /api/admin/${resource} rejects missing required data`, async () => {
+    await request(app).post(`/api/admin/${resource}`).send({}).expect(400);
+    expect(adminRepository.create).not.toHaveBeenCalled();
+  });
+
   test(`PUT /api/admin/${resource}/:id updates a record`, async () => {
     adminRepository.update.mockResolvedValue({ id: 1, ...payload, status: "inactive" });
 
@@ -143,6 +160,15 @@ describe.each(resources)("admin CRUD endpoints for $resource", ({ resource, payl
     expect(adminRepository.update).toHaveBeenCalledWith(resource, "1", { status: "inactive" });
   });
 
+  test(`PUT /api/admin/${resource}/:id returns 404 when the record is missing`, async () => {
+    adminRepository.update.mockResolvedValue(null);
+
+    await request(app)
+      .put(`/api/admin/${resource}/99`)
+      .send({ status: "inactive" })
+      .expect(404);
+  });
+
   test(`DELETE /api/admin/${resource}/:id deletes a record`, async () => {
     adminRepository.remove.mockResolvedValue({ id: 1, ...payload });
 
@@ -150,5 +176,60 @@ describe.each(resources)("admin CRUD endpoints for $resource", ({ resource, payl
 
     expect(response.body.id).toBe(1);
     expect(adminRepository.remove).toHaveBeenCalledWith(resource, "1");
+  });
+
+  test(`DELETE /api/admin/${resource}/:id returns 404 when the record is missing`, async () => {
+    adminRepository.remove.mockResolvedValue(null);
+
+    await request(app).delete(`/api/admin/${resource}/99`).expect(404);
+  });
+});
+
+describe("admin resource validation", () => {
+  test("GET /api/admin/unknown returns 404", async () => {
+    await request(app).get("/api/admin/unknown").expect(404);
+  });
+
+  test("POST /api/admin/users rejects unknown feature permission keys", async () => {
+    await request(app)
+      .post("/api/admin/users")
+      .send({
+        empId: "OP-002",
+        name: "Operator Two",
+        position: "Production",
+        username: "operator02",
+        password: "operator02",
+        departmentId: 1,
+        permissions: { unknownFeature: "admin" }
+      })
+      .expect(400);
+
+    expect(adminRepository.create).not.toHaveBeenCalled();
+  });
+
+  test("POST /api/admin/users rejects unsupported feature roles", async () => {
+    await request(app)
+      .post("/api/admin/users")
+      .send({
+        empId: "OP-003",
+        name: "Operator Three",
+        position: "QC",
+        username: "operator03",
+        password: "operator03",
+        departmentId: 1,
+        permissions: { jobRequest: "owner" }
+      })
+      .expect(400);
+
+    expect(adminRepository.create).not.toHaveBeenCalled();
+  });
+
+  test("PUT /api/admin/users/:id rejects unsupported feature roles", async () => {
+    await request(app)
+      .put("/api/admin/users/1")
+      .send({ permissions: { jobRequest: "owner" } })
+      .expect(400);
+
+    expect(adminRepository.update).not.toHaveBeenCalled();
   });
 });

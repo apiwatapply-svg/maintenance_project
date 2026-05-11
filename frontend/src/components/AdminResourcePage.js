@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import api from "@/lib/api";
 import { getSocket } from "@/lib/socket";
+import { getPaginationPages } from "@/lib/pagination.mjs";
 
 const featureOptions = [
   { key: "preventiveMaintenance", label: "Preventive Maintenance" },
@@ -12,6 +13,8 @@ const featureOptions = [
   { key: "jobRequest", label: "Job Request" },
   { key: "adminMode", label: "Admin mode" }
 ];
+
+const positionOptions = ["Maintenance", "QC", "Production"];
 
 const resources = {
   departments: {
@@ -73,6 +76,7 @@ const resources = {
     fields: [
       { key: "empId", label: "Emp ID", required: true },
       { key: "name", label: "Name", required: true },
+      { key: "position", label: "Position", type: "position", required: true },
       { key: "username", label: "Username", required: true },
       { key: "password", label: "Password", type: "password" },
       { key: "departmentId", label: "Department", type: "department", required: true },
@@ -80,7 +84,7 @@ const resources = {
       { key: "role", label: "Global Role", type: "globalRole" },
       { key: "permissions", label: "Feature Permissions", type: "permissions" }
     ],
-    filters: ["search", "status", "departmentId", "feature", "role"]
+    filters: ["search", "status", "departmentId", "position", "feature", "role"]
   }
 };
 
@@ -483,6 +487,17 @@ function FilterFields({ config, filters, lookups, updateFilter }) {
           ]}
         />
       )}
+      {config.filters.includes("position") && (
+        <SelectField
+          label="Position"
+          value={filters.position || ""}
+          onChange={(value) => updateFilter("position", value)}
+          options={[
+            { value: "", label: "All positions" },
+            ...positionOptions.map((position) => ({ value: position, label: position }))
+          ]}
+        />
+      )}
       {config.filters.includes("areaId") && (
         <SelectField
           label="Area"
@@ -570,12 +585,14 @@ function ResourceModal({ config, form, editingId, lookups, onClose, onSubmit, up
 }
 
 function Pagination({ pagination, totalPages, setFilters }) {
+  const pages = getPaginationPages(pagination.page, totalPages);
+
   return (
     <div className="pagination">
       <div className="pagination-summary">
         Showing page <strong>{pagination.page}</strong> of <strong>{totalPages}</strong>
       </div>
-      <div className="pagination-controls">
+      <div className="page-number-controls" aria-label="Pagination">
         <button
           className="pager-button"
           type="button"
@@ -584,14 +601,21 @@ function Pagination({ pagination, totalPages, setFilters }) {
         >
           Previous
         </button>
-        <SelectField
-          label="Rows"
-          value={pagination.pageSize}
-          onChange={(value) =>
-            setFilters((current) => ({ ...current, page: 1, pageSize: Number(value) }))
-          }
-          options={[10, 20, 50].map((size) => ({ value: size, label: `${size} rows` }))}
-        />
+        {pages.map((pageItem) =>
+          typeof pageItem === "number" ? (
+            <button
+              key={pageItem}
+              className={`page-number-button ${pageItem === pagination.page ? "active" : ""}`}
+              type="button"
+              aria-current={pageItem === pagination.page ? "page" : undefined}
+              onClick={() => setFilters((current) => ({ ...current, page: pageItem }))}
+            >
+              {pageItem}
+            </button>
+          ) : (
+            <span key={pageItem} className="pagination-ellipsis">...</span>
+          )
+        )}
         <button
           className="pager-button"
           type="button"
@@ -601,13 +625,23 @@ function Pagination({ pagination, totalPages, setFilters }) {
           Next
         </button>
       </div>
+      <div className="pagination-size">
+        <SelectField
+          label="Rows"
+          value={pagination.pageSize}
+          onChange={(value) =>
+            setFilters((current) => ({ ...current, page: 1, pageSize: Number(value) }))
+          }
+          options={[10, 20, 50].map((size) => ({ value: size, label: `${size} rows` }))}
+        />
+      </div>
     </div>
   );
 }
 
-function SelectField({ label, value, onChange, options }) {
+function SelectField({ label, value, onChange, options, className = "" }) {
   return (
-    <label>
+    <label className={className}>
       {label}
       <select value={value} onChange={(event) => onChange(event.target.value)}>
         {options.map((option) => (
@@ -667,6 +701,20 @@ function FormField({ field, value, lookups, editingId, onChange }) {
         options={[
           { value: "user", label: "User" },
           { value: "admin", label: "Admin" }
+        ]}
+      />
+    );
+  }
+
+  if (field.type === "position") {
+    return (
+      <SelectField
+        label={field.label}
+        value={value || ""}
+        onChange={onChange}
+        options={[
+          { value: "", label: "Select position" },
+          ...positionOptions.map((position) => ({ value: position, label: position }))
         ]}
       />
     );
@@ -1086,9 +1134,9 @@ tbody tr:hover {
   font-size: 12px;
 }
 .pagination {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto minmax(180px, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 16px;
   margin-top: 16px;
   border-top: 1px solid #e2e8f0;
@@ -1098,17 +1146,46 @@ tbody tr:hover {
   color: #475569;
   font-size: 14px;
 }
-.pagination-controls {
+.page-number-controls {
   display: inline-flex;
-  align-items: flex-end;
-  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
-.pagination-controls label {
+.pagination-size {
+  display: flex;
+  justify-content: flex-end;
+}
+.pagination-size label {
   width: 150px;
 }
 .pager-button {
   min-width: 96px;
   height: 42px;
+}
+.page-number-button,
+.pagination-ellipsis {
+  display: inline-flex;
+  min-width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-weight: 800;
+}
+.page-number-button {
+  border: 1px solid #cbd5e1;
+  background: white;
+  color: #334155;
+}
+.page-number-button.active {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: white;
+  box-shadow: 0 8px 18px rgb(37 99 235 / .2);
+}
+.pagination-ellipsis {
+  color: #64748b;
 }
 button:disabled {
   cursor: not-allowed;
@@ -1193,13 +1270,14 @@ button:disabled {
     align-items: stretch;
     flex-direction: column;
   }
-  .pagination-controls {
+  .page-number-controls {
     align-items: stretch;
-    display: grid;
-    grid-template-columns: 1fr;
+    flex-wrap: wrap;
   }
-  .pagination-controls label {
+  .pagination-size,
+  .pagination-size label {
     width: auto;
+    justify-content: stretch;
   }
   .row-actions {
     justify-content: flex-start;

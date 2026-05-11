@@ -38,6 +38,7 @@ function assertPayload(resource, payload) {
   if (resource === "machine-numbers" && !payload.machineNumber) missing.push("machineNumber");
   if (resource === "users" && !payload.empId) missing.push("empId");
   if (resource === "users" && !payload.name) missing.push("name");
+  if (resource === "users" && !payload.position) missing.push("position");
   if (resource === "users" && !payload.username) missing.push("username");
   if (resource === "users" && !payload.departmentId) missing.push("departmentId");
 
@@ -86,6 +87,7 @@ async function login(credentials) {
         id: user.id,
         empId: user.empId,
         name: user.name,
+        position: user.position,
         username: user.username,
         departmentId: user.departmentId,
         role: user.role || "user",
@@ -130,8 +132,31 @@ async function create(resource, payload) {
 }
 
 async function update(resource, id, payload) {
-  getResourceConfig(resource);
-  const record = await adminRepository.update(resource, id, payload);
+  const config = getResourceConfig(resource);
+  const sanitized = {};
+
+  config.fields.forEach((field) => {
+    if (payload[field] !== undefined) {
+      sanitized[field] = payload[field];
+    }
+  });
+
+  if (resource === "users" && sanitized.permissions) {
+    const invalidFeature = Object.keys(sanitized.permissions).find(
+      (feature) => !featureKeys.includes(feature)
+    );
+    const invalidRole = Object.values(sanitized.permissions).find(
+      (role) => !["user", "admin", "none"].includes(role)
+    );
+
+    if (invalidFeature || invalidRole) {
+      const error = new Error("Invalid user feature permissions");
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  const record = await adminRepository.update(resource, id, sanitized);
 
   if (!record) {
     const error = new Error("Record not found");
