@@ -23,19 +23,19 @@ const systems = [
     description: "Create, approve, and follow maintenance job requests."
   },
   {
-    name: "Admin mode",
-    href: "/admin/login",
-    code: "AD",
-    theme: "admin",
-    description: "Manage users, permissions, and system configuration."
-  },
-  {
     name: "MMS Dashboard",
     href: "/mms-dashboard",
     code: "MMS",
     theme: "mms",
     actionLabel: "Open",
     description: "View machine status, maintenance KPIs, and factory overview."
+  },
+  {
+    name: "Admin mode",
+    href: "/admin/login",
+    code: "AD",
+    theme: "admin",
+    description: "Manage users, permissions, and system configuration."
   }
 ];
 
