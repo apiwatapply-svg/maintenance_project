@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import api from "@/lib/api";
 
 export default function AdminLogin() {
@@ -10,6 +10,16 @@ export default function AdminLogin() {
   const [credentials, setCredentials] = useState({ username: "", password: "" });
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+
+  useEffect(() => {
+    if (localStorage.getItem("adminSession")) {
+      router.replace("/admin");
+      return;
+    }
+
+    setIsCheckingSession(false);
+  }, [router]);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -19,12 +29,16 @@ export default function AdminLogin() {
     try {
       const response = await api.post("/admin/login", credentials);
       localStorage.setItem("adminSession", JSON.stringify(response.data));
-      router.push("/admin");
+      router.replace("/admin");
     } catch {
       setError("Invalid username or password");
     } finally {
       setIsLoading(false);
     }
+  }
+
+  if (isCheckingSession) {
+    return null;
   }
 
   return (
