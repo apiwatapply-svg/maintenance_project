@@ -7,6 +7,8 @@ import {
   buildToolingScanLookupPath,
   formatToolingBalance,
   getToolingMovementConfig,
+  getToolingReferenceOptions,
+  getToolingScanFormPatch,
   validateToolingMovementForm
 } from "@/lib/toolingUi.mjs";
 import ToolingLayout from "./ToolingLayout";
@@ -35,6 +37,7 @@ function ToolingMovementContent({ config, headers, session }) {
   const [form, setForm] = useState(initialForm);
   const [items, setItems] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [referenceSearch, setReferenceSearch] = useState("");
   const [qrCode, setQrCode] = useState("");
   const [search, setSearch] = useState("");
   const [currentBalance, setCurrentBalance] = useState(null);
@@ -48,6 +51,20 @@ function ToolingMovementContent({ config, headers, session }) {
     () => items.find((item) => String(item.value) === String(form.itemId)),
     [form.itemId, items]
   );
+  const referenceOptions = useMemo(() => getToolingReferenceOptions(config.key), [config.key]);
+  const filteredReferenceOptions = useMemo(() => {
+    const searchText = referenceSearch.trim().toLowerCase();
+
+    if (!searchText) {
+      return referenceOptions;
+    }
+
+    return referenceOptions.filter(
+      (option) =>
+        option.value.toLowerCase().includes(searchText) ||
+        option.label.toLowerCase().includes(searchText)
+    );
+  }, [referenceOptions, referenceSearch]);
   const balanceDisplay = formatToolingBalance(currentBalance || selectedItem);
 
   const loadCurrentBalance = useCallback(
@@ -167,11 +184,7 @@ function ToolingMovementContent({ config, headers, session }) {
         },
         ...current.filter((entry) => String(entry.value) !== String(item.id))
       ]);
-      setForm((current) => ({
-        ...current,
-        itemId: item.id,
-        locationId: item.locationId || current.locationId
-      }));
+      setForm((current) => getToolingScanFormPatch(item, current));
       if (item.locationId) {
         loadCurrentBalance(item.id, item.locationId);
       }
@@ -219,6 +232,7 @@ function ToolingMovementContent({ config, headers, session }) {
       }));
       setQrCode("");
       setSearch("");
+      setReferenceSearch("");
       setMessage(`${config.title} saved.`);
       loadCurrentBalance(form.itemId, form.locationId);
     } catch (error) {
@@ -321,6 +335,7 @@ function ToolingMovementContent({ config, headers, session }) {
               <input
                 inputMode="decimal"
                 min="0"
+                pattern="[0-9]+([.][0-9]+)?"
                 step="0.01"
                 value={form.quantity}
                 onChange={(event) => updateField("quantity", event.target.value)}
@@ -330,15 +345,35 @@ function ToolingMovementContent({ config, headers, session }) {
 
             <label>
               <span>{config.referenceLabel}</span>
-              <input
-                value={form.referenceNo}
-                onChange={(event) => updateField("referenceNo", event.target.value)}
-              />
+              <div className="reference-picker">
+                <input
+                  autoComplete="off"
+                  list={`${config.key}-reference-options`}
+                  placeholder={config.key === "stockOut" ? "Search PM, Job, or machine" : "Search PO or invoice"}
+                  value={referenceSearch || form.referenceNo}
+                  onChange={(event) => {
+                    setReferenceSearch(event.target.value);
+                    updateField("referenceNo", event.target.value);
+                  }}
+                />
+                <datalist id={`${config.key}-reference-options`}>
+                  {filteredReferenceOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </datalist>
+              </div>
             </label>
 
             <label>
               <span>Remark</span>
-              <input value={form.remark} onChange={(event) => updateField("remark", event.target.value)} />
+              <input
+                maxLength={255}
+                type="text"
+                value={form.remark}
+                onChange={(event) => updateField("remark", event.target.value)}
+              />
             </label>
           </div>
 
@@ -520,6 +555,9 @@ const movementStyles = `
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 10px;
+}
+.reference-picker {
+  display: block;
 }
 .inline-field button,
 .movement-summary button {

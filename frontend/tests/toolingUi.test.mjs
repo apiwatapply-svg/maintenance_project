@@ -11,8 +11,10 @@ import {
   getToolingNavItems,
   getToolingPageMeta,
   getToolingPageRange,
+  getToolingReferenceOptions,
   getToolingRequestDefaultForm,
   getToolingReturnDefaultForm,
+  getToolingScanFormPatch,
   getToolingSessionRedirect,
   normalizeToolingScanCode,
   toolingCriticalLevelOptions,
@@ -100,6 +102,27 @@ test("normalizeToolingScanCode trims scanner and manual input", () => {
 test("buildToolingScanLookupPath returns an encoded QR lookup path", () => {
   assert.equal(buildToolingScanLookupPath(" SP/001 A "), "/tooling/items/qr/SP%2F001%20A");
   assert.equal(buildToolingScanLookupPath("   "), "");
+});
+
+test("getToolingScanFormPatch selects scanned item and starts quantity at one", () => {
+  assert.deepEqual(
+    getToolingScanFormPatch(
+      { id: 7, locationId: 3 },
+      { itemId: 1, locationId: 2, quantity: "8", referenceNo: "PM" }
+    ),
+    { itemId: 7, locationId: 3, quantity: "1", referenceNo: "PM" }
+  );
+});
+
+test("getToolingReferenceOptions exposes stock movement reference choices", () => {
+  assert.deepEqual(
+    getToolingReferenceOptions("stockOut").map((option) => option.value),
+    ["PM", "JOB", "MACHINE", "ADJ-OUT"]
+  );
+  assert.deepEqual(
+    getToolingReferenceOptions("stockIn").map((option) => option.value),
+    ["PO", "INV", "DN", "ADJ-IN"]
+  );
 });
 
 test("validateToolingMovementForm requires item, location, and positive quantity", () => {

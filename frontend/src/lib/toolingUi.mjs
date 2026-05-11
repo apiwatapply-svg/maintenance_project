@@ -83,6 +83,21 @@ const movementConfigs = {
   }
 };
 
+const toolingReferenceOptions = {
+  stockIn: [
+    { value: "PO", label: "PO" },
+    { value: "INV", label: "Invoice" },
+    { value: "DN", label: "Delivery Note" },
+    { value: "ADJ-IN", label: "Adjustment In" }
+  ],
+  stockOut: [
+    { value: "PM", label: "Preventive Maintenance" },
+    { value: "JOB", label: "Job Request" },
+    { value: "MACHINE", label: "Machine" },
+    { value: "ADJ-OUT", label: "Adjustment Out" }
+  ]
+};
+
 export function getToolingNavItems() {
   return navItems;
 }
@@ -141,6 +156,19 @@ export function normalizeToolingScanCode(value) {
 export function buildToolingScanLookupPath(value) {
   const code = normalizeToolingScanCode(value);
   return code ? `/tooling/items/qr/${encodeURIComponent(code)}` : "";
+}
+
+export function getToolingReferenceOptions(key) {
+  return toolingReferenceOptions[key] || [];
+}
+
+export function getToolingScanFormPatch(item, current = {}) {
+  return {
+    ...current,
+    itemId: item?.id || current.itemId || "",
+    locationId: item?.locationId || current.locationId || "",
+    quantity: "1"
+  };
 }
 
 export function validateToolingMovementForm(form, options = {}) {
