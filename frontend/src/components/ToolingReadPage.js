@@ -8,6 +8,7 @@ import {
   buildToolingQuery,
   getToolingItemDefaultForm,
   getToolingPageRange,
+  toolingCriticalLevelOptions,
   toolingFilterStorageKeys,
   validateToolingItemForm
 } from "@/lib/toolingUi.mjs";
@@ -23,7 +24,7 @@ const resourceConfigs = {
       { key: "search", label: "Search", type: "text", placeholder: "Code or name" },
       { key: "status", label: "Status", type: "select", options: ["", "active", "inactive"] },
       { key: "itemType", label: "Type", type: "select", options: ["", "spare_part", "tooling"] },
-      { key: "criticalLevel", label: "Critical", type: "select", options: ["", "low", "medium", "high"] }
+      { key: "criticalLevel", label: "Critical", type: "select", options: toolingCriticalLevelOptions }
     ],
     columns: [
       { key: "itemCode", label: "Code" },

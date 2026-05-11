@@ -3,6 +3,8 @@ export const toolingFilterStorageKeys = {
   stock: "toolingFilters:stock"
 };
 
+export const toolingCriticalLevelOptions = ["", "normal", "important", "critical"];
+
 const navItems = [
   {
     key: "dashboard",
@@ -143,6 +145,8 @@ export function buildToolingScanLookupPath(value) {
 
 export function validateToolingMovementForm(form, options = {}) {
   const errors = {};
+  const availableBalance =
+    options.currentBalance?.quantityOnHand ?? options.selectedItem?.quantityOnHand ?? 0;
 
   if (!form?.itemId) {
     errors.itemId = "Item is required.";
@@ -158,7 +162,7 @@ export function validateToolingMovementForm(form, options = {}) {
 
   if (
     options.movementKey === "stockOut" &&
-    Number(form?.quantity || 0) > Number(options.currentBalance?.quantityOnHand || 0)
+    Number(form?.quantity || 0) > Number(availableBalance)
   ) {
     errors.quantity = "Quantity exceeds current balance.";
   }

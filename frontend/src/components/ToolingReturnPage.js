@@ -149,9 +149,9 @@ function ToolingReturnContent({ headers, session }) {
           <label>
             <span>Quantity</span>
             <input
+              inputMode="decimal"
               min="0"
               step="0.01"
-              type="number"
               value={form.quantity}
               onChange={(event) => updateField("quantity", event.target.value)}
             />

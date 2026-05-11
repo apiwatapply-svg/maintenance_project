@@ -15,6 +15,7 @@ import {
   getToolingReturnDefaultForm,
   getToolingSessionRedirect,
   normalizeToolingScanCode,
+  toolingCriticalLevelOptions,
   toolingFilterStorageKeys,
   validateToolingItemForm,
   validateToolingMovementForm,
@@ -80,6 +81,10 @@ test("toolingFilterStorageKeys keeps filter state scoped by page", () => {
   assert.equal(toolingFilterStorageKeys.stock, "toolingFilters:stock");
 });
 
+test("toolingCriticalLevelOptions matches item form and planning values", () => {
+  assert.deepEqual(toolingCriticalLevelOptions, ["", "normal", "important", "critical"]);
+});
+
 test("getToolingMovementConfig maps movement pages to backend endpoints", () => {
   assert.equal(getToolingMovementConfig("stockIn").endpoint, "/tooling/stock-in");
   assert.equal(getToolingMovementConfig("stockOut").endpoint, "/tooling/stock-out");
@@ -117,6 +122,16 @@ test("validateToolingMovementForm warns when stock out exceeds current balance",
       { movementKey: "stockOut", currentBalance: { quantityOnHand: 5 } }
     ),
     { quantity: "Quantity exceeds current balance." }
+  );
+});
+
+test("validateToolingMovementForm uses scanned item balance while stock lookup is loading", () => {
+  assert.deepEqual(
+    validateToolingMovementForm(
+      { itemId: 1, locationId: 2, quantity: 3 },
+      { movementKey: "stockOut", selectedItem: { quantityOnHand: 5 } }
+    ),
+    {}
   );
 });
 

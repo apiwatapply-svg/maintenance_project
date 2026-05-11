@@ -23,6 +23,11 @@ async function checkDatabase() {
     UNION ALL SELECT 'tbm_machine_type', COUNT(1) FROM dbo.tbm_machine_type
     UNION ALL SELECT 'tbm_machine_number', COUNT(1) FROM dbo.tbm_machine_number
     UNION ALL SELECT 'tbm_user', COUNT(1) FROM dbo.tbm_user
+    UNION ALL SELECT 'tbm_tooling_category', COUNT(1) FROM dbo.tbm_tooling_category
+    UNION ALL SELECT 'tbm_tooling_location', COUNT(1) FROM dbo.tbm_tooling_location
+    UNION ALL SELECT 'tbm_tooling_supplier', COUNT(1) FROM dbo.tbm_tooling_supplier
+    UNION ALL SELECT 'tbm_tooling_item', COUNT(1) FROM dbo.tbm_tooling_item
+    UNION ALL SELECT 'tb_tooling_stock_balance', COUNT(1) FROM dbo.tb_tooling_stock_balance
   `);
 
   console.table(result.recordset);

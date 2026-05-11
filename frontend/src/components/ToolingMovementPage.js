@@ -190,7 +190,8 @@ function ToolingMovementContent({ config, headers, session }) {
 
     const nextErrors = validateToolingMovementForm(form, {
       movementKey: config.key,
-      currentBalance
+      currentBalance,
+      selectedItem
     });
     setErrors(nextErrors);
 
@@ -317,9 +318,9 @@ function ToolingMovementContent({ config, headers, session }) {
             <label>
               <span>{config.quantityLabel}</span>
               <input
+                inputMode="decimal"
                 min="0"
                 step="0.01"
-                type="number"
                 value={form.quantity}
                 onChange={(event) => updateField("quantity", event.target.value)}
               />
