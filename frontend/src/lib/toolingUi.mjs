@@ -40,13 +40,6 @@ const navItems = [
     title: "Stock Out"
   },
   {
-    key: "requests",
-    href: "/tooling-store/requests",
-    label: "Requests",
-    icon: "RQ",
-    title: "Issue Requests"
-  },
-  {
     key: "return",
     href: "/tooling-store/return",
     label: "Return",

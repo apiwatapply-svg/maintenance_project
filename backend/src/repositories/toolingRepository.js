@@ -89,6 +89,9 @@ async function dashboard() {
        INNER JOIN dbo.tbm_tooling_item AS item ON item.id = balance.itemId
        WHERE balance.quantityOnHand <= item.minimumStock) AS lowStockItems,
       (SELECT COUNT(1) FROM dbo.tb_tooling_request WHERE status = 'pending') AS pendingRequests,
+      (SELECT COUNT(1)
+       FROM dbo.tb_tooling_stock_transaction
+       WHERE transactionDate >= CONVERT(date, SYSDATETIME())) AS movementToday,
       0 AS stockoutRiskItems,
       0 AS slowMovementItems,
       0 AS overstockItems

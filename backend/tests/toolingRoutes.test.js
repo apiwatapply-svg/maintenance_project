@@ -309,7 +309,7 @@ describe("tooling foundation routes", () => {
     toolingRepository.dashboard.mockResolvedValue({
       totalItems: 2,
       lowStockItems: 1,
-      pendingRequests: 0,
+      movementToday: 3,
       stockoutRiskItems: 0,
       slowMovementItems: 0,
       overstockItems: 0

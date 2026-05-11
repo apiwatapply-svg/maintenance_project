@@ -8,7 +8,7 @@ import ToolingLayout from "./ToolingLayout";
 const defaultSummary = {
   totalItems: 0,
   lowStockItems: 0,
-  pendingRequests: 0,
+  movementToday: 0,
   stockoutRiskItems: 0,
   slowMovementItems: 0,
   overstockItems: 0
@@ -17,7 +17,7 @@ const defaultSummary = {
 const summaryCards = [
   { key: "totalItems", label: "Total Items", tone: "blue" },
   { key: "lowStockItems", label: "Low Stock", tone: "amber" },
-  { key: "pendingRequests", label: "Pending Requests", tone: "slate" },
+  { key: "movementToday", label: "Movement Today", tone: "slate" },
   { key: "stockoutRiskItems", label: "Stockout Risk", tone: "red" },
   { key: "slowMovementItems", label: "Slow Movement", tone: "violet" },
   { key: "overstockItems", label: "Overstock", tone: "green" }
