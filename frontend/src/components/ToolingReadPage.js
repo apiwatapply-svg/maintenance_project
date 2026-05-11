@@ -11,11 +11,22 @@ import {
   resolveToolingImageUrl,
   toolingCriticalLevelOptions,
   toolingFilterStorageKeys,
+  validateToolingImageFileMeta,
   validateToolingItemForm
 } from "@/lib/toolingUi.mjs";
 import ToolingLayout from "./ToolingLayout";
 
 const emptyPagination = { page: 1, pageSize: 10, total: 0 };
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => resolve(String(reader.result || "").split(",").pop() || "");
+    reader.onerror = () => reject(new Error("Cannot read image file."));
+    reader.readAsDataURL(file);
+  });
+}
 
 const resourceConfigs = {
   items: {
@@ -85,6 +96,7 @@ function ToolingReadContent({ headers, resource }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [message, setMessage] = useState("");
   const totalPages = Math.max(Math.ceil(pagination.total / pagination.pageSize), 1);
   const range = getToolingPageRange(pagination);
@@ -259,6 +271,41 @@ function ToolingReadContent({ headers, resource }) {
     }
   }
 
+  async function handleUploadImage(file) {
+    const imageError = validateToolingImageFileMeta(file);
+
+    if (imageError) {
+      setFormErrors((current) => ({ ...current, imageUrl: imageError }));
+      return;
+    }
+
+    setIsUploadingImage(true);
+    setFormErrors((current) => ({ ...current, imageUrl: "" }));
+
+    try {
+      const data = await readFileAsBase64(file);
+      const response = await api.post(
+        "/tooling/items/images",
+        {
+          fileName: file.name,
+          mimeType: file.type,
+          data
+        },
+        { headers }
+      );
+
+      setItemForm((current) => ({ ...current, imageUrl: response.data.imageUrl }));
+      setMessage("Image uploaded.");
+    } catch (error) {
+      setFormErrors((current) => ({
+        ...current,
+        imageUrl: error.response?.data?.message || error.message || "Cannot upload image."
+      }));
+    } finally {
+      setIsUploadingImage(false);
+    }
+  }
+
   async function handleDeleteItem(row) {
     const isConfirmed = window.confirm(`Delete ${row.itemCode}?`);
 
@@ -406,10 +453,12 @@ function ToolingReadContent({ headers, resource }) {
           editingId={editingId}
           errors={formErrors}
           form={itemForm}
+          isUploadingImage={isUploadingImage}
           isSaving={isSaving}
           lookups={lookups}
           onChange={updateItemForm}
           onClose={() => setIsModalOpen(false)}
+          onImageUpload={handleUploadImage}
           onSubmit={handleSaveItem}
         />
       ) : null}
@@ -417,7 +466,18 @@ function ToolingReadContent({ headers, resource }) {
   );
 }
 
-function ItemModal({ editingId, errors, form, isSaving, lookups, onChange, onClose, onSubmit }) {
+function ItemModal({
+  editingId,
+  errors,
+  form,
+  isSaving,
+  isUploadingImage,
+  lookups,
+  onChange,
+  onClose,
+  onImageUpload,
+  onSubmit
+}) {
   return (
     <div className="modal-backdrop" role="presentation">
       <form className="item-modal" onSubmit={onSubmit}>
@@ -514,8 +574,33 @@ function ItemModal({ editingId, errors, form, isSaving, lookups, onChange, onClo
           <ItemField label="QR Code">
             <input value={form.qrCode || ""} onChange={(event) => onChange("qrCode", event.target.value)} />
           </ItemField>
-          <ItemField label="Image URL">
-            <input value={form.imageUrl || ""} onChange={(event) => onChange("imageUrl", event.target.value)} />
+          <ItemField error={errors.imageUrl} label="Item Image">
+            <div className="image-upload">
+              {form.imageUrl ? (
+                <img
+                  alt={`${form.itemName || form.itemCode || "Tooling item"} preview`}
+                  src={resolveToolingImageUrl(form.imageUrl)}
+                />
+              ) : (
+                <span>No image</span>
+              )}
+              <div>
+                <input
+                  accept="image/jpeg,image/png,image/webp"
+                  disabled={isUploadingImage}
+                  type="file"
+                  onChange={(event) => {
+                    onImageUpload(event.target.files?.[0]);
+                    event.target.value = "";
+                  }}
+                />
+                <input
+                  readOnly
+                  value={form.imageUrl || ""}
+                  placeholder={isUploadingImage ? "Uploading..." : "Stored image path"}
+                />
+              </div>
+            </div>
           </ItemField>
           <ItemField label="Status">
             <select value={form.status || "active"} onChange={(event) => onChange("status", event.target.value)}>
@@ -849,6 +934,42 @@ td {
   color: #0f172a;
   padding: 0 12px;
   font-weight: 850;
+}
+.image-upload {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+.image-upload img,
+.image-upload > span {
+  width: 74px;
+  height: 58px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  object-fit: cover;
+}
+.image-upload > span {
+  display: grid;
+  place-items: center;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.image-upload > div {
+  display: grid;
+  gap: 7px;
+}
+.image-upload input[type="file"] {
+  height: auto;
+  padding: 8px;
+}
+.image-upload input[readonly] {
+  color: #475569;
+  background: #f8fafc;
 }
 .modal-grid small {
   color: #b91c1c;

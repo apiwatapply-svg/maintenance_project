@@ -32,6 +32,14 @@ async function create(req, res, next) {
   }
 }
 
+async function uploadItemImage(req, res, next) {
+  try {
+    res.status(201).json(await toolingService.uploadItemImage(req.body));
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function update(req, res, next) {
   try {
     res.json(await toolingService.update(req.params.resource, req.params.id, req.body));
@@ -168,6 +176,7 @@ module.exports = {
   list,
   getById,
   create,
+  uploadItemImage,
   update,
   remove,
   searchItems,

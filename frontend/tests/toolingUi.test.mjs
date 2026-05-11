@@ -21,6 +21,7 @@ import {
   resolveToolingImageUrl,
   toolingCriticalLevelOptions,
   toolingFilterStorageKeys,
+  validateToolingImageFileMeta,
   validateToolingItemForm,
   validateToolingMovementForm,
   validateToolingRequestForm,
@@ -99,6 +100,18 @@ test("resolveToolingImageUrl maps backend image paths to the API origin", () => 
     "https://example.com/bearing.jpg"
   );
   assert.equal(resolveToolingImageUrl("", "http://localhost:5000/api"), "");
+});
+
+test("validateToolingImageFileMeta allows only supported item image uploads", () => {
+  assert.equal(validateToolingImageFileMeta({ type: "image/png", size: 1000 }), "");
+  assert.equal(
+    validateToolingImageFileMeta({ type: "text/plain", size: 1000 }),
+    "Only jpg, png, and webp images are allowed."
+  );
+  assert.equal(
+    validateToolingImageFileMeta({ type: "image/png", size: 6 * 1024 * 1024 }),
+    "Image must be 5 MB or smaller."
+  );
 });
 
 test("getToolingMovementConfig maps movement pages to backend endpoints", () => {

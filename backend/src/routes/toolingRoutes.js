@@ -8,6 +8,7 @@ router.use(requireToolingAccess("user"));
 router.get("/dashboard", toolingController.dashboard);
 router.get("/items/search", toolingController.searchItems);
 router.get("/items/qr/:qrCode", toolingController.findItemByQrCode);
+router.post("/items/images", requireToolingAccess("admin"), toolingController.uploadItemImage);
 router.post("/stock-in", requireToolingAccess("admin"), toolingController.stockIn);
 router.post("/stock-out", requireToolingAccess("admin"), toolingController.stockOut);
 router.post("/return", requireToolingAccess("admin"), toolingController.returnItem);

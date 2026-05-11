@@ -1,6 +1,7 @@
 const toolingRepository = require("../repositories/toolingRepository");
 const { getToolingResourceConfig } = require("../config/toolingResources");
 const { emitToolingChange } = require("./socketService");
+const { saveToolingItemImage } = require("./toolingImageService");
 
 function assertPayload(resource, payload) {
   const config = getToolingResourceConfig(resource);
@@ -188,6 +189,10 @@ async function getById(resource, id) {
 async function create(resource, payload) {
   const sanitized = assertPayload(resource, payload);
   return toolingRepository.create(resource, sanitized);
+}
+
+async function uploadItemImage(payload) {
+  return saveToolingItemImage(payload);
 }
 
 async function update(resource, id, payload) {
@@ -487,6 +492,7 @@ module.exports = {
   list,
   getById,
   create,
+  uploadItemImage,
   update,
   remove,
   searchItems,

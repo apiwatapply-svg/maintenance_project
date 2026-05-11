@@ -1,4 +1,6 @@
 const request = require("supertest");
+const fs = require("fs");
+const path = require("path");
 
 jest.mock("../src/repositories/adminRepository", () => ({
   findUserByUsername: jest.fn()
@@ -442,6 +444,25 @@ describe("tooling phase 2 master and stock routes", () => {
       .set("x-username", "engineer01")
       .send(itemPayload)
       .expect(403);
+  });
+
+  test("POST /api/tooling/items/images stores an item image for admin users", async () => {
+    const response = await request(app)
+      .post("/api/tooling/items/images")
+      .set("x-username", "admin")
+      .send({
+        fileName: "relay.png",
+        mimeType: "image/png",
+        data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lwkx7QAAAABJRU5ErkJggg=="
+      })
+      .expect(201);
+
+    expect(response.body.imageUrl).toMatch(/^\/images\/tooling\/items\/relay-[a-f0-9]+\.png$/);
+
+    const absolutePath = path.join(__dirname, "..", response.body.imageUrl.replace(/^\/images\//, "images/"));
+    if (fs.existsSync(absolutePath)) {
+      fs.rmSync(absolutePath);
+    }
   });
 
   test("GET /api/tooling/items/:id returns one item", async () => {

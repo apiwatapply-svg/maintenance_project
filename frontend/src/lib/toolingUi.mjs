@@ -4,6 +4,8 @@ export const toolingFilterStorageKeys = {
 };
 
 export const toolingCriticalLevelOptions = ["", "normal", "important", "critical"];
+const toolingImageMaxBytes = 5 * 1024 * 1024;
+const toolingImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 const navItems = [
   {
@@ -168,6 +170,22 @@ export function resolveToolingImageUrl(value, apiBaseUrl = getDefaultToolingApiB
   const normalizedPath = imagePath.startsWith("/") ? imagePath : `/${imagePath}`;
 
   return `${apiOrigin}${normalizedPath}`;
+}
+
+export function validateToolingImageFileMeta(file) {
+  if (!file) {
+    return "Image file is required.";
+  }
+
+  if (!toolingImageTypes.has(file.type)) {
+    return "Only jpg, png, and webp images are allowed.";
+  }
+
+  if (Number(file.size || 0) > toolingImageMaxBytes) {
+    return "Image must be 5 MB or smaller.";
+  }
+
+  return "";
 }
 
 export function getToolingMovementConfig(key) {
