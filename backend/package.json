@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "node --watch server.js",
     "start": "node server.js",
-    "test": "jest --runInBand"
+    "test": "jest --runInBand",
+    "db:setup": "node scripts/setupDatabase.js",
+    "db:check": "node scripts/checkDatabase.js"
   },
   "dependencies": {
     "cors": "latest",

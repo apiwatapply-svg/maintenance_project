@@ -41,7 +41,7 @@ function buildWhere(config, filters, request) {
     }
   });
 
-  if (filters.feature && filters.role && config.table === "Users") {
+  if (filters.feature && filters.role && config.table === "dbo.tbm_user") {
     request.input("permissionSearch", sql.NVarChar, `%"${filters.feature}":"${filters.role}"%`);
     where.push("permissions LIKE @permissionSearch");
   }
@@ -103,7 +103,7 @@ async function findUserByUsername(username) {
   const pool = await getPool();
   const result = await pool.request().input("username", sql.NVarChar, username).query(`
     SELECT TOP 1 *
-    FROM Users
+    FROM dbo.tbm_user
     WHERE username = @username AND status = 'active'
   `);
 

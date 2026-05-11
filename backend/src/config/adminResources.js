@@ -7,35 +7,35 @@ const featureKeys = [
 
 const adminResources = {
   departments: {
-    table: "Departments",
+    table: "dbo.tbm_department",
     defaultSort: "name",
     fields: ["code", "name", "status"],
     filters: ["search", "status"],
     searchColumns: ["code", "name"]
   },
   areas: {
-    table: "Areas",
+    table: "dbo.tbm_area",
     defaultSort: "name",
     fields: ["departmentId", "code", "name", "status"],
     filters: ["search", "status", "departmentId"],
     searchColumns: ["code", "name"]
   },
   "machine-types": {
-    table: "MachineTypes",
+    table: "dbo.tbm_machine_type",
     defaultSort: "name",
     fields: ["areaId", "code", "name", "status"],
     filters: ["search", "status", "areaId"],
     searchColumns: ["code", "name"]
   },
   "machine-numbers": {
-    table: "MachineNumbers",
+    table: "dbo.tbm_machine_number",
     defaultSort: "machineNumber",
     fields: ["machineTypeId", "machineNumber", "name", "status"],
     filters: ["search", "status", "machineTypeId"],
     searchColumns: ["machineNumber", "name"]
   },
   users: {
-    table: "Users",
+    table: "dbo.tbm_user",
     defaultSort: "username",
     fields: ["username", "password", "fullName", "departmentId", "status", "role", "permissions"],
     filters: ["search", "status", "departmentId", "feature", "role"],

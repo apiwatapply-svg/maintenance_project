@@ -24,7 +24,15 @@ npm run dev
 
 ## Database
 
-Run `backend/database/schema.sql` on Microsoft SQL Server before using the admin CRUD endpoints.
+Run `backend/database/schema.sql` on Microsoft SQL Server before using the admin CRUD endpoints,
+or run:
+
+```bash
+cd backend
+npm run db:setup
+```
+
+Master tables use the `tbm_` prefix. General transaction tables should use the `tb_` prefix.
 The schema seeds the first super admin user:
 
 - Username: `admin`
