@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { getAdminSessionRedirect } from "@/lib/adminSession.mjs";
+import {
+  getSystemConfig,
+  getSystemSessionRedirect,
+  systemTypes
+} from "@/lib/systemSession.mjs";
 
 export default function AdminLogin() {
   const router = useRouter();
@@ -21,6 +26,20 @@ export default function AdminLogin() {
 
     if (redirectTarget) {
       router.replace(redirectTarget);
+      return;
+    }
+
+    const systemSessions = systemTypes.reduce((sessions, type) => {
+      const config = getSystemConfig(type);
+      return {
+        ...sessions,
+        [type]: Boolean(localStorage.getItem(config.sessionKey))
+      };
+    }, {});
+    const systemRedirectTarget = getSystemSessionRedirect("/admin/login", systemSessions);
+
+    if (systemRedirectTarget) {
+      router.replace(systemRedirectTarget);
       return;
     }
 

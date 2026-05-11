@@ -3,7 +3,7 @@ export function getAdminSessionRedirect(pathname, hasSession) {
     return null;
   }
 
-  if (pathname === "/" || pathname === "/admin/login") {
+  if (pathname === "/" || pathname.endsWith("/login")) {
     return "/admin";
   }
 

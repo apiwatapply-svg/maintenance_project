@@ -1,4 +1,16 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import api from "@/lib/api";
+import { getAdminSessionRedirect } from "@/lib/adminSession.mjs";
+import {
+  canAccessFeature,
+  getSystemConfig,
+  getSystemSessionRedirect,
+  systemTypes
+} from "@/lib/systemSession.mjs";
 
 const themes = {
   pm: {
@@ -120,6 +132,67 @@ function CartoonArt({ type }) {
 
 export default function SystemLoginPage({ type }) {
   const theme = themes[type];
+  const config = getSystemConfig(type);
+  const router = useRouter();
+  const [credentials, setCredentials] = useState({ username: "", password: "" });
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+
+  useEffect(() => {
+    const adminRedirectTarget = getAdminSessionRedirect(
+      config.loginPath,
+      Boolean(localStorage.getItem("adminSession"))
+    );
+
+    if (adminRedirectTarget) {
+      router.replace(adminRedirectTarget);
+      return;
+    }
+
+    const systemSessions = systemTypes.reduce((sessions, systemType) => {
+      const systemConfig = getSystemConfig(systemType);
+      return {
+        ...sessions,
+        [systemType]: Boolean(localStorage.getItem(systemConfig.sessionKey))
+      };
+    }, {});
+    const redirectTarget = getSystemSessionRedirect(config.loginPath, systemSessions);
+
+    if (redirectTarget) {
+      router.replace(redirectTarget);
+      return;
+    }
+
+    setIsCheckingSession(false);
+  }, [config.loginPath, config.sessionKey, router, type]);
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setError("");
+    setIsLoading(true);
+
+    try {
+      const response = await api.post("/admin/login", credentials);
+      const user = response.data?.user;
+
+      if (!canAccessFeature(user, config.permissionKey)) {
+        setError("You do not have access to this system.");
+        return;
+      }
+
+      localStorage.setItem(config.sessionKey, JSON.stringify(response.data));
+      router.replace(config.homePath);
+    } catch {
+      setError("Invalid username or password");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  if (isCheckingSession) {
+    return null;
+  }
 
   return (
     <main className="system-login-page" style={{ backgroundImage: theme.page }}>
@@ -138,7 +211,7 @@ export default function SystemLoginPage({ type }) {
           </div>
         </div>
 
-        <form className="system-login-card">
+        <form className="system-login-card" onSubmit={handleSubmit}>
           <Link href="/" className="system-back-link">
             &larr; Back
           </Link>
@@ -152,19 +225,35 @@ export default function SystemLoginPage({ type }) {
           <div className="system-fields">
             <label>
               <span>Username</span>
-              <input type="text" placeholder="Enter username" />
+              <input
+                value={credentials.username}
+                onChange={(event) =>
+                  setCredentials((current) => ({ ...current, username: event.target.value }))
+                }
+                type="text"
+                placeholder="Enter username"
+              />
             </label>
             <label>
               <span>Password</span>
-              <input type="password" placeholder="Enter password" />
+              <input
+                value={credentials.password}
+                onChange={(event) =>
+                  setCredentials((current) => ({ ...current, password: event.target.value }))
+                }
+                type="password"
+                placeholder="Enter password"
+              />
             </label>
           </div>
+          {error && <strong className="system-login-error">{error}</strong>}
           <button
             className="system-login-button"
             style={{ backgroundColor: theme.accent }}
-            type="button"
+            type="submit"
+            disabled={isLoading}
           >
-            Login
+            {isLoading ? "Checking..." : "Login"}
           </button>
         </form>
       </section>
@@ -382,6 +471,17 @@ const loginStyles = `
 .system-login-button:hover {
   box-shadow: 3px 4px 0 rgb(15 23 42 / .24);
   transform: translate(3px, 3px);
+}
+.system-login-button:disabled {
+  cursor: wait;
+  opacity: .72;
+}
+.system-login-error {
+  display: block;
+  margin-top: 14px;
+  color: #b91c1c;
+  font-size: 14px;
+  font-weight: 900;
 }
 .cartoon-stage {
   position: absolute;

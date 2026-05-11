@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getAdminSessionRedirect } from "@/lib/adminSession.mjs";
+import {
+  getSystemConfig,
+  getSystemSessionRedirect,
+  systemTypes
+} from "@/lib/systemSession.mjs";
 
 const systems = [
   {
@@ -64,6 +69,20 @@ export default function Home() {
 
     if (redirectTarget) {
       router.replace(redirectTarget);
+      return;
+    }
+
+    const systemSessions = systemTypes.reduce((sessions, type) => {
+      const config = getSystemConfig(type);
+      return {
+        ...sessions,
+        [type]: Boolean(localStorage.getItem(config.sessionKey))
+      };
+    }, {});
+    const systemRedirectTarget = getSystemSessionRedirect("/", systemSessions);
+
+    if (systemRedirectTarget) {
+      router.replace(systemRedirectTarget);
       return;
     }
 
