@@ -5,12 +5,21 @@
   "main": "server.js",
   "scripts": {
     "dev": "node --watch server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "jest --runInBand",
+    "db:setup": "node scripts/setupDatabase.js",
+    "db:migrate": "node scripts/migrateDatabase.js",
+    "db:check": "node scripts/checkDatabase.js"
   },
   "dependencies": {
     "cors": "latest",
     "dotenv": "latest",
     "express": "latest",
-    "mssql": "latest"
+    "mssql": "latest",
+    "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "jest": "^30.4.2",
+    "supertest": "^7.2.2"
   }
 }
