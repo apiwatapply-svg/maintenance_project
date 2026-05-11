@@ -120,11 +120,23 @@ function ToolingReportsContent({ headers }) {
         </label>
         <label>
           <span>Date From</span>
-          <input type="date" value={filters.dateFrom} onChange={(event) => updateFilter("dateFrom", event.target.value)} />
+          <input
+            inputMode="numeric"
+            pattern="\\d{4}-\\d{2}-\\d{2}"
+            placeholder="YYYY-MM-DD"
+            value={filters.dateFrom}
+            onChange={(event) => updateFilter("dateFrom", event.target.value)}
+          />
         </label>
         <label>
           <span>Date To</span>
-          <input type="date" value={filters.dateTo} onChange={(event) => updateFilter("dateTo", event.target.value)} />
+          <input
+            inputMode="numeric"
+            pattern="\\d{4}-\\d{2}-\\d{2}"
+            placeholder="YYYY-MM-DD"
+            value={filters.dateTo}
+            onChange={(event) => updateFilter("dateTo", event.target.value)}
+          />
         </label>
       </div>
 

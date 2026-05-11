@@ -938,6 +938,16 @@ async function report(reportKey, filters = {}) {
   if (referenceType) {
     where.push("referenceType = @referenceType");
   }
+  if (filters.dateFrom) {
+    groupRequest.input("dateFrom", sql.DateTime2, new Date(filters.dateFrom));
+    countRequest.input("dateFrom", sql.DateTime2, new Date(filters.dateFrom));
+    where.push("transactionDate >= @dateFrom");
+  }
+  if (filters.dateTo) {
+    groupRequest.input("dateTo", sql.DateTime2, new Date(filters.dateTo));
+    countRequest.input("dateTo", sql.DateTime2, new Date(filters.dateTo));
+    where.push("transactionDate <= @dateTo");
+  }
   const whereSql = `WHERE ${where.join(" AND ")}`;
 
   const dataResult = await groupRequest.query(`

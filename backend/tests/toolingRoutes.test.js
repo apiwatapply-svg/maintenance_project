@@ -296,6 +296,24 @@ describe("tooling phase 7 report routes", () => {
     );
   });
 
+  test("GET /api/tooling/reports/issue-by-department passes date filters", async () => {
+    toolingRepository.report.mockResolvedValue({
+      data: [{ groupId: 2, transactionCount: 1, totalQuantity: 3 }],
+      pagination: { page: 1, pageSize: 10, total: 1 }
+    });
+
+    await request(app)
+      .get("/api/tooling/reports/issue-by-department")
+      .set("x-username", "admin")
+      .query({ dateFrom: "2026-05-01", dateTo: "2026-05-11" })
+      .expect(200);
+
+    expect(toolingRepository.report).toHaveBeenCalledWith(
+      "issue-by-department",
+      expect.objectContaining({ dateFrom: "2026-05-01", dateTo: "2026-05-11" })
+    );
+  });
+
   test("GET /api/tooling/reports/unknown rejects unsupported report keys", async () => {
     await request(app)
       .get("/api/tooling/reports/unknown")
