@@ -111,7 +111,7 @@ export function getToolingMovementConfig(key) {
   return config;
 }
 
-export function validateToolingMovementForm(form) {
+export function validateToolingMovementForm(form, options = {}) {
   const errors = {};
 
   if (!form?.itemId) {
@@ -124,6 +124,13 @@ export function validateToolingMovementForm(form) {
 
   if (Number(form?.quantity || 0) <= 0) {
     errors.quantity = "Quantity must be greater than zero.";
+  }
+
+  if (
+    options.movementKey === "stockOut" &&
+    Number(form?.quantity || 0) > Number(options.currentBalance?.quantityOnHand || 0)
+  ) {
+    errors.quantity = "Quantity exceeds current balance.";
   }
 
   return errors;
@@ -167,4 +174,15 @@ export function validateToolingItemForm(form) {
   }
 
   return errors;
+}
+
+export function formatToolingBalance(balance) {
+  const quantity = Number(balance?.quantityOnHand || 0);
+  const minimumStock = Number(balance?.minimumStock || 0);
+  const unit = balance?.unit ? ` ${balance.unit}` : "";
+
+  return {
+    label: `${quantity.toLocaleString()}${unit}`,
+    isLow: quantity <= minimumStock
+  };
 }

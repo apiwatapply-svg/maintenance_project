@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import api from "@/lib/api";
+import { getSocket } from "@/lib/socket";
 import {
+  formatToolingBalance,
   getToolingMovementConfig,
   validateToolingMovementForm
 } from "@/lib/toolingUi.mjs";
@@ -34,6 +36,8 @@ function ToolingMovementContent({ config, headers, session }) {
   const [locations, setLocations] = useState([]);
   const [qrCode, setQrCode] = useState("");
   const [search, setSearch] = useState("");
+  const [currentBalance, setCurrentBalance] = useState(null);
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -42,6 +46,39 @@ function ToolingMovementContent({ config, headers, session }) {
   const selectedItem = useMemo(
     () => items.find((item) => String(item.value) === String(form.itemId)),
     [form.itemId, items]
+  );
+  const balanceDisplay = formatToolingBalance(currentBalance || selectedItem);
+
+  const loadCurrentBalance = useCallback(
+    async (itemId = form.itemId, locationId = form.locationId) => {
+      if (!itemId || !locationId) {
+        setCurrentBalance(null);
+        return;
+      }
+
+      setIsLoadingBalance(true);
+      try {
+        const response = await api.get("/tooling/stock", {
+          headers,
+          params: { itemId, locationId, pageSize: 1 }
+        });
+        const balance = response.data.data?.[0] || {
+          itemId,
+          locationId,
+          itemCode: selectedItem?.itemCode,
+          itemName: selectedItem?.itemName,
+          quantityOnHand: 0,
+          minimumStock: selectedItem?.minimumStock || 0,
+          unit: selectedItem?.unit
+        };
+        setCurrentBalance(balance);
+      } catch {
+        setCurrentBalance(null);
+      } finally {
+        setIsLoadingBalance(false);
+      }
+    },
+    [form.itemId, form.locationId, headers, selectedItem]
   );
 
   useEffect(() => {
@@ -81,6 +118,25 @@ function ToolingMovementContent({ config, headers, session }) {
     return () => clearTimeout(timeoutId);
   }, [headers, search]);
 
+  useEffect(() => {
+    loadCurrentBalance();
+  }, [loadCurrentBalance]);
+
+  useEffect(() => {
+    const socket = getSocket();
+    const refresh = () => loadCurrentBalance();
+
+    socket.on("tooling:data-changed", refresh);
+    socket.on("tooling:low-stock", refresh);
+    socket.on("tooling:stock-recovered", refresh);
+
+    return () => {
+      socket.off("tooling:data-changed", refresh);
+      socket.off("tooling:low-stock", refresh);
+      socket.off("tooling:stock-recovered", refresh);
+    };
+  }, [loadCurrentBalance]);
+
   function updateField(key, value) {
     setForm((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: "" }));
@@ -114,6 +170,9 @@ function ToolingMovementContent({ config, headers, session }) {
         itemId: item.id,
         locationId: item.locationId || current.locationId
       }));
+      if (item.locationId) {
+        loadCurrentBalance(item.id, item.locationId);
+      }
       setMessage("Item loaded from QR.");
     } catch (error) {
       setMessage(error.response?.data?.message || "Item not found.");
@@ -128,7 +187,10 @@ function ToolingMovementContent({ config, headers, session }) {
       return;
     }
 
-    const nextErrors = validateToolingMovementForm(form);
+    const nextErrors = validateToolingMovementForm(form, {
+      movementKey: config.key,
+      currentBalance
+    });
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length) {
@@ -147,11 +209,15 @@ function ToolingMovementContent({ config, headers, session }) {
         },
         { headers }
       );
-      setForm(initialForm);
+      setForm((current) => ({
+        ...initialForm,
+        itemId: current.itemId,
+        locationId: current.locationId
+      }));
       setQrCode("");
       setSearch("");
-      setItems([]);
       setMessage(`${config.title} saved.`);
+      loadCurrentBalance(form.itemId, form.locationId);
     } catch (error) {
       setMessage(error.response?.data?.message || `Cannot save ${config.title}.`);
     } finally {
@@ -268,6 +334,15 @@ function ToolingMovementContent({ config, headers, session }) {
             <div>
               <span>Selected</span>
               <b>{selectedItem?.label || "-"}</b>
+            </div>
+            <div
+              className={`balance-card ${
+                form.itemId && form.locationId && balanceDisplay.isLow ? "is-low" : ""
+              }`}
+            >
+              <span>Current Balance</span>
+              <b>{isLoadingBalance ? "Loading..." : balanceDisplay.label}</b>
+              <small>{currentBalance?.locationCode || "Select item and location"}</small>
             </div>
             <button disabled={isSaving || !canMoveStock} type="submit">
               {isSaving ? "Saving..." : config.actionLabel}
@@ -410,9 +485,9 @@ const movementStyles = `
   font-weight: 950;
 }
 .movement-summary {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr minmax(180px, auto) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 14px;
   margin-top: 18px;
   border-top: 1px solid #e2e8f0;
@@ -430,6 +505,27 @@ const movementStyles = `
   cursor: not-allowed;
   opacity: .55;
 }
+.balance-card {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px 12px;
+}
+.balance-card.is-low {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+.balance-card b {
+  display: block;
+  margin-top: 4px;
+  font-size: 1.25rem;
+}
+.balance-card small {
+  display: block;
+  margin-top: 2px;
+  color: #64748b;
+  font-weight: 850;
+}
 @media (max-width: 980px) {
   .movement-card {
     grid-template-columns: 1fr;
@@ -441,7 +537,7 @@ const movementStyles = `
   }
   .movement-summary {
     align-items: stretch;
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 }
 `;

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   buildToolingQuery,
+  formatToolingBalance,
   getToolingApiHeaders,
   getToolingItemDefaultForm,
   getToolingMovementConfig,
@@ -92,6 +93,16 @@ test("validateToolingMovementForm requires item, location, and positive quantity
   );
 });
 
+test("validateToolingMovementForm warns when stock out exceeds current balance", () => {
+  assert.deepEqual(
+    validateToolingMovementForm(
+      { itemId: 1, locationId: 2, quantity: 8 },
+      { movementKey: "stockOut", currentBalance: { quantityOnHand: 5 } }
+    ),
+    { quantity: "Quantity exceeds current balance." }
+  );
+});
+
 test("getToolingItemDefaultForm provides safe item defaults", () => {
   assert.deepEqual(getToolingItemDefaultForm(), {
     itemCode: "",
@@ -125,4 +136,21 @@ test("validateToolingItemForm requires core item master fields", () => {
     validateToolingItemForm({ itemCode: "SP-001", itemName: "Bearing", unit: "pcs" }),
     {}
   );
+});
+
+test("formatToolingBalance formats balance with unit and low stock state", () => {
+  assert.deepEqual(formatToolingBalance({ quantityOnHand: 4, minimumStock: 5, unit: "pcs" }), {
+    label: "4 pcs",
+    isLow: true
+  });
+
+  assert.deepEqual(formatToolingBalance({ quantityOnHand: 12, minimumStock: 5, unit: "set" }), {
+    label: "12 set",
+    isLow: false
+  });
+
+  assert.deepEqual(formatToolingBalance(null), {
+    label: "0",
+    isLow: true
+  });
 });
