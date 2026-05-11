@@ -262,19 +262,19 @@ const gatewayStyles = `
 .gear-b { right: 80px; bottom: 4px; width: 48px; height: 48px; animation-direction: reverse; }
 .gateway-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
 }
 .gateway-card {
   position: relative;
   display: flex;
-  min-height: 330px;
+  min-height: 315px;
   flex-direction: column;
   overflow: hidden;
   border: 4px solid #0f172a;
   border-radius: 8px;
   background: white;
-  padding: 22px;
+  padding: 20px;
   color: #0f172a;
   text-decoration: none;
   box-shadow: 9px 11px 0 rgb(15 23 42 / .14);
@@ -303,9 +303,9 @@ const gatewayStyles = `
 .gateway-card-mms::before { background: #ccfbf1; }
 .gateway-card h2 {
   position: relative;
-  min-height: 66px;
+  min-height: 58px;
   margin: 0;
-  font-size: 25px;
+  font-size: clamp(19px, 1.75vw, 23px);
   font-weight: 950;
   line-height: 1.08;
 }
