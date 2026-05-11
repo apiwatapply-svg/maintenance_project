@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import api from "@/lib/api";
+import { getAdminLogoutRedirect } from "@/lib/adminSession.mjs";
 import { getSocket } from "@/lib/socket";
 import { getPaginationPages } from "@/lib/pagination.mjs";
 
@@ -444,7 +445,7 @@ function AdminSidebar({ isCollapsed, pathname, router, toggleCollapsed }) {
         type="button"
         onClick={() => {
           localStorage.removeItem("adminSession");
-          router.push("/admin/login");
+          router.replace(getAdminLogoutRedirect());
         }}
       >
         Logout

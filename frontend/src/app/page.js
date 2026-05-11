@@ -1,4 +1,9 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { getAdminSessionRedirect } from "@/lib/adminSession.mjs";
 
 const systems = [
   {
@@ -51,6 +56,24 @@ function GatewayIcon({ theme, code }) {
 }
 
 export default function Home() {
+  const router = useRouter();
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+
+  useEffect(() => {
+    const redirectTarget = getAdminSessionRedirect("/", Boolean(localStorage.getItem("adminSession")));
+
+    if (redirectTarget) {
+      router.replace(redirectTarget);
+      return;
+    }
+
+    setIsCheckingSession(false);
+  }, [router]);
+
+  if (isCheckingSession) {
+    return null;
+  }
+
   return (
     <main className="gateway-page">
       <style>{gatewayStyles}</style>

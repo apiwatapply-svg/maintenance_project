@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
+import { getAdminSessionRedirect } from "@/lib/adminSession.mjs";
 
 export default function AdminLogin() {
   const router = useRouter();
@@ -13,8 +14,13 @@ export default function AdminLogin() {
   const [isCheckingSession, setIsCheckingSession] = useState(true);
 
   useEffect(() => {
-    if (localStorage.getItem("adminSession")) {
-      router.replace("/admin");
+    const redirectTarget = getAdminSessionRedirect(
+      "/admin/login",
+      Boolean(localStorage.getItem("adminSession"))
+    );
+
+    if (redirectTarget) {
+      router.replace(redirectTarget);
       return;
     }
 
