@@ -24,7 +24,6 @@ This plan is for design only. It does not include implementation changes.
 - Can log in when `toolingStore` permission is `user` or `admin`.
 - Can view allowed stock data.
 - Can create issue requests.
-- Can create spare-part issue requests.
 - Can view own request and movement history.
 
 ### Toolling & Store Admin
@@ -45,6 +44,10 @@ Show the operational overview for the store:
 - Low stock items.
 - Pending issue requests.
 - Critical spare parts below minimum stock.
+- Items that should be reordered soon.
+- Items at stockout risk.
+- Slow movement items.
+- Overstock items.
 - Latest stock movement.
 - Critical items that need replenishment.
 
@@ -62,6 +65,14 @@ Fields:
 - Item type: `spare_part`, `consumable`, `safety_stock`.
 - Unit.
 - Minimum stock.
+- Maximum stock.
+- Safety stock.
+- Lead time days.
+- Slow movement days.
+- Dead stock days.
+- Minimum order quantity.
+- Preferred supplier.
+- Critical level: `normal`, `important`, `critical`.
 - Location/bin.
 - QR code value.
 - Status.
@@ -125,7 +136,82 @@ Filters:
 - Low stock only.
 - Status.
 
-### 6. Stock In
+### 6. Inventory Planning and Replenishment Prediction
+
+Predict when spare parts should be purchased and detect slow movement before excess stock becomes a problem.
+
+This should start as a rule-based calculation, not AI/ML. Rule-based planning is easier to validate, easier to explain to users, and works even when the system does not have a long transaction history yet.
+
+Core questions:
+
+- When should we buy more so stock does not run out before delivery?
+- Which items are moving slowly and should not be purchased too much?
+- Which items are overstocked compared with expected usage?
+- Which critical items need safety stock even if they move slowly?
+
+Required item planning fields:
+
+- Minimum stock.
+- Maximum stock.
+- Safety stock.
+- Lead time days.
+- Slow movement days.
+- Dead stock days.
+- Minimum order quantity.
+- Preferred supplier.
+- Critical level.
+
+Calculated values:
+
+- Average daily usage.
+- Reorder point.
+- Days until stockout.
+- Suggested order quantity.
+- Last issue date.
+- Last receive date.
+- Planning status.
+
+Suggested formulas:
+
+```text
+average_daily_usage = issued quantity in lookback period / lookback days
+reorder_point = (average_daily_usage * lead_time_days) + safety_stock
+days_until_stockout = current_stock / average_daily_usage
+suggested_order_qty = max_stock - current_stock
+```
+
+Planning status:
+
+- `normal`: no action needed.
+- `reorder_soon`: close to reorder point.
+- `need_order`: current stock is at or below reorder point.
+- `stockout_risk`: estimated stockout date is before expected replenishment date.
+- `overstock`: current stock is higher than maximum stock or expected usage.
+- `slow_movement`: no issue movement for the configured slow movement period.
+- `dead_stock`: no issue movement for the configured dead stock period.
+- `critical_slow_movement`: slow movement, but critical enough to keep stock.
+
+Filters:
+
+- Planning status.
+- Category.
+- Critical level.
+- Supplier.
+- Low stock only.
+- Slow movement only.
+- Overstock only.
+- Stockout risk only.
+
+Recommended actions:
+
+- Show purchase suggestion list.
+- Show suggested order quantity.
+- Show estimated days until stockout.
+- Show last movement date.
+- Show slow movement warning.
+- Allow export of suggested purchase list later.
+
+### 7. Stock In
 
 Receive new items into stock.
 
@@ -152,7 +238,7 @@ Validation:
 - Location must be active.
 - Duplicate reference number should be warned if configured.
 
-### 7. Stock Out / Issue
+### 8. Stock Out / Issue
 
 Issue items to a user, department, machine, PM task, or job request.
 
@@ -187,7 +273,7 @@ Validation:
 - Admin can issue directly.
 - User should create a request instead of direct issue unless the workflow allows user direct issue.
 
-### 8. Issue Request and Approval
+### 9. Issue Request and Approval
 
 Allow users to request items before stock is issued.
 
@@ -219,7 +305,7 @@ Socket.IO events:
 - `tooling:request-rejected`.
 - `tooling:request-issued`.
 
-### 9. Return
+### 10. Return
 
 Return unused spare parts after issue.
 
@@ -239,7 +325,7 @@ Flow:
 5. If condition is damaged or lost, stock should not return to available balance.
 6. System emits `tooling:stock-changed`.
 
-### 10. Borrow Tool Later Extension
+### 11. Borrow Tool Later Extension
 
 Track tools that must be returned. This is useful, but it should be implemented after the spare-part inventory flow is stable.
 
@@ -269,7 +355,7 @@ Socket.IO events:
 - `tooling:borrow-returned`.
 - `tooling:borrow-overdue`.
 
-### 11. Stock Adjustment
+### 12. Stock Adjustment
 
 Adjust balance for stock count, damaged item, lost item, or correction.
 
@@ -286,7 +372,7 @@ Adjustment types:
 - Decrease.
 - Set counted quantity.
 
-### 12. Transaction History
+### 13. Transaction History
 
 Show every stock movement.
 
@@ -311,13 +397,17 @@ Filters:
 - Job request reference.
 - PM reference.
 
-### 13. Reports
+### 14. Reports
 
 Recommended reports:
 
 - Low stock report.
 - Stock balance report.
 - Stock movement report.
+- Reorder suggestion report.
+- Stockout risk report.
+- Slow movement report.
+- Overstock report.
 - Issue by department.
 - Issue by machine.
 - Issue by job request.
@@ -370,6 +460,11 @@ Socket.IO should use feature-specific events and consistent payloads.
 - `tooling:request-issued`
 - `tooling:low-stock`
 - `tooling:stock-recovered`
+- `tooling:planning-changed`
+- `tooling:reorder-alert`
+- `tooling:stockout-risk`
+- `tooling:slow-movement-detected`
+- `tooling:overstock-detected`
 
 ### Recommended Payload Shape
 
@@ -403,6 +498,7 @@ Preventive Maintenance:
 
 - Listens for stock events linked to PM references.
 - Can warn if required parts are low before PM execution.
+- Can use stockout risk data for spare parts needed by upcoming PM work.
 
 Admin:
 
@@ -427,6 +523,7 @@ Use `tbm_` for master data and `tb_` for transaction/general data.
 - `tb_tooling_request`
 - `tb_tooling_request_item`
 - `tb_tooling_adjustment`
+- `tb_tooling_planning_snapshot`
 
 Later extension:
 
@@ -442,6 +539,7 @@ Recommended endpoints:
 
 - `POST /api/tooling/login` or reuse current login and permission check.
 - `GET /api/tooling/dashboard`
+- `GET /api/tooling/planning`
 - `GET /api/tooling/items`
 - `POST /api/tooling/items`
 - `PUT /api/tooling/items/:id`
@@ -457,7 +555,11 @@ Recommended endpoints:
 - `POST /api/tooling/return`
 - `POST /api/tooling/adjustment`
 - `GET /api/tooling/transactions`
+- `GET /api/tooling/reports/reorder`
 - `GET /api/tooling/reports/low-stock`
+- `GET /api/tooling/reports/stockout-risk`
+- `GET /api/tooling/reports/slow-movement`
+- `GET /api/tooling/reports/overstock`
 - `GET /api/tooling/reports/movement`
 
 Later extension:
@@ -481,6 +583,7 @@ All Toolling & Store pages should use the same layout:
 Pages:
 
 - `/tooling-store`
+- `/tooling-store/planning`
 - `/tooling-store/items`
 - `/tooling-store/stock`
 - `/tooling-store/stock-in`
@@ -529,8 +632,15 @@ Later extension:
 - Issue approved request.
 - Link request to stock transaction.
 
-### Phase 5: Reports
+### Phase 5: Inventory Planning and Reports
 
+- Planning calculation service.
+- Reorder point.
+- Days until stockout.
+- Suggested order quantity.
+- Slow movement detection.
+- Overstock detection.
+- Stockout risk detection.
 - Low stock.
 - Movement.
 - Issue by department/machine/job.
@@ -560,7 +670,14 @@ Backend unit tests should cover:
 - Transaction history filters.
 - QR/item lookup.
 - Searchable dropdown result shape.
+- Reorder point calculation.
+- Days until stockout calculation.
+- Suggested order quantity calculation.
+- Slow movement detection.
+- Overstock detection.
+- Stockout risk detection.
 - Socket event emitted after stock/request changes.
+- Socket event emitted after planning status changes.
 
 Frontend unit tests should cover:
 
@@ -583,6 +700,7 @@ Implementation should start with:
 4. Stock Out.
 5. Issue request and approval.
 6. Return and adjustment.
-7. Low-stock alerts and reports.
+7. Inventory planning and replenishment prediction.
+8. Low-stock alerts and reports.
 
 Borrow-return tool control should stay as a later extension after the inventory foundation is stable.
