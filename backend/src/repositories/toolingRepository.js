@@ -250,6 +250,7 @@ async function searchItems(query) {
       item.id,
       item.itemCode,
       item.itemName,
+      item.qrCode,
       item.locationId,
       item.unit,
       item.minimumStock,
@@ -260,7 +261,7 @@ async function searchItems(query) {
     LEFT JOIN dbo.tb_tooling_stock_balance AS balance ON balance.itemId = item.id
     WHERE item.status = 'active'
       AND (item.qrCode LIKE @search OR item.itemCode LIKE @search OR item.itemName LIKE @search)
-    GROUP BY item.id, item.itemCode, item.itemName, item.locationId, item.unit, item.minimumStock, item.status, item.imageUrl
+    GROUP BY item.id, item.itemCode, item.itemName, item.qrCode, item.locationId, item.unit, item.minimumStock, item.status, item.imageUrl
     ORDER BY item.itemCode
   `);
 
@@ -929,6 +930,22 @@ async function lowStockReport(filters = {}) {
 
   listRequest.input("offset", sql.Int, offset);
   listRequest.input("pageSize", sql.Int, pageSize);
+  const where = [
+    "item.status = 'active'",
+    "COALESCE(stock.currentStock, 0) <= item.minimumStock"
+  ];
+
+  if (filters.search) {
+    listRequest.input("search", sql.NVarChar, `%${filters.search}%`);
+    countRequest.input("search", sql.NVarChar, `%${filters.search}%`);
+    where.push("(item.itemCode LIKE @search OR item.itemName LIKE @search)");
+  }
+
+  if (filters.criticalLevel) {
+    listRequest.input("criticalLevel", sql.NVarChar, filters.criticalLevel);
+    countRequest.input("criticalLevel", sql.NVarChar, filters.criticalLevel);
+    where.push("item.criticalLevel = @criticalLevel");
+  }
 
   const baseFromSql = `
     FROM dbo.tbm_tooling_item AS item
@@ -937,8 +954,7 @@ async function lowStockReport(filters = {}) {
       FROM dbo.tb_tooling_stock_balance
       GROUP BY itemId
     ) AS stock ON stock.itemId = item.id
-    WHERE item.status = 'active'
-      AND COALESCE(stock.currentStock, 0) <= item.minimumStock
+    WHERE ${where.join(" AND ")}
   `;
 
   const dataResult = await listRequest.query(`
@@ -1019,6 +1035,11 @@ async function report(reportKey, filters = {}) {
   const where = ["movementType = 'stock_out'"];
   if (referenceType) {
     where.push("referenceType = @referenceType");
+  }
+  if (filters.groupId) {
+    groupRequest.input("groupId", sql.NVarChar, filters.groupId);
+    countRequest.input("groupId", sql.NVarChar, filters.groupId);
+    where.push(`${groupColumn} = @groupId`);
   }
   if (filters.dateFrom) {
     groupRequest.input("dateFrom", sql.DateTime2, new Date(filters.dateFrom));

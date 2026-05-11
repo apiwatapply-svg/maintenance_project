@@ -127,6 +127,76 @@ export function buildToolingQuery(filters) {
   );
 }
 
+export function getToolingReportFilterConfig(reportKey) {
+  if (["low-stock", "reorder-suggestion", "stockout-risk", "slow-movement", "overstock"].includes(reportKey)) {
+    return [
+      { key: "search", label: "Search", type: "text", placeholder: "Item code or name" },
+      {
+        key: "criticalLevel",
+        label: "Critical",
+        type: "select",
+        options: ["", "normal", "important", "critical"]
+      }
+    ];
+  }
+
+  if (reportKey === "movement") {
+    return [
+      { key: "search", label: "Search", type: "text", placeholder: "Transaction or reference" },
+      {
+        key: "movementType",
+        label: "Movement",
+        type: "select",
+        options: ["", "stock_in", "stock_out", "return_good", "return_damaged", "return_lost"]
+      }
+    ];
+  }
+
+  return [{ key: "groupId", label: "Group ID", type: "text", placeholder: "Department, machine, or job ID" }];
+}
+
+function escapeExcelValue(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+export function buildToolingExcelHtml({ title, columns, rows }) {
+  const visibleColumns = columns || [];
+  const safeTitle = escapeExcelValue(title || "tooling-report");
+
+  return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+table { border-collapse: collapse; font-family: Arial, sans-serif; }
+th, td { border:1px solid #94a3b8; padding:8px 10px; mso-number-format:"\\@"; white-space:nowrap; }
+th { background:#e2e8f0; font-weight:700; }
+</style>
+</head>
+<body>
+<h2>${safeTitle}</h2>
+<table>
+<colgroup>${visibleColumns.map((column) => {
+    const maxLength = Math.max(
+      String(column).length,
+      ...(rows || []).map((row) => String(row[column] ?? "").length)
+    );
+    const width = Math.min(Math.max(maxLength * 8 + 32, 80), 260);
+    return `<col style="width:${width}px" />`;
+  }).join("")}</colgroup>
+<thead><tr>${visibleColumns.map((column) => `<th>${escapeExcelValue(column)}</th>`).join("")}</tr></thead>
+<tbody>${(rows || []).map((row) => (
+    `<tr>${visibleColumns.map((column) => `<td>${escapeExcelValue(row[column])}</td>`).join("")}</tr>`
+  )).join("")}</tbody>
+</table>
+</body>
+</html>`;
+}
+
 export function getToolingPageRange(pagination) {
   const total = Number(pagination?.total || 0);
   const page = Math.max(Number(pagination?.page || 1), 1);
@@ -251,6 +321,22 @@ export function getToolingScanFormPatch(item, current = {}) {
     locationId: item?.locationId || current.locationId || "",
     quantity: "1"
   };
+}
+
+export function getToolingSearchMatch(value, items) {
+  const text = String(value || "").trim().toLowerCase();
+
+  if (!text) {
+    return null;
+  }
+
+  return (items || []).find((item) => [
+    item.value,
+    item.itemCode,
+    item.itemName,
+    item.qrCode,
+    item.label
+  ].some((candidate) => String(candidate || "").trim().toLowerCase() === text)) || null;
 }
 
 export function validateToolingMovementForm(form, options = {}) {

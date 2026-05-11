@@ -229,6 +229,7 @@ async function searchItems(query) {
     label: `${item.itemCode} - ${item.itemName}`,
     itemCode: item.itemCode,
     itemName: item.itemName,
+    qrCode: item.qrCode,
     imageUrl: item.imageUrl,
     locationId: item.locationId,
     quantityOnHand: item.quantityOnHand,

@@ -9,6 +9,7 @@ import {
   getToolingMovementConfig,
   getToolingReferenceOptions,
   getToolingScanFormPatch,
+  getToolingSearchMatch,
   normalizeToolingQuantityInput,
   resolveToolingImageUrl,
   validateToolingMovementForm
@@ -138,6 +139,14 @@ function ToolingMovementContent({ config, headers, session }) {
   }, [headers, qrCode]);
 
   useEffect(() => {
+    const item = getToolingSearchMatch(qrCode, items);
+
+    if (item && String(form.itemId) !== String(item.value)) {
+      selectItem(item.value);
+    }
+  }, [items, qrCode]);
+
+  useEffect(() => {
     loadCurrentBalance();
   }, [loadCurrentBalance]);
 
@@ -172,10 +181,26 @@ function ToolingMovementContent({ config, headers, session }) {
     setErrors((current) => ({ ...current, itemId: "", locationId: "" }));
   }
 
+  function updateScanText(value) {
+    setQrCode(value);
+    const item = getToolingSearchMatch(value, items);
+
+    if (item) {
+      selectItem(item.value);
+    }
+  }
+
   async function handleQrLookup(event) {
     event?.preventDefault?.();
 
     const lookupPath = buildToolingScanLookupPath(qrCode);
+    const matchedItem = getToolingSearchMatch(qrCode, items);
+
+    if (matchedItem) {
+      selectItem(matchedItem.value);
+      setMessage("Item ready. Confirm quantity and save.");
+      return;
+    }
 
     if (!lookupPath) {
       return;
@@ -190,6 +215,7 @@ function ToolingMovementContent({ config, headers, session }) {
           label: `${item.itemCode} - ${item.itemName}`,
           itemCode: item.itemCode,
           itemName: item.itemName,
+          qrCode: item.qrCode,
           imageUrl: item.imageUrl,
           quantityOnHand: item.quantityOnHand,
           unit: item.unit
@@ -284,9 +310,10 @@ function ToolingMovementContent({ config, headers, session }) {
               <div className="inline-field scanner-input">
                 <input
                   autoFocus
+                  list={`${config.key}-item-options`}
                   value={qrCode}
                   placeholder="Scan QR, item code, or item name"
-                  onChange={(event) => setQrCode(event.target.value)}
+                  onChange={(event) => updateScanText(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
                       handleQrLookup(event);
@@ -296,6 +323,13 @@ function ToolingMovementContent({ config, headers, session }) {
                 <button type="button" onClick={handleQrLookup}>
                   Scan
                 </button>
+                <datalist id={`${config.key}-item-options`}>
+                  {items.map((item) => (
+                    <option key={item.value} value={item.itemCode}>
+                      {item.itemName}
+                    </option>
+                  ))}
+                </datalist>
               </div>
             </label>
 

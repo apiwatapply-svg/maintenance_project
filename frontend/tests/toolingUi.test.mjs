@@ -4,7 +4,9 @@ import assert from "node:assert/strict";
 import {
   buildToolingScanLookupPath,
   buildToolingQuery,
+  buildToolingExcelHtml,
   formatToolingBalance,
+  getToolingReportFilterConfig,
   getToolingApiHeaders,
   getToolingItemDefaultForm,
   getToolingMovementConfig,
@@ -17,6 +19,7 @@ import {
   getToolingRowNumber,
   sanitizeToolingReportFilters,
   getToolingScanFormPatch,
+  getToolingSearchMatch,
   getToolingSessionRedirect,
   normalizeToolingScanCode,
   normalizeToolingQuantityInput,
@@ -70,6 +73,34 @@ test("buildToolingQuery removes empty filters and preserves pagination", () => {
     }),
     { search: "bearing", page: 2, pageSize: 25 }
   );
+});
+
+test("getToolingReportFilterConfig returns filters appropriate for each report type", () => {
+  assert.deepEqual(
+    getToolingReportFilterConfig("reorder-suggestion").map((filter) => filter.key),
+    ["search", "criticalLevel"]
+  );
+  assert.deepEqual(
+    getToolingReportFilterConfig("movement").map((filter) => filter.key),
+    ["search", "movementType"]
+  );
+  assert.deepEqual(
+    getToolingReportFilterConfig("issue-by-job").map((filter) => filter.key),
+    ["groupId"]
+  );
+});
+
+test("buildToolingExcelHtml creates an Excel-compatible bordered table", () => {
+  const html = buildToolingExcelHtml({
+    title: "movement",
+    columns: ["itemCode", "quantity"],
+    rows: [{ itemCode: "SP-BRG-6204", quantity: 10 }]
+  });
+
+  assert.match(html, /<html/);
+  assert.match(html, /border:1px solid #94a3b8/);
+  assert.match(html, /mso-number-format/);
+  assert.match(html, /SP-BRG-6204/);
 });
 
 test("getToolingPageRange reports visible result range", () => {
@@ -159,6 +190,18 @@ test("getToolingScanFormPatch selects scanned item and starts quantity at one", 
     ),
     { itemId: 7, locationId: 3, quantity: "1", referenceNo: "PM" }
   );
+});
+
+test("getToolingSearchMatch resolves typed or scanned item text", () => {
+  const items = [
+    { value: 1, itemCode: "S001", itemName: "Sensor", qrCode: "QR-S001", label: "S001 - Sensor" },
+    { value: 2, itemCode: "S002", itemName: "Switch", qrCode: "QR-S002", label: "S002 - Switch" }
+  ];
+
+  assert.equal(getToolingSearchMatch("S001", items).value, 1);
+  assert.equal(getToolingSearchMatch("sensor", items).value, 1);
+  assert.equal(getToolingSearchMatch("QR-S002", items).value, 2);
+  assert.equal(getToolingSearchMatch("unknown", items), null);
 });
 
 test("getToolingReferenceOptions exposes stock movement reference choices", () => {

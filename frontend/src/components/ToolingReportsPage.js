@@ -6,7 +6,9 @@ import { getSocket } from "@/lib/socket";
 import { getPaginationPages } from "@/lib/pagination.mjs";
 import {
   buildToolingQuery,
+  buildToolingExcelHtml,
   getToolingPageRange,
+  getToolingReportFilterConfig,
   getToolingRowNumber,
   resolveToolingImageUrl,
   sanitizeToolingReportFilters
@@ -87,7 +89,7 @@ function ToolingReportsContent({ headers }) {
 
   function updateReportKey(value) {
     setReportKey(value);
-    const nextFilters = { ...filters, page: 1 };
+    const nextFilters = { page: 1, pageSize: filters.pageSize };
     setFilters(nextFilters);
     loadReport(value, nextFilters);
   }
@@ -110,7 +112,40 @@ function ToolingReportsContent({ headers }) {
     loadReport(reportKey, nextFilters);
   }
 
+  async function exportExcel() {
+    try {
+      const response = await api.get(`/tooling/reports/${reportKey}`, {
+        headers,
+        params: buildToolingQuery(sanitizeToolingReportFilters({
+          ...filters,
+          page: 1,
+          pageSize: 100
+        }))
+      });
+      const exportRows = response.data.data || [];
+      const exportColumns = buildColumns(exportRows);
+      const html = buildToolingExcelHtml({
+        title: reportKey,
+        columns: exportColumns,
+        rows: exportRows
+      });
+      const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = `tooling-${reportKey}.xls`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setMessage(error.response?.data?.message || "Cannot export report.");
+    }
+  }
+
   const columns = buildColumns(rows);
+  const filterConfig = getToolingReportFilterConfig(reportKey);
 
   return (
     <section className="tooling-content">
@@ -124,6 +159,27 @@ function ToolingReportsContent({ headers }) {
             ))}
           </select>
         </label>
+        {filterConfig.map((filter) => (
+          <label key={filter.key}>
+            <span>{filter.label}</span>
+            {filter.type === "select" ? (
+              <select value={filters[filter.key] || ""} onChange={(event) => updateFilter(filter.key, event.target.value)}>
+                {filter.options.map((option) => (
+                  <option key={option} value={option}>{option || "All"}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                value={filters[filter.key] || ""}
+                placeholder={filter.placeholder}
+                onChange={(event) => updateFilter(filter.key, event.target.value)}
+              />
+            )}
+          </label>
+        ))}
+        <button className="export-button" type="button" onClick={exportExcel}>
+          Export Excel
+        </button>
       </div>
 
       {message ? <div className="report-message">{message}</div> : null}
@@ -217,9 +273,10 @@ function formatCell(value) {
 const reportStyles = `
 .report-toolbar {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr);
+  grid-template-columns: minmax(220px, 1fr) repeat(2, minmax(180px, 240px)) auto;
   gap: 12px;
   margin-bottom: 14px;
+  align-items: end;
 }
 .report-toolbar label {
   display: grid;
@@ -234,7 +291,8 @@ const reportStyles = `
 }
 .report-toolbar input,
 .report-toolbar select,
-.report-pagination select {
+.report-pagination select,
+.export-button {
   height: 44px;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
@@ -242,6 +300,12 @@ const reportStyles = `
   color: #0f172a;
   padding: 0 12px;
   font-weight: 850;
+}
+.export-button {
+  border-color: #0f766e;
+  background: #0f766e;
+  color: white;
+  padding: 0 18px;
 }
 .report-message {
   margin-bottom: 14px;

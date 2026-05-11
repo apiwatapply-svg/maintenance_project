@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import api from "@/lib/api";
 import {
   getToolingReturnDefaultForm,
+  getToolingSearchMatch,
   normalizeToolingQuantityInput,
   resolveToolingImageUrl,
   validateToolingReturnForm
@@ -66,6 +67,14 @@ function ToolingReturnContent({ headers, session }) {
     return () => clearTimeout(timeoutId);
   }, [headers, search]);
 
+  useEffect(() => {
+    const item = getToolingSearchMatch(search, items);
+
+    if (item && String(form.itemId) !== String(item.value)) {
+      selectItem(item.value);
+    }
+  }, [items, search]);
+
   function updateField(key, value) {
     setForm((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: "" }));
@@ -80,6 +89,15 @@ function ToolingReturnContent({ headers, session }) {
       locationId: item?.locationId || current.locationId
     }));
     setErrors((current) => ({ ...current, itemId: "", locationId: "" }));
+  }
+
+  function updateSearch(value) {
+    setSearch(value);
+    const item = getToolingSearchMatch(value, items);
+
+    if (item) {
+      selectItem(item.value);
+    }
   }
 
   async function submitReturn(event) {
@@ -133,10 +151,18 @@ function ToolingReturnContent({ headers, session }) {
           <label className="wide">
             <span>Scan QR / Item Code / Item Name</span>
             <input
+              list="return-item-options"
               value={search}
               placeholder="Scan QR, item code, or item name"
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => updateSearch(event.target.value)}
             />
+            <datalist id="return-item-options">
+              {items.map((item) => (
+                <option key={item.value} value={item.itemCode}>
+                  {item.itemName}
+                </option>
+              ))}
+            </datalist>
           </label>
           <label className="wide">
             <span>Item</span>
