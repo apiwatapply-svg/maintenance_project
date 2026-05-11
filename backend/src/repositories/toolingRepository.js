@@ -426,6 +426,321 @@ async function insertStockTransaction(transaction, payload, balanceBefore, balan
   };
 }
 
+async function createRequest(payload) {
+  const pool = await getPool();
+  const transaction = new sql.Transaction(pool);
+
+  await transaction.begin();
+
+  try {
+    const requestResult = await new sql.Request(transaction)
+      .input("requestNo", sql.NVarChar, payload.requestNo)
+      .input("requesterId", sql.Int, Number(payload.requesterId))
+      .input("departmentId", sql.Int, payload.departmentId ? Number(payload.departmentId) : null)
+      .input("referenceType", sql.NVarChar, payload.referenceType || null)
+      .input("referenceId", sql.Int, payload.referenceId ? Number(payload.referenceId) : null)
+      .input("status", sql.NVarChar, payload.status || "pending")
+      .input("remark", sql.NVarChar, payload.remark || null)
+      .query(`
+        INSERT INTO dbo.tb_tooling_request (
+          requestNo,
+          requesterId,
+          departmentId,
+          referenceType,
+          referenceId,
+          status,
+          remark
+        )
+        OUTPUT INSERTED.*
+        VALUES (
+          @requestNo,
+          @requesterId,
+          @departmentId,
+          @referenceType,
+          @referenceId,
+          @status,
+          @remark
+        )
+      `);
+    const requestRecord = requestResult.recordset[0];
+
+    for (const item of payload.items) {
+      await new sql.Request(transaction)
+        .input("requestId", sql.Int, requestRecord.id)
+        .input("itemId", sql.Int, Number(item.itemId))
+        .input("locationId", sql.Int, Number(item.locationId))
+        .input("requestedQuantity", sql.Decimal(18, 2), Number(item.requestedQuantity))
+        .query(`
+          INSERT INTO dbo.tb_tooling_request_item (
+            requestId,
+            itemId,
+            locationId,
+            requestedQuantity,
+            status
+          )
+          VALUES (
+            @requestId,
+            @itemId,
+            @locationId,
+            @requestedQuantity,
+            'pending'
+          )
+        `);
+    }
+
+    await transaction.commit();
+    return getRequestById(requestRecord.id);
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
+}
+
+async function listRequests(filters = {}) {
+  const page = Math.max(Number(filters.page || 1), 1);
+  const pageSize = Math.min(Math.max(Number(filters.pageSize || 10), 1), 100);
+  const offset = (page - 1) * pageSize;
+  const pool = await getPool();
+  const listRequest = pool.request();
+  const countRequest = pool.request();
+  const where = [];
+
+  if (filters.status) {
+    listRequest.input("status", sql.NVarChar, filters.status);
+    countRequest.input("status", sql.NVarChar, filters.status);
+    where.push("request.status = @status");
+  }
+
+  if (filters.requesterId) {
+    listRequest.input("requesterId", sql.Int, Number(filters.requesterId));
+    countRequest.input("requesterId", sql.Int, Number(filters.requesterId));
+    where.push("request.requesterId = @requesterId");
+  }
+
+  if (filters.search) {
+    listRequest.input("search", sql.NVarChar, `%${filters.search}%`);
+    countRequest.input("search", sql.NVarChar, `%${filters.search}%`);
+    where.push("request.requestNo LIKE @search");
+  }
+
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  listRequest.input("offset", sql.Int, offset);
+  listRequest.input("pageSize", sql.Int, pageSize);
+
+  const dataResult = await listRequest.query(`
+    SELECT
+      request.*,
+      requester.name AS requesterName,
+      department.name AS departmentName
+    FROM dbo.tb_tooling_request AS request
+    LEFT JOIN dbo.tbm_user AS requester ON requester.id = request.requesterId
+    LEFT JOIN dbo.tbm_department AS department ON department.id = request.departmentId
+    ${whereSql}
+    ORDER BY request.createdAt DESC
+    OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
+  `);
+
+  const countResult = await countRequest.query(`
+    SELECT COUNT(1) AS total
+    FROM dbo.tb_tooling_request AS request
+    ${whereSql}
+  `);
+
+  return {
+    data: dataResult.recordset,
+    pagination: {
+      page,
+      pageSize,
+      total: countResult.recordset[0]?.total || 0
+    }
+  };
+}
+
+async function getRequestById(id) {
+  const pool = await getPool();
+  const requestResult = await pool.request().input("id", sql.Int, Number(id)).query(`
+    SELECT
+      request.*,
+      requester.name AS requesterName,
+      department.name AS departmentName
+    FROM dbo.tb_tooling_request AS request
+    LEFT JOIN dbo.tbm_user AS requester ON requester.id = request.requesterId
+    LEFT JOIN dbo.tbm_department AS department ON department.id = request.departmentId
+    WHERE request.id = @id
+  `);
+
+  const requestRecord = requestResult.recordset[0];
+
+  if (!requestRecord) {
+    return null;
+  }
+
+  const itemsResult = await pool.request().input("requestId", sql.Int, Number(id)).query(`
+    SELECT
+      requestItem.*,
+      item.itemCode,
+      item.itemName,
+      item.unit,
+      location.locationCode,
+      location.locationName
+    FROM dbo.tb_tooling_request_item AS requestItem
+    INNER JOIN dbo.tbm_tooling_item AS item ON item.id = requestItem.itemId
+    INNER JOIN dbo.tbm_tooling_location AS location ON location.id = requestItem.locationId
+    WHERE requestItem.requestId = @requestId
+    ORDER BY requestItem.id
+  `);
+
+  return {
+    ...requestRecord,
+    items: itemsResult.recordset
+  };
+}
+
+async function approveRequest(id, approvedBy) {
+  const pool = await getPool();
+  const result = await pool.request()
+    .input("id", sql.Int, Number(id))
+    .input("approvedBy", sql.Int, Number(approvedBy))
+    .query(`
+      UPDATE dbo.tb_tooling_request
+      SET status = 'approved', updatedAt = SYSDATETIME()
+      OUTPUT INSERTED.*
+      WHERE id = @id AND status = 'pending'
+    `);
+
+  return result.recordset[0] || null;
+}
+
+async function rejectRequest(id, rejectedBy, remark) {
+  const pool = await getPool();
+  const result = await pool.request()
+    .input("id", sql.Int, Number(id))
+    .input("rejectedBy", sql.Int, Number(rejectedBy))
+    .input("remark", sql.NVarChar, remark || null)
+    .query(`
+      UPDATE dbo.tb_tooling_request
+      SET
+        status = 'rejected',
+        remark = COALESCE(@remark, remark),
+        updatedAt = SYSDATETIME()
+      OUTPUT INSERTED.*
+      WHERE id = @id AND status IN ('pending', 'approved')
+    `);
+
+  return result.recordset[0] || null;
+}
+
+async function issueRequest(payload) {
+  const pool = await getPool();
+  const transaction = new sql.Transaction(pool);
+
+  await transaction.begin();
+
+  try {
+    const requestResult = await new sql.Request(transaction)
+      .input("requestId", sql.Int, Number(payload.requestId))
+      .query(`
+        SELECT TOP 1 *
+        FROM dbo.tb_tooling_request WITH (UPDLOCK)
+        WHERE id = @requestId AND status = 'approved'
+      `);
+    const requestRecord = requestResult.recordset[0];
+
+    if (!requestRecord) {
+      const error = new Error("Request is not approved or was not found");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const itemsResult = await new sql.Request(transaction)
+      .input("requestId", sql.Int, Number(payload.requestId))
+      .query(`
+        SELECT *
+        FROM dbo.tb_tooling_request_item
+        WHERE requestId = @requestId AND status IN ('pending', 'approved')
+        ORDER BY id
+      `);
+    const movements = [];
+
+    for (const [index, item] of itemsResult.recordset.entries()) {
+      const movement = await stockOutWithinTransaction(transaction, {
+        transactionNo: `${payload.transactionNoPrefix}-${index + 1}`,
+        movementType: "stock_out",
+        itemId: item.itemId,
+        locationId: item.locationId,
+        quantity: item.requestedQuantity,
+        departmentId: requestRecord.departmentId,
+        userId: payload.issuedBy,
+        referenceType: "tooling_request",
+        referenceId: requestRecord.id,
+        referenceNo: requestRecord.requestNo,
+        remark: requestRecord.remark
+      });
+
+      await new sql.Request(transaction)
+        .input("id", sql.Int, item.id)
+        .input("issuedQuantity", sql.Decimal(18, 2), Number(item.requestedQuantity))
+        .query(`
+          UPDATE dbo.tb_tooling_request_item
+          SET issuedQuantity = @issuedQuantity, status = 'issued'
+          WHERE id = @id
+        `);
+
+      movements.push(movement);
+    }
+
+    const issuedResult = await new sql.Request(transaction)
+      .input("requestId", sql.Int, Number(payload.requestId))
+      .query(`
+        UPDATE dbo.tb_tooling_request
+        SET status = 'issued', updatedAt = SYSDATETIME()
+        OUTPUT INSERTED.*
+        WHERE id = @requestId
+      `);
+
+    await transaction.commit();
+    return {
+      ...issuedResult.recordset[0],
+      movements
+    };
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
+}
+
+async function stockOutWithinTransaction(transaction, payload) {
+  const balanceResult = await new sql.Request(transaction)
+    .input("itemId", sql.Int, Number(payload.itemId))
+    .input("locationId", sql.Int, Number(payload.locationId))
+    .query(`
+      SELECT TOP 1 *
+      FROM dbo.tb_tooling_stock_balance WITH (UPDLOCK)
+      WHERE itemId = @itemId AND locationId = @locationId
+    `);
+  const currentBalance = Number(balanceResult.recordset[0]?.quantityOnHand || 0);
+
+  if (currentBalance < Number(payload.quantity)) {
+    const error = new Error("Insufficient stock");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const balanceAfter = currentBalance - Number(payload.quantity);
+
+  await new sql.Request(transaction)
+    .input("itemId", sql.Int, Number(payload.itemId))
+    .input("locationId", sql.Int, Number(payload.locationId))
+    .input("quantityOnHand", sql.Decimal(18, 2), balanceAfter)
+    .query(`
+      UPDATE dbo.tb_tooling_stock_balance
+      SET quantityOnHand = @quantityOnHand, updatedAt = SYSDATETIME()
+      WHERE itemId = @itemId AND locationId = @locationId
+    `);
+
+  return insertStockTransaction(transaction, payload, currentBalance, balanceAfter);
+}
+
 module.exports = {
   dashboard,
   list,
@@ -437,5 +752,11 @@ module.exports = {
   findItemByQrCode,
   validateActiveItemLocation,
   stockIn,
-  stockOut
+  stockOut,
+  createRequest,
+  listRequests,
+  getRequestById,
+  approveRequest,
+  rejectRequest,
+  issueRequest
 };

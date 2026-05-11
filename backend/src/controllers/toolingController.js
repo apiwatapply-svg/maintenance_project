@@ -80,6 +80,62 @@ async function stockOut(req, res, next) {
   }
 }
 
+async function createRequest(req, res, next) {
+  try {
+    res.status(201).json(await toolingService.createRequest({
+      ...req.body,
+      requesterId: req.toolingUser?.id,
+      departmentId: req.body.departmentId || req.toolingUser?.departmentId
+    }));
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function listRequests(req, res, next) {
+  try {
+    res.json(await toolingService.listRequests(req.query));
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function getRequestById(req, res, next) {
+  try {
+    res.json(await toolingService.getRequestById(req.params.id));
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function approveRequest(req, res, next) {
+  try {
+    res.json(await toolingService.approveRequest(req.params.id, req.toolingUser?.id));
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function rejectRequest(req, res, next) {
+  try {
+    res.json(await toolingService.rejectRequest(
+      req.params.id,
+      req.toolingUser?.id,
+      req.body?.remark
+    ));
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function issueRequest(req, res, next) {
+  try {
+    res.json(await toolingService.issueRequest(req.params.id, req.toolingUser?.id));
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   dashboard,
   list,
@@ -90,5 +146,11 @@ module.exports = {
   searchItems,
   findItemByQrCode,
   stockIn,
-  stockOut
+  stockOut,
+  createRequest,
+  listRequests,
+  getRequestById,
+  approveRequest,
+  rejectRequest,
+  issueRequest
 };

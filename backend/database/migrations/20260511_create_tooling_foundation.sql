@@ -38,10 +38,17 @@ BEGIN
     id INT IDENTITY(1,1) PRIMARY KEY,
     requestId INT NOT NULL,
     itemId INT NOT NULL,
+    locationId INT NOT NULL,
     requestedQuantity DECIMAL(18,2) NOT NULL,
     issuedQuantity DECIMAL(18,2) NOT NULL DEFAULT 0,
     status NVARCHAR(30) NOT NULL DEFAULT 'pending'
   );
+END;
+
+IF COL_LENGTH('dbo.tb_tooling_request_item', 'locationId') IS NULL
+BEGIN
+  ALTER TABLE dbo.tb_tooling_request_item
+  ADD locationId INT NULL;
 END;
 
 IF OBJECT_ID('dbo.tb_tooling_request', 'U') IS NULL

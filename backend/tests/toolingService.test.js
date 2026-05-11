@@ -7,7 +7,11 @@ jest.mock("../src/repositories/toolingRepository", () => ({
   findItemByQrCode: jest.fn(),
   validateActiveItemLocation: jest.fn(),
   stockIn: jest.fn(),
-  stockOut: jest.fn()
+  stockOut: jest.fn(),
+  createRequest: jest.fn(),
+  approveRequest: jest.fn(),
+  rejectRequest: jest.fn(),
+  issueRequest: jest.fn()
 }));
 
 jest.mock("../src/services/socketService", () => ({
@@ -293,6 +297,109 @@ describe("tooling service stock movements", () => {
         itemId: 1
       }),
       "tooling:stock-recovered"
+    );
+  });
+});
+
+describe("tooling service request and approval", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test("createRequest validates a simple user request and emits realtime event", async () => {
+    const toolingService = require("../src/services/toolingService");
+
+    toolingRepository.createRequest.mockResolvedValue({
+      id: 3,
+      requestNo: "REQ-003",
+      status: "pending"
+    });
+
+    const result = await toolingService.createRequest({
+      requesterId: 7,
+      departmentId: 2,
+      items: [{ itemId: 1, locationId: 1, quantity: 2 }]
+    });
+
+    expect(result.status).toBe("pending");
+    expect(toolingRepository.createRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestNo: expect.stringMatching(/^REQ-/),
+        requesterId: 7,
+        departmentId: 2
+      })
+    );
+    expect(emitToolingChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "request_created",
+        resource: "requests",
+        id: 3
+      }),
+      "tooling:request-created"
+    );
+  });
+
+  test("createRequest rejects empty request items", async () => {
+    const toolingService = require("../src/services/toolingService");
+
+    await expect(toolingService.createRequest({ requesterId: 7, items: [] })).rejects.toMatchObject({
+      message: "Request must contain at least one item",
+      statusCode: 400
+    });
+  });
+
+  test("approveRequest emits approved event", async () => {
+    const toolingService = require("../src/services/toolingService");
+
+    toolingRepository.approveRequest.mockResolvedValue({
+      id: 4,
+      status: "approved"
+    });
+
+    const result = await toolingService.approveRequest(4, 1);
+
+    expect(result.status).toBe("approved");
+    expect(emitToolingChange).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "request_approved", id: 4 }),
+      "tooling:request-approved"
+    );
+  });
+
+  test("rejectRequest emits rejected event", async () => {
+    const toolingService = require("../src/services/toolingService");
+
+    toolingRepository.rejectRequest.mockResolvedValue({
+      id: 5,
+      status: "rejected"
+    });
+
+    const result = await toolingService.rejectRequest(5, 1, "No stock");
+
+    expect(result.status).toBe("rejected");
+    expect(emitToolingChange).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "request_rejected", id: 5 }),
+      "tooling:request-rejected"
+    );
+  });
+
+  test("issueRequest emits issued and stock changed events", async () => {
+    const toolingService = require("../src/services/toolingService");
+
+    toolingRepository.issueRequest.mockResolvedValue({
+      id: 6,
+      status: "issued",
+      movements: [{ itemId: 1, locationId: 1 }]
+    });
+
+    const result = await toolingService.issueRequest(6, 1);
+
+    expect(result.status).toBe("issued");
+    expect(emitToolingChange).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "request_issued", id: 6 }),
+      "tooling:request-issued"
+    );
+    expect(emitToolingChange).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "stock_out", resource: "stock", itemId: 1 })
     );
   });
 });

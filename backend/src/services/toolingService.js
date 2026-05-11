@@ -46,6 +46,36 @@ function assertStockMovementPayload(payload) {
   }
 }
 
+function assertRequestPayload(payload) {
+  if (!payload.requesterId) {
+    const error = new Error("Requester is required");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!Array.isArray(payload.items) || payload.items.length === 0) {
+    const error = new Error("Request must contain at least one item");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  payload.items.forEach((item) => {
+    const missing = ["itemId", "locationId"].filter((field) => !item[field]);
+
+    if (missing.length) {
+      const error = new Error(`Missing request item field(s): ${missing.join(", ")}`);
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (Number(item.quantity || item.requestedQuantity || 0) <= 0) {
+      const error = new Error("Request item quantity must be greater than zero");
+      error.statusCode = 400;
+      throw error;
+    }
+  });
+}
+
 async function dashboard() {
   return toolingRepository.dashboard();
 }
@@ -202,6 +232,122 @@ async function stockOut(payload) {
   return movement;
 }
 
+async function createRequest(payload) {
+  assertRequestPayload(payload);
+  const request = await toolingRepository.createRequest({
+    ...payload,
+    requestNo: createTransactionNo("REQ"),
+    status: "pending",
+    items: payload.items.map((item) => ({
+      ...item,
+      requestedQuantity: Number(item.requestedQuantity || item.quantity)
+    }))
+  });
+
+  emitToolingChange(
+    {
+      action: "request_created",
+      resource: "requests",
+      id: request.id
+    },
+    "tooling:request-created"
+  );
+
+  return request;
+}
+
+async function listRequests(filters) {
+  return toolingRepository.listRequests(filters);
+}
+
+async function getRequestById(id) {
+  const request = await toolingRepository.getRequestById(id);
+
+  if (!request) {
+    const error = new Error("Request not found");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  return request;
+}
+
+async function approveRequest(id, approvedBy) {
+  const request = await toolingRepository.approveRequest(id, approvedBy);
+
+  if (!request) {
+    const error = new Error("Request not found or cannot be approved");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  emitToolingChange(
+    {
+      action: "request_approved",
+      resource: "requests",
+      id: request.id
+    },
+    "tooling:request-approved"
+  );
+
+  return request;
+}
+
+async function rejectRequest(id, rejectedBy, remark) {
+  const request = await toolingRepository.rejectRequest(id, rejectedBy, remark);
+
+  if (!request) {
+    const error = new Error("Request not found or cannot be rejected");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  emitToolingChange(
+    {
+      action: "request_rejected",
+      resource: "requests",
+      id: request.id
+    },
+    "tooling:request-rejected"
+  );
+
+  return request;
+}
+
+async function issueRequest(id, issuedBy) {
+  const request = await toolingRepository.issueRequest({
+    requestId: id,
+    issuedBy,
+    transactionNoPrefix: createTransactionNo("TREQ")
+  });
+
+  if (!request) {
+    const error = new Error("Request not found or cannot be issued");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  emitToolingChange(
+    {
+      action: "request_issued",
+      resource: "requests",
+      id: request.id
+    },
+    "tooling:request-issued"
+  );
+
+  (request.movements || []).forEach((movement) => {
+    emitToolingChange({
+      action: "stock_out",
+      resource: "stock",
+      itemId: movement.itemId,
+      locationId: movement.locationId
+    });
+  });
+
+  return request;
+}
+
 module.exports = {
   dashboard,
   list,
@@ -212,5 +358,11 @@ module.exports = {
   searchItems,
   findItemByQrCode,
   stockIn,
-  stockOut
+  stockOut,
+  createRequest,
+  listRequests,
+  getRequestById,
+  approveRequest,
+  rejectRequest,
+  issueRequest
 };

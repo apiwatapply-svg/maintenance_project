@@ -175,11 +175,13 @@ CREATE TABLE dbo.tb_tooling_request_item (
   id INT IDENTITY(1,1) PRIMARY KEY,
   requestId INT NOT NULL,
   itemId INT NOT NULL,
+  locationId INT NOT NULL,
   requestedQuantity DECIMAL(18,2) NOT NULL,
   issuedQuantity DECIMAL(18,2) NOT NULL DEFAULT 0,
   status NVARCHAR(30) NOT NULL DEFAULT 'pending',
   CONSTRAINT FK_tb_tooling_request_item_request FOREIGN KEY (requestId) REFERENCES dbo.tb_tooling_request(id),
-  CONSTRAINT FK_tb_tooling_request_item_item FOREIGN KEY (itemId) REFERENCES dbo.tbm_tooling_item(id)
+  CONSTRAINT FK_tb_tooling_request_item_item FOREIGN KEY (itemId) REFERENCES dbo.tbm_tooling_item(id),
+  CONSTRAINT FK_tb_tooling_request_item_location FOREIGN KEY (locationId) REFERENCES dbo.tbm_tooling_location(id)
 );
 
 CREATE TABLE dbo.tb_tooling_adjustment (

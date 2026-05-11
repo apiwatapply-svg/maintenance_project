@@ -15,7 +15,13 @@ jest.mock("../src/repositories/toolingRepository", () => ({
   findItemByQrCode: jest.fn(),
   validateActiveItemLocation: jest.fn(),
   stockIn: jest.fn(),
-  stockOut: jest.fn()
+  stockOut: jest.fn(),
+  createRequest: jest.fn(),
+  listRequests: jest.fn(),
+  getRequestById: jest.fn(),
+  approveRequest: jest.fn(),
+  rejectRequest: jest.fn(),
+  issueRequest: jest.fn()
 }));
 
 const app = require("../src/app");
@@ -25,12 +31,163 @@ const toolingRepository = require("../src/repositories/toolingRepository");
 beforeEach(() => {
   jest.clearAllMocks();
   adminRepository.findUserByUsername.mockResolvedValue({
+    id: 1,
+    departmentId: 1,
     username: "admin",
     permissions: '{"toolingStore":"admin"}'
   });
   toolingRepository.validateActiveItemLocation.mockResolvedValue({
     item: { id: 1, minimumStock: 5 },
     location: { id: 1 }
+  });
+});
+
+describe("tooling phase 4 request and approval routes", () => {
+  const requestPayload = {
+    remark: "Need spare part for line A",
+    items: [{ itemId: 1, locationId: 1, quantity: 2 }]
+  };
+
+  test("POST /api/tooling/requests lets tooling users create simple requests", async () => {
+    adminRepository.findUserByUsername.mockResolvedValue({
+      id: 7,
+      departmentId: 2,
+      username: "engineer01",
+      permissions: '{"toolingStore":"user"}'
+    });
+    toolingRepository.createRequest.mockResolvedValue({
+      id: 10,
+      requestNo: "REQ-001",
+      status: "pending"
+    });
+
+    const response = await request(app)
+      .post("/api/tooling/requests")
+      .set("x-username", "engineer01")
+      .send(requestPayload)
+      .expect(201);
+
+    expect(response.body.status).toBe("pending");
+    expect(toolingRepository.createRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requesterId: 7,
+        departmentId: 2,
+        items: [expect.objectContaining({ itemId: 1, locationId: 1, requestedQuantity: 2 })]
+      })
+    );
+  });
+
+  test("POST /api/tooling/requests rejects requests without items", async () => {
+    await request(app)
+      .post("/api/tooling/requests")
+      .set("x-username", "admin")
+      .send({ items: [] })
+      .expect(400);
+
+    expect(toolingRepository.createRequest).not.toHaveBeenCalled();
+  });
+
+  test("GET /api/tooling/requests returns filtered requests", async () => {
+    toolingRepository.listRequests.mockResolvedValue({
+      data: [{ id: 1, requestNo: "REQ-001", status: "pending" }],
+      pagination: { page: 1, pageSize: 10, total: 1 }
+    });
+
+    const response = await request(app)
+      .get("/api/tooling/requests")
+      .set("x-username", "admin")
+      .query({ status: "pending" })
+      .expect(200);
+
+    expect(response.body.data[0].requestNo).toBe("REQ-001");
+    expect(toolingRepository.listRequests).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "pending" })
+    );
+  });
+
+  test("GET /api/tooling/requests/:id returns request detail with items", async () => {
+    toolingRepository.getRequestById.mockResolvedValue({
+      id: 1,
+      requestNo: "REQ-001",
+      items: [{ itemId: 1, requestedQuantity: 2 }]
+    });
+
+    const response = await request(app)
+      .get("/api/tooling/requests/1")
+      .set("x-username", "admin")
+      .expect(200);
+
+    expect(response.body.items).toHaveLength(1);
+    expect(toolingRepository.getRequestById).toHaveBeenCalledWith("1");
+  });
+
+  test("PUT /api/tooling/requests/:id/approve requires admin access", async () => {
+    adminRepository.findUserByUsername.mockResolvedValue({
+      id: 7,
+      departmentId: 2,
+      username: "engineer01",
+      permissions: '{"toolingStore":"user"}'
+    });
+
+    await request(app)
+      .put("/api/tooling/requests/1/approve")
+      .set("x-username", "engineer01")
+      .expect(403);
+  });
+
+  test("PUT /api/tooling/requests/:id/approve approves a request", async () => {
+    toolingRepository.approveRequest.mockResolvedValue({
+      id: 1,
+      requestNo: "REQ-001",
+      status: "approved"
+    });
+
+    const response = await request(app)
+      .put("/api/tooling/requests/1/approve")
+      .set("x-username", "admin")
+      .expect(200);
+
+    expect(response.body.status).toBe("approved");
+    expect(toolingRepository.approveRequest).toHaveBeenCalledWith("1", 1);
+  });
+
+  test("PUT /api/tooling/requests/:id/reject rejects a request", async () => {
+    toolingRepository.rejectRequest.mockResolvedValue({
+      id: 1,
+      requestNo: "REQ-001",
+      status: "rejected"
+    });
+
+    const response = await request(app)
+      .put("/api/tooling/requests/1/reject")
+      .set("x-username", "admin")
+      .send({ remark: "No stock" })
+      .expect(200);
+
+    expect(response.body.status).toBe("rejected");
+    expect(toolingRepository.rejectRequest).toHaveBeenCalledWith("1", 1, "No stock");
+  });
+
+  test("PUT /api/tooling/requests/:id/issue issues approved request items", async () => {
+    toolingRepository.issueRequest.mockResolvedValue({
+      id: 1,
+      requestNo: "REQ-001",
+      status: "issued"
+    });
+
+    const response = await request(app)
+      .put("/api/tooling/requests/1/issue")
+      .set("x-username", "admin")
+      .expect(200);
+
+    expect(response.body.status).toBe("issued");
+    expect(toolingRepository.issueRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: "1",
+        issuedBy: 1,
+        transactionNoPrefix: expect.stringMatching(/^TREQ-/)
+      })
+    );
   });
 });
 
