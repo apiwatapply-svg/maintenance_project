@@ -25,6 +25,19 @@ npm run dev
 ## Database
 
 Run `backend/database/schema.sql` on Microsoft SQL Server before using the admin CRUD endpoints.
+The schema seeds the first super admin user:
+
+- Username: `admin`
+- Password: `admin`
+- Role: `admin`
+- Permissions: admin access to every feature
+
+Backend reads `.env.local` first, then `.env`.
+
+## Realtime
+
+The backend starts Socket.IO on the same HTTP server as Express. Admin CRUD changes emit
+`admin:data-changed`, and the admin dashboard listens for that event to refresh matching pages.
 
 ## Tests
 

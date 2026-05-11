@@ -3,6 +3,7 @@ const request = require("supertest");
 jest.mock("../src/repositories/adminRepository", () => ({
   list: jest.fn(),
   getById: jest.fn(),
+  findUserByUsername: jest.fn(),
   create: jest.fn(),
   update: jest.fn(),
   remove: jest.fn()
@@ -32,9 +33,11 @@ const resources = [
     resource: "users",
     payload: {
       username: "operator01",
+      password: "operator01",
       fullName: "Operator One",
       departmentId: 1,
       status: "active",
+      role: "user",
       permissions: {
         preventiveMaintenance: "user",
         toolingStore: "none",
@@ -51,16 +54,34 @@ beforeEach(() => {
 
 describe("admin auth endpoints", () => {
   test("POST /api/admin/login accepts admin credentials", async () => {
+    adminRepository.findUserByUsername.mockResolvedValue({
+      id: 1,
+      username: "admin",
+      password: "admin",
+      fullName: "System Administrator",
+      departmentId: 1,
+      role: "admin",
+      permissions:
+        '{"preventiveMaintenance":"admin","toolingStore":"admin","jobRequest":"admin","adminMode":"admin"}'
+    });
+
     const response = await request(app)
       .post("/api/admin/login")
       .send({ username: "admin", password: "admin" })
       .expect(200);
 
-    expect(response.body.user).toEqual({ username: "admin", role: "admin" });
+    expect(response.body.user.username).toBe("admin");
+    expect(response.body.user.role).toBe("admin");
+    expect(response.body.user.permissions.adminMode).toBe("admin");
     expect(response.body.token).toBe("admin-local-token");
   });
 
   test("POST /api/admin/login rejects invalid credentials", async () => {
+    adminRepository.findUserByUsername.mockResolvedValue({
+      username: "admin",
+      password: "admin"
+    });
+
     await request(app)
       .post("/api/admin/login")
       .send({ username: "admin", password: "wrong" })

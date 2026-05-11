@@ -99,6 +99,17 @@ async function getById(resource, id) {
   return result.recordset[0] || null;
 }
 
+async function findUserByUsername(username) {
+  const pool = await getPool();
+  const result = await pool.request().input("username", sql.NVarChar, username).query(`
+    SELECT TOP 1 *
+    FROM Users
+    WHERE username = @username AND status = 'active'
+  `);
+
+  return result.recordset[0] || null;
+}
+
 async function create(resource, payload) {
   const config = getResourceConfig(resource);
   const pool = await getPool();
@@ -162,6 +173,7 @@ async function remove(resource, id) {
 module.exports = {
   list,
   getById,
+  findUserByUsername,
   create,
   update,
   remove

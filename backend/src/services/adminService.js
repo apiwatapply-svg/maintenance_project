@@ -1,5 +1,6 @@
 const adminRepository = require("../repositories/adminRepository");
 const { getResourceConfig, featureKeys } = require("../config/adminResources");
+const { emitAdminChange } = require("./socketService");
 
 function parsePermissions(value) {
   if (!value || typeof value !== "string") {
@@ -74,12 +75,18 @@ function assertPayload(resource, payload) {
 }
 
 async function login(credentials) {
-  if (credentials.username === "admin" && credentials.password === "admin") {
+  const user = await adminRepository.findUserByUsername(credentials.username);
+
+  if (user && user.password === credentials.password) {
     return {
       token: "admin-local-token",
       user: {
-        username: "admin",
-        role: "admin"
+        id: user.id,
+        username: user.username,
+        fullName: user.fullName,
+        departmentId: user.departmentId,
+        role: user.role || "user",
+        permissions: parsePermissions(user.permissions)
       }
     };
   }
@@ -114,7 +121,9 @@ async function getById(resource, id) {
 
 async function create(resource, payload) {
   const sanitized = assertPayload(resource, payload);
-  return mapRecord(await adminRepository.create(resource, sanitized));
+  const record = mapRecord(await adminRepository.create(resource, sanitized));
+  emitAdminChange({ action: "create", resource, id: record.id });
+  return record;
 }
 
 async function update(resource, id, payload) {
@@ -127,7 +136,9 @@ async function update(resource, id, payload) {
     throw error;
   }
 
-  return mapRecord(record);
+  const mapped = mapRecord(record);
+  emitAdminChange({ action: "update", resource, id: mapped.id });
+  return mapped;
 }
 
 async function remove(resource, id) {
@@ -140,7 +151,9 @@ async function remove(resource, id) {
     throw error;
   }
 
-  return mapRecord(record);
+  const mapped = mapRecord(record);
+  emitAdminChange({ action: "delete", resource, id: mapped.id });
+  return mapped;
 }
 
 module.exports = {

@@ -37,7 +37,7 @@ const adminResources = {
   users: {
     table: "Users",
     defaultSort: "username",
-    fields: ["username", "fullName", "departmentId", "status", "permissions"],
+    fields: ["username", "password", "fullName", "departmentId", "status", "role", "permissions"],
     filters: ["search", "status", "departmentId", "feature", "role"],
     searchColumns: ["username", "fullName"]
   }

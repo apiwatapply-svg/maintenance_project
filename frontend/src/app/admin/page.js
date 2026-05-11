@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
+import { getSocket } from "@/lib/socket";
 
 const featureOptions = [
   { key: "preventiveMaintenance", label: "Preventive Maintenance" },
@@ -60,9 +61,11 @@ const resources = {
     description: "จัดการผู้ใช้ แผนก และสิทธิ์ของแต่ละ feature",
     fields: [
       { key: "username", label: "Username", required: true },
+      { key: "password", label: "Password", type: "password" },
       { key: "fullName", label: "Full Name" },
       { key: "departmentId", label: "Department", type: "department", required: true },
       { key: "status", label: "Status", type: "status" },
+      { key: "role", label: "Global Role", type: "globalRole" },
       { key: "permissions", label: "Feature Permissions", type: "permissions" }
     ],
     filters: ["search", "status", "departmentId", "feature", "role"]
@@ -136,6 +139,26 @@ export default function AdminDashboard() {
   useEffect(() => {
     loadLookups();
   }, []);
+
+  useEffect(() => {
+    const socket = getSocket();
+
+    function handleAdminChange(event) {
+      if (event.resource === activeResource) {
+        loadItems();
+      }
+
+      if (["departments", "areas", "machine-types"].includes(event.resource)) {
+        loadLookups();
+      }
+    }
+
+    socket.on("admin:data-changed", handleAdminChange);
+
+    return () => {
+      socket.off("admin:data-changed", handleAdminChange);
+    };
+  }, [activeResource, filters]);
 
   useEffect(() => {
     if (Object.keys(filters).length) {
@@ -520,6 +543,20 @@ function FormField({ field, value, lookups, onChange }) {
     );
   }
 
+  if (field.type === "globalRole") {
+    return (
+      <SelectField
+        label={field.label}
+        value={value || "user"}
+        onChange={onChange}
+        options={[
+          { value: "user", label: "User" },
+          { value: "admin", label: "Admin" }
+        ]}
+      />
+    );
+  }
+
   if (field.type === "department") {
     return (
       <SelectField
@@ -566,6 +603,7 @@ function FormField({ field, value, lookups, onChange }) {
     <label>
       {field.label}
       <input
+        type={field.type === "password" ? "password" : "text"}
         required={field.required}
         value={value || ""}
         onChange={(event) => onChange(event.target.value)}
