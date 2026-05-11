@@ -1095,10 +1095,13 @@ th {
   text-align: center;
   text-transform: uppercase;
 }
-th:last-child,
 td:last-child {
   width: 170px;
   text-align: right;
+}
+th:last-child {
+  width: 170px;
+  text-align: center;
 }
 th:nth-child(2),
 td:nth-child(2),
