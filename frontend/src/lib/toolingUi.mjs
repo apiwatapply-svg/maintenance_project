@@ -128,3 +128,43 @@ export function validateToolingMovementForm(form) {
 
   return errors;
 }
+
+export function getToolingItemDefaultForm() {
+  return {
+    itemCode: "",
+    itemName: "",
+    categoryId: "",
+    itemType: "spare_part",
+    unit: "pcs",
+    minimumStock: 0,
+    maximumStock: 0,
+    safetyStock: 0,
+    leadTimeDays: 0,
+    slowMovementDays: 90,
+    deadStockDays: 180,
+    minimumOrderQuantity: 1,
+    preferredSupplierId: "",
+    criticalLevel: "normal",
+    locationId: "",
+    qrCode: "",
+    status: "active"
+  };
+}
+
+export function validateToolingItemForm(form) {
+  const errors = {};
+
+  if (!form?.itemCode?.trim()) {
+    errors.itemCode = "Item code is required.";
+  }
+
+  if (!form?.itemName?.trim()) {
+    errors.itemName = "Item name is required.";
+  }
+
+  if (!form?.unit?.trim()) {
+    errors.unit = "Unit is required.";
+  }
+
+  return errors;
+}

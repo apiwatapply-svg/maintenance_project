@@ -6,8 +6,10 @@ import { getSocket } from "@/lib/socket";
 import { getPaginationPages } from "@/lib/pagination.mjs";
 import {
   buildToolingQuery,
+  getToolingItemDefaultForm,
   getToolingPageRange,
-  toolingFilterStorageKeys
+  toolingFilterStorageKeys,
+  validateToolingItemForm
 } from "@/lib/toolingUi.mjs";
 import ToolingLayout from "./ToolingLayout";
 
@@ -70,12 +72,19 @@ function readSavedFilters(config) {
 function ToolingReadContent({ headers, resource }) {
   const config = resourceConfigs[resource];
   const [rows, setRows] = useState([]);
+  const [lookups, setLookups] = useState({ categories: [], locations: [], suppliers: [] });
   const [filters, setFilters] = useState({});
   const [pagination, setPagination] = useState(emptyPagination);
+  const [itemForm, setItemForm] = useState(getToolingItemDefaultForm());
+  const [editingId, setEditingId] = useState(null);
+  const [formErrors, setFormErrors] = useState({});
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
   const totalPages = Math.max(Math.ceil(pagination.total / pagination.pageSize), 1);
   const range = getToolingPageRange(pagination);
+  const canManageItems = resource === "items";
 
   useEffect(() => {
     setFilters(readSavedFilters(config));
@@ -110,6 +119,32 @@ function ToolingReadContent({ headers, resource }) {
   }, [config, loadRows]);
 
   useEffect(() => {
+    if (!canManageItems) {
+      return;
+    }
+
+    async function loadLookups() {
+      try {
+        const [categories, locations, suppliers] = await Promise.all([
+          api.get("/tooling/categories", { headers, params: { status: "active", pageSize: 100 } }),
+          api.get("/tooling/locations", { headers, params: { status: "active", pageSize: 100 } }),
+          api.get("/tooling/suppliers", { headers, params: { status: "active", pageSize: 100 } })
+        ]);
+
+        setLookups({
+          categories: categories.data.data || [],
+          locations: locations.data.data || [],
+          suppliers: suppliers.data.data || []
+        });
+      } catch {
+        setLookups({ categories: [], locations: [], suppliers: [] });
+      }
+    }
+
+    loadLookups();
+  }, [canManageItems, headers]);
+
+  useEffect(() => {
     const socket = getSocket();
     const refresh = () => loadRows(filters);
 
@@ -142,9 +177,111 @@ function ToolingReadContent({ headers, resource }) {
     loadRows(nextFilters);
   }
 
+  function openCreateModal() {
+    setEditingId(null);
+    setItemForm(getToolingItemDefaultForm());
+    setFormErrors({});
+    setIsModalOpen(true);
+  }
+
+  function openEditModal(row) {
+    setEditingId(row.id);
+    setItemForm({ ...getToolingItemDefaultForm(), ...row });
+    setFormErrors({});
+    setIsModalOpen(true);
+  }
+
+  function updateItemForm(key, value) {
+    setItemForm((current) => ({ ...current, [key]: value }));
+    setFormErrors((current) => ({ ...current, [key]: "" }));
+  }
+
+  function sanitizeItemPayload(form) {
+    const numberFields = [
+      "categoryId",
+      "locationId",
+      "preferredSupplierId",
+      "minimumStock",
+      "maximumStock",
+      "safetyStock",
+      "leadTimeDays",
+      "slowMovementDays",
+      "deadStockDays",
+      "minimumOrderQuantity"
+    ];
+
+    return Object.fromEntries(
+      Object.entries(form).map(([key, value]) => {
+        if (["categoryId", "locationId", "preferredSupplierId"].includes(key) && value === "") {
+          return [key, null];
+        }
+
+        if (numberFields.includes(key)) {
+          return [key, Number(value || 0)];
+        }
+
+        return [key, value];
+      })
+    );
+  }
+
+  async function handleSaveItem(event) {
+    event.preventDefault();
+
+    const nextErrors = validateToolingItemForm(itemForm);
+    setFormErrors(nextErrors);
+
+    if (Object.keys(nextErrors).length) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const payload = sanitizeItemPayload(itemForm);
+
+      if (editingId) {
+        await api.put(`/tooling/items/${editingId}`, payload, { headers });
+      } else {
+        await api.post("/tooling/items", payload, { headers });
+      }
+
+      setIsModalOpen(false);
+      setMessage(editingId ? "Item updated." : "Item created.");
+      loadRows(filters);
+    } catch (error) {
+      setMessage(error.response?.data?.message || "Cannot save item.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleDeleteItem(row) {
+    const isConfirmed = window.confirm(`Delete ${row.itemCode}?`);
+
+    if (!isConfirmed) {
+      return;
+    }
+
+    try {
+      await api.delete(`/tooling/items/${row.id}`, { headers });
+      setMessage("Item deleted.");
+      loadRows(filters);
+    } catch (error) {
+      setMessage(error.response?.data?.message || "Cannot delete item.");
+    }
+  }
+
   return (
     <section className="tooling-content">
       <style>{readStyles}</style>
+      {canManageItems ? (
+        <div className="read-actions">
+          <button type="button" onClick={openCreateModal}>
+            Add Item
+          </button>
+        </div>
+      ) : null}
+
       <div className="read-toolbar">
         {config.filters.map((filter) => (
           <label key={filter.key}>
@@ -188,6 +325,7 @@ function ToolingReadContent({ headers, resource }) {
                 {config.columns.map((column) => (
                   <th key={column.key}>{column.label}</th>
                 ))}
+                {canManageItems ? <th>Actions</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -198,6 +336,18 @@ function ToolingReadContent({ headers, resource }) {
                       <CellValue column={column} row={row} />
                     </td>
                   ))}
+                  {canManageItems ? (
+                    <td>
+                      <div className="row-actions">
+                        <button type="button" onClick={() => openEditModal(row)}>
+                          Edit
+                        </button>
+                        <button className="danger" type="button" onClick={() => handleDeleteItem(row)}>
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
               {!isLoading && !rows.length ? (
@@ -246,7 +396,148 @@ function ToolingReadContent({ headers, resource }) {
           </select>
         </div>
       </section>
+
+      {isModalOpen ? (
+        <ItemModal
+          editingId={editingId}
+          errors={formErrors}
+          form={itemForm}
+          isSaving={isSaving}
+          lookups={lookups}
+          onChange={updateItemForm}
+          onClose={() => setIsModalOpen(false)}
+          onSubmit={handleSaveItem}
+        />
+      ) : null}
     </section>
+  );
+}
+
+function ItemModal({ editingId, errors, form, isSaving, lookups, onChange, onClose, onSubmit }) {
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <form className="item-modal" onSubmit={onSubmit}>
+        <div className="modal-head">
+          <div>
+            <span>Item Master</span>
+            <b>{editingId ? "Edit Item" : "Add Item"}</b>
+          </div>
+          <button type="button" onClick={onClose}>
+            Close
+          </button>
+        </div>
+
+        <div className="modal-grid">
+          <ItemField error={errors.itemCode} label="Item Code">
+            <input value={form.itemCode || ""} onChange={(event) => onChange("itemCode", event.target.value)} />
+          </ItemField>
+          <ItemField error={errors.itemName} label="Item Name">
+            <input value={form.itemName || ""} onChange={(event) => onChange("itemName", event.target.value)} />
+          </ItemField>
+          <ItemField label="Category">
+            <select value={form.categoryId || ""} onChange={(event) => onChange("categoryId", event.target.value)}>
+              <option value="">None</option>
+              {lookups.categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.categoryCode} - {category.categoryName}
+                </option>
+              ))}
+            </select>
+          </ItemField>
+          <ItemField label="Item Type">
+            <select value={form.itemType || "spare_part"} onChange={(event) => onChange("itemType", event.target.value)}>
+              <option value="spare_part">Spare Part</option>
+              <option value="consumable">Consumable</option>
+              <option value="safety_stock">Safety Stock</option>
+              <option value="tooling">Tooling</option>
+            </select>
+          </ItemField>
+          <ItemField error={errors.unit} label="Unit">
+            <input value={form.unit || ""} onChange={(event) => onChange("unit", event.target.value)} />
+          </ItemField>
+          <ItemField label="Location">
+            <select value={form.locationId || ""} onChange={(event) => onChange("locationId", event.target.value)}>
+              <option value="">None</option>
+              {lookups.locations.map((location) => (
+                <option key={location.id} value={location.id}>
+                  {location.locationCode} - {location.locationName}
+                </option>
+              ))}
+            </select>
+          </ItemField>
+          <ItemField label="Supplier">
+            <select
+              value={form.preferredSupplierId || ""}
+              onChange={(event) => onChange("preferredSupplierId", event.target.value)}
+            >
+              <option value="">None</option>
+              {lookups.suppliers.map((supplier) => (
+                <option key={supplier.id} value={supplier.id}>
+                  {supplier.supplierCode} - {supplier.supplierName}
+                </option>
+              ))}
+            </select>
+          </ItemField>
+          <ItemField label="Critical Level">
+            <select
+              value={form.criticalLevel || "normal"}
+              onChange={(event) => onChange("criticalLevel", event.target.value)}
+            >
+              <option value="normal">Normal</option>
+              <option value="important">Important</option>
+              <option value="critical">Critical</option>
+            </select>
+          </ItemField>
+          {[
+            ["minimumStock", "Min Stock"],
+            ["maximumStock", "Max Stock"],
+            ["safetyStock", "Safety Stock"],
+            ["leadTimeDays", "Lead Time Days"],
+            ["slowMovementDays", "Slow Movement Days"],
+            ["deadStockDays", "Dead Stock Days"],
+            ["minimumOrderQuantity", "MOQ"]
+          ].map(([key, label]) => (
+            <ItemField key={key} label={label}>
+              <input
+                min="0"
+                step="0.01"
+                type="number"
+                value={form[key] ?? 0}
+                onChange={(event) => onChange(key, event.target.value)}
+              />
+            </ItemField>
+          ))}
+          <ItemField label="QR Code">
+            <input value={form.qrCode || ""} onChange={(event) => onChange("qrCode", event.target.value)} />
+          </ItemField>
+          <ItemField label="Status">
+            <select value={form.status || "active"} onChange={(event) => onChange("status", event.target.value)}>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </ItemField>
+        </div>
+
+        <div className="modal-actions">
+          <button type="button" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="primary" disabled={isSaving} type="submit">
+            {isSaving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function ItemField({ children, error, label }) {
+  return (
+    <label>
+      <span>{label}</span>
+      {children}
+      {error ? <small>{error}</small> : null}
+    </label>
   );
 }
 
@@ -267,6 +558,28 @@ function CellValue({ column, row }) {
 }
 
 const readStyles = `
+.read-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 14px;
+}
+.read-actions button,
+.row-actions button,
+.modal-actions button,
+.modal-head button {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: white;
+  color: #0f172a;
+  padding: 10px 14px;
+  font-weight: 950;
+}
+.read-actions button,
+.modal-actions button.primary {
+  border-color: #f59e0b;
+  background: #f59e0b;
+  color: #111827;
+}
 .read-toolbar {
   display: grid;
   grid-template-columns: repeat(4, minmax(160px, 1fr));
@@ -413,9 +726,109 @@ td {
   justify-self: end;
   min-width: 92px;
 }
+.row-actions {
+  display: inline-flex;
+  justify-content: center;
+  gap: 8px;
+}
+.row-actions button {
+  min-width: 72px;
+  padding: 9px 12px;
+}
+.row-actions button:first-child {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: white;
+}
+.row-actions button.danger {
+  border-color: #fecaca;
+  color: #991b1b;
+}
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  background: rgb(15 23 42 / .48);
+  padding: 22px;
+}
+.item-modal {
+  width: min(980px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 24px 70px rgb(15 23 42 / .24);
+  padding: 18px;
+}
+.modal-head,
+.modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.modal-head {
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 14px;
+}
+.modal-head span {
+  display: block;
+  color: #b45309;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.modal-head b {
+  display: block;
+  margin-top: 4px;
+  font-size: 1.5rem;
+}
+.modal-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px 0;
+}
+.modal-grid label {
+  display: grid;
+  gap: 7px;
+}
+.modal-grid label span {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.modal-grid input,
+.modal-grid select {
+  height: 42px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: white;
+  color: #0f172a;
+  padding: 0 12px;
+  font-weight: 850;
+}
+.modal-grid small {
+  color: #b91c1c;
+  font-weight: 850;
+}
+.modal-actions {
+  border-top: 1px solid #e2e8f0;
+  justify-content: flex-end;
+  padding-top: 14px;
+}
 @media (max-width: 960px) {
   .read-toolbar {
     grid-template-columns: repeat(2, minmax(160px, 1fr));
+  }
+  .modal-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 620px) {
@@ -430,6 +843,14 @@ td {
   }
   .read-pagination select {
     justify-self: stretch;
+  }
+  .modal-grid {
+    grid-template-columns: 1fr;
+  }
+  .modal-head,
+  .modal-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 `;

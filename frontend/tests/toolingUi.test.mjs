@@ -4,12 +4,14 @@ import assert from "node:assert/strict";
 import {
   buildToolingQuery,
   getToolingApiHeaders,
+  getToolingItemDefaultForm,
   getToolingMovementConfig,
   getToolingNavItems,
   getToolingPageMeta,
   getToolingPageRange,
   getToolingSessionRedirect,
   toolingFilterStorageKeys,
+  validateToolingItemForm,
   validateToolingMovementForm
 } from "../src/lib/toolingUi.mjs";
 
@@ -86,6 +88,41 @@ test("validateToolingMovementForm requires item, location, and positive quantity
 
   assert.deepEqual(
     validateToolingMovementForm({ itemId: 1, locationId: 2, quantity: 3 }),
+    {}
+  );
+});
+
+test("getToolingItemDefaultForm provides safe item defaults", () => {
+  assert.deepEqual(getToolingItemDefaultForm(), {
+    itemCode: "",
+    itemName: "",
+    categoryId: "",
+    itemType: "spare_part",
+    unit: "pcs",
+    minimumStock: 0,
+    maximumStock: 0,
+    safetyStock: 0,
+    leadTimeDays: 0,
+    slowMovementDays: 90,
+    deadStockDays: 180,
+    minimumOrderQuantity: 1,
+    preferredSupplierId: "",
+    criticalLevel: "normal",
+    locationId: "",
+    qrCode: "",
+    status: "active"
+  });
+});
+
+test("validateToolingItemForm requires core item master fields", () => {
+  assert.deepEqual(validateToolingItemForm({ itemCode: "", itemName: "", unit: "" }), {
+    itemCode: "Item code is required.",
+    itemName: "Item name is required.",
+    unit: "Unit is required."
+  });
+
+  assert.deepEqual(
+    validateToolingItemForm({ itemCode: "SP-001", itemName: "Bearing", unit: "pcs" }),
     {}
   );
 });
