@@ -627,7 +627,7 @@ function Pagination({ pagination, totalPages, setFilters }) {
       </div>
       <div className="pagination-size">
         <SelectField
-          label="Rows"
+          label=""
           value={pagination.pageSize}
           onChange={(value) =>
             setFilters((current) => ({ ...current, page: 1, pageSize: Number(value) }))
@@ -642,7 +642,7 @@ function Pagination({ pagination, totalPages, setFilters }) {
 function SelectField({ label, value, onChange, options, className = "" }) {
   return (
     <label className={className}>
-      {label}
+      {label && <span>{label}</span>}
       <select value={value} onChange={(event) => onChange(event.target.value)}>
         {options.map((option) => (
           <option key={option.value} value={option.value}>
