@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { getAdminSessionRedirect } from "@/lib/adminSession.mjs";
 
 const systems = [
   {
@@ -59,8 +60,10 @@ export default function Home() {
   const [isCheckingSession, setIsCheckingSession] = useState(true);
 
   useEffect(() => {
-    if (localStorage.getItem("adminSession")) {
-      router.replace("/admin");
+    const redirectTarget = getAdminSessionRedirect("/", Boolean(localStorage.getItem("adminSession")));
+
+    if (redirectTarget) {
+      router.replace(redirectTarget);
       return;
     }
 
