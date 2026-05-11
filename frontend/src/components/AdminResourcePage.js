@@ -444,7 +444,7 @@ function AdminSidebar({ isCollapsed, pathname, router, toggleCollapsed }) {
         type="button"
         onClick={() => {
           localStorage.removeItem("adminSession");
-          router.push("/admin/login");
+          router.replace("/");
         }}
       >
         Logout

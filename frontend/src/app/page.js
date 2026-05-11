@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const systems = [
   {
@@ -51,6 +55,22 @@ function GatewayIcon({ theme, code }) {
 }
 
 export default function Home() {
+  const router = useRouter();
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+
+  useEffect(() => {
+    if (localStorage.getItem("adminSession")) {
+      router.replace("/admin");
+      return;
+    }
+
+    setIsCheckingSession(false);
+  }, [router]);
+
+  if (isCheckingSession) {
+    return null;
+  }
+
   return (
     <main className="gateway-page">
       <style>{gatewayStyles}</style>
