@@ -2,7 +2,7 @@ const toolingService = require("../services/toolingService");
 
 async function dashboard(req, res, next) {
   try {
-    res.json(await toolingService.dashboard());
+    res.json(await toolingService.dashboard(req.query));
   } catch (error) {
     next(error);
   }

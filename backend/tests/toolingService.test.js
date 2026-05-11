@@ -3,6 +3,7 @@ jest.mock("../src/repositories/adminRepository", () => ({
 }));
 
 jest.mock("../src/repositories/toolingRepository", () => ({
+  dashboard: jest.fn(),
   searchItems: jest.fn(),
   findItemByQrCode: jest.fn(),
   validateActiveItemLocation: jest.fn(),
@@ -24,6 +25,69 @@ jest.mock("../src/services/socketService", () => ({
 const adminRepository = require("../src/repositories/adminRepository");
 const toolingRepository = require("../src/repositories/toolingRepository");
 const { emitToolingChange } = require("../src/services/socketService");
+
+describe("tooling service dashboard chart", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test("dashboard builds daily month totals and drilldown rows", async () => {
+    const toolingService = require("../src/services/toolingService");
+
+    toolingRepository.dashboard.mockResolvedValue({
+      totalItems: 2,
+      lowStockItems: 0,
+      movementToday: 3,
+      stockoutRiskItems: 0,
+      slowMovementItems: 0,
+      overstockItems: 0,
+      movementRows: [
+        {
+          movementDate: "2026-05-03",
+          itemId: 1,
+          itemCode: "SP-001",
+          itemName: "Bearing",
+          stockIn: 10,
+          stockOut: 2
+        },
+        {
+          movementDate: "2026-05-03",
+          itemId: 2,
+          itemCode: "SP-002",
+          itemName: "Sensor",
+          stockIn: 0,
+          stockOut: 4
+        },
+        {
+          movementDate: "2026-05-04",
+          itemId: 1,
+          itemCode: "SP-001",
+          itemName: "Bearing",
+          stockIn: 5,
+          stockOut: 0
+        }
+      ]
+    });
+
+    const result = await toolingService.dashboard({ yearMonth: "2026-05" });
+
+    expect(toolingRepository.dashboard).toHaveBeenCalledWith({ yearMonth: "2026-05" });
+    expect(result.movementChart.yearMonth).toBe("2026-05");
+    expect(result.movementChart.daily).toHaveLength(31);
+    expect(result.movementChart.daily[2]).toEqual({
+      date: "2026-05-03",
+      day: 3,
+      stockIn: 10,
+      stockOut: 6
+    });
+    expect(result.movementChart.totals).toEqual({ stockIn: 15, stockOut: 6 });
+    expect(result.movementChart.itemsByDate["2026-05-03"]).toEqual([
+      expect.objectContaining({ itemCode: "SP-001", stockIn: 10, stockOut: 2 }),
+      expect.objectContaining({ itemCode: "SP-002", stockIn: 0, stockOut: 4 })
+    ]);
+    expect(result).not.toHaveProperty("movementRows");
+  });
+});
 
 describe("tooling access middleware", () => {
   beforeEach(() => {

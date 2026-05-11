@@ -86,7 +86,19 @@ function qualifyTransactionWhere(whereSql) {
   );
 }
 
-async function dashboard() {
+function getDashboardMonthParts(yearMonth) {
+  const text = String(yearMonth || "").trim();
+
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(text)) {
+    const [year, month] = text.split("-").map(Number);
+    return { year, month };
+  }
+
+  const now = new Date();
+  return { year: now.getFullYear(), month: now.getMonth() + 1 };
+}
+
+async function dashboard(filters = {}) {
   const pool = await getPool();
   const result = await pool.request().query(`
     SELECT
@@ -103,8 +115,42 @@ async function dashboard() {
       0 AS slowMovementItems,
       0 AS overstockItems
   `);
+  const { year, month } = getDashboardMonthParts(filters.yearMonth);
+  const movementRequest = pool.request();
 
-  return result.recordset[0];
+  movementRequest.input("year", sql.Int, year);
+  movementRequest.input("month", sql.Int, month);
+
+  const movementResult = await movementRequest.query(`
+    DECLARE @monthStart date = DATEFROMPARTS(@year, @month, 1);
+    DECLARE @monthEnd date = DATEADD(month, 1, @monthStart);
+
+    SELECT
+      CONVERT(date, transactionRow.transactionDate) AS movementDate,
+      item.id AS itemId,
+      item.itemCode,
+      item.itemName,
+      item.imageUrl,
+      SUM(CASE WHEN transactionRow.movementType = 'stock_in' THEN transactionRow.quantity ELSE 0 END) AS stockIn,
+      SUM(CASE WHEN transactionRow.movementType = 'stock_out' THEN transactionRow.quantity ELSE 0 END) AS stockOut
+    FROM dbo.tb_tooling_stock_transaction AS transactionRow
+    INNER JOIN dbo.tbm_tooling_item AS item ON item.id = transactionRow.itemId
+    WHERE transactionRow.transactionDate >= @monthStart
+      AND transactionRow.transactionDate < @monthEnd
+      AND transactionRow.movementType IN ('stock_in', 'stock_out')
+    GROUP BY
+      CONVERT(date, transactionRow.transactionDate),
+      item.id,
+      item.itemCode,
+      item.itemName,
+      item.imageUrl
+    ORDER BY movementDate, item.itemCode
+  `);
+
+  return {
+    ...result.recordset[0],
+    movementRows: movementResult.recordset
+  };
 }
 
 async function list(resource, filters) {

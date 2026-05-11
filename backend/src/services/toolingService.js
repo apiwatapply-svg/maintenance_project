@@ -31,6 +31,76 @@ function createTransactionNo(prefix) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
 
+function normalizeDashboardYearMonth(value, fallbackDate = new Date()) {
+  const text = String(value || "").trim();
+
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(text)) {
+    return text;
+  }
+
+  const year = fallbackDate.getFullYear();
+  const month = String(fallbackDate.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+function formatMovementDate(value) {
+  if (value instanceof Date) {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  return String(value || "").slice(0, 10);
+}
+
+function buildDashboardMovementChart(yearMonth, movementRows = []) {
+  const [year, month] = yearMonth.split("-").map(Number);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const dailyMap = new Map();
+  const itemsByDate = {};
+  const totals = { stockIn: 0, stockOut: 0 };
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const date = `${yearMonth}-${String(day).padStart(2, "0")}`;
+    dailyMap.set(date, { date, day, stockIn: 0, stockOut: 0 });
+    itemsByDate[date] = [];
+  }
+
+  movementRows.forEach((row) => {
+    const date = formatMovementDate(row.movementDate);
+
+    if (!dailyMap.has(date)) {
+      return;
+    }
+
+    const stockIn = Number(row.stockIn || 0);
+    const stockOut = Number(row.stockOut || 0);
+    const dayRow = dailyMap.get(date);
+
+    dayRow.stockIn += stockIn;
+    dayRow.stockOut += stockOut;
+    totals.stockIn += stockIn;
+    totals.stockOut += stockOut;
+
+    itemsByDate[date].push({
+      itemId: row.itemId,
+      itemCode: row.itemCode,
+      itemName: row.itemName,
+      imageUrl: row.imageUrl,
+      stockIn,
+      stockOut
+    });
+  });
+
+  return {
+    yearMonth,
+    daily: Array.from(dailyMap.values()),
+    totals,
+    itemsByDate
+  };
+}
+
 function assertStockMovementPayload(payload) {
   const missing = ["itemId", "locationId"].filter((field) => !payload[field]);
 
@@ -164,8 +234,15 @@ function assertRequestPayload(payload) {
   });
 }
 
-async function dashboard() {
-  return toolingRepository.dashboard();
+async function dashboard(filters = {}) {
+  const yearMonth = normalizeDashboardYearMonth(filters.yearMonth);
+  const result = await toolingRepository.dashboard({ yearMonth });
+  const { movementRows, ...summary } = result;
+
+  return {
+    ...summary,
+    movementChart: buildDashboardMovementChart(yearMonth, movementRows || [])
+  };
 }
 
 async function list(resource, filters) {
@@ -509,6 +586,8 @@ module.exports = {
   issueRequest,
   returnItem,
   calculatePlanningRow,
+  buildDashboardMovementChart,
+  normalizeDashboardYearMonth,
   planning,
   report
 };

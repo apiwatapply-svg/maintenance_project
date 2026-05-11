@@ -325,23 +325,26 @@ describe("tooling phase 7 report routes", () => {
 });
 
 describe("tooling foundation routes", () => {
-  test("GET /api/tooling/dashboard returns dashboard summary", async () => {
+  test("GET /api/tooling/dashboard returns dashboard summary with selected month chart", async () => {
     toolingRepository.dashboard.mockResolvedValue({
       totalItems: 2,
       lowStockItems: 1,
       movementToday: 3,
       stockoutRiskItems: 0,
       slowMovementItems: 0,
-      overstockItems: 0
+      overstockItems: 0,
+      movementRows: []
     });
 
     const response = await request(app)
       .get("/api/tooling/dashboard")
       .set("x-username", "admin")
+      .query({ yearMonth: "2026-05" })
       .expect(200);
 
     expect(response.body.totalItems).toBe(2);
-    expect(toolingRepository.dashboard).toHaveBeenCalledTimes(1);
+    expect(response.body.movementChart.yearMonth).toBe("2026-05");
+    expect(toolingRepository.dashboard).toHaveBeenCalledWith({ yearMonth: "2026-05" });
   });
 
   test("GET /api/tooling/items returns paginated tooling items", async () => {

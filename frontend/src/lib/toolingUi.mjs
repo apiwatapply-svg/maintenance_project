@@ -218,6 +218,68 @@ export function getToolingRowNumber(index, pagination) {
   return (page - 1) * pageSize + index + 1;
 }
 
+export function getToolingDashboardDefaultMonth(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+export function getToolingDashboardSelectedItems(chart, selectedDate) {
+  if (!chart || !selectedDate) {
+    return [];
+  }
+
+  return chart.itemsByDate?.[selectedDate] || [];
+}
+
+export function getToolingDashboardBarMax(rows) {
+  const maxValue = Math.max(
+    0,
+    ...(rows || []).flatMap((row) => [Number(row.stockIn || 0), Number(row.stockOut || 0)])
+  );
+
+  return maxValue || 1;
+}
+
+export function getToolingDashboardTickValues(maxValue) {
+  const max = Math.max(Number(maxValue || 0), 1);
+
+  if (max <= 4) {
+    return Array.from({ length: max + 1 }, (_item, index) => index);
+  }
+
+  return [0, 0.25, 0.5, 0.75, 1]
+    .map((ratio) => Math.round(max * ratio))
+    .filter((value, index, values) => values.indexOf(value) === index);
+}
+
+export function getToolingDashboardPieSegments(totals) {
+  const stockIn = Number(totals?.stockIn || 0);
+  const stockOut = Number(totals?.stockOut || 0);
+  const total = stockIn + stockOut;
+
+  if (!total) {
+    return [];
+  }
+
+  return [
+    {
+      key: "stockIn",
+      label: "Stock In",
+      value: stockIn,
+      percent: Math.round((stockIn / total) * 100),
+      color: "#2563eb"
+    },
+    {
+      key: "stockOut",
+      label: "Stock Out",
+      value: stockOut,
+      percent: Math.round((stockOut / total) * 100),
+      color: "#f59e0b"
+    }
+  ].filter((segment) => segment.value > 0);
+}
+
 export function sanitizeToolingReportFilters(filters) {
   const { dateFrom, dateTo, ...allowedFilters } = filters || {};
   return allowedFilters;

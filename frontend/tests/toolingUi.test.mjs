@@ -13,6 +13,11 @@ import {
   getToolingNavItems,
   getToolingPageMeta,
   getToolingPageRange,
+  getToolingDashboardBarMax,
+  getToolingDashboardDefaultMonth,
+  getToolingDashboardPieSegments,
+  getToolingDashboardSelectedItems,
+  getToolingDashboardTickValues,
   getToolingReferenceOptions,
   getToolingRequestDefaultForm,
   getToolingReturnDefaultForm,
@@ -133,6 +138,38 @@ test("toolingFilterStorageKeys keeps filter state scoped by page", () => {
 
 test("toolingCriticalLevelOptions matches item form and planning values", () => {
   assert.deepEqual(toolingCriticalLevelOptions, ["", "normal", "important", "critical"]);
+});
+
+test("getToolingDashboardDefaultMonth formats the selected month input value", () => {
+  assert.equal(getToolingDashboardDefaultMonth(new Date("2026-05-12T08:00:00Z")), "2026-05");
+});
+
+test("getToolingDashboardSelectedItems returns drilldown rows for the selected day", () => {
+  const chart = {
+    itemsByDate: {
+      "2026-05-03": [{ itemCode: "SP-001", stockIn: 2, stockOut: 1 }]
+    }
+  };
+
+  assert.deepEqual(getToolingDashboardSelectedItems(chart, "2026-05-03"), [
+    { itemCode: "SP-001", stockIn: 2, stockOut: 1 }
+  ]);
+  assert.deepEqual(getToolingDashboardSelectedItems(chart, "2026-05-04"), []);
+});
+
+test("getToolingDashboardBarMax and pie segments handle empty chart data safely", () => {
+  assert.equal(getToolingDashboardBarMax([{ stockIn: 3, stockOut: 9 }]), 9);
+  assert.equal(getToolingDashboardBarMax([]), 1);
+  assert.deepEqual(getToolingDashboardPieSegments({ stockIn: 3, stockOut: 1 }), [
+    { key: "stockIn", label: "Stock In", value: 3, percent: 75, color: "#2563eb" },
+    { key: "stockOut", label: "Stock Out", value: 1, percent: 25, color: "#f59e0b" }
+  ]);
+  assert.deepEqual(getToolingDashboardPieSegments({ stockIn: 0, stockOut: 0 }), []);
+});
+
+test("getToolingDashboardTickValues avoids repeated axis labels for small quantities", () => {
+  assert.deepEqual(getToolingDashboardTickValues(1), [0, 1]);
+  assert.deepEqual(getToolingDashboardTickValues(8), [0, 2, 4, 6, 8]);
 });
 
 test("resolveToolingImageUrl maps backend image paths to the API origin", () => {

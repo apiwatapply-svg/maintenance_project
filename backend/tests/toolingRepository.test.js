@@ -128,4 +128,39 @@ describe("tooling repository reports", () => {
 
     expect(allSql).toContain("item.imageUrl");
   });
+
+  test("dashboard loads movement chart rows for the requested year and month", async () => {
+    const summaryRequest = createMockRequest();
+    summaryRequest.query.mockImplementation(function query(sqlText) {
+      this.queries.push(sqlText);
+      return Promise.resolve({
+        recordset: [{
+          totalItems: 0,
+          lowStockItems: 0,
+          movementToday: 0,
+          stockoutRiskItems: 0,
+          slowMovementItems: 0,
+          overstockItems: 0
+        }]
+      });
+    });
+    const movementRequest = createMockRequest();
+    const requestQueue = [summaryRequest, movementRequest];
+
+    getPool.mockResolvedValue({
+      request: jest.fn(() => requestQueue.shift())
+    });
+
+    const toolingRepository = require("../src/repositories/toolingRepository");
+
+    await toolingRepository.dashboard({ yearMonth: "2026-05" });
+
+    const movementSql = movementRequest.queries.join("\n");
+
+    expect(movementRequest.input).toHaveBeenCalledWith("year", "Int", 2026);
+    expect(movementRequest.input).toHaveBeenCalledWith("month", "Int", 5);
+    expect(movementSql).toContain("DATEFROMPARTS(@year, @month, 1)");
+    expect(movementSql).toContain("transactionRow.movementType IN ('stock_in', 'stock_out')");
+    expect(movementSql).toContain("item.imageUrl");
+  });
 });
