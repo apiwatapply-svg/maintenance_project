@@ -1092,6 +1092,7 @@ th {
   color: #64748b;
   font-size: 12px;
   letter-spacing: .04em;
+  text-align: center;
   text-transform: uppercase;
 }
 th:last-child,
