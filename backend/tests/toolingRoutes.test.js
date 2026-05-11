@@ -13,6 +13,7 @@ jest.mock("../src/repositories/toolingRepository", () => ({
   remove: jest.fn(),
   searchItems: jest.fn(),
   findItemByQrCode: jest.fn(),
+  validateActiveItemLocation: jest.fn(),
   stockIn: jest.fn(),
   stockOut: jest.fn()
 }));
@@ -26,6 +27,10 @@ beforeEach(() => {
   adminRepository.findUserByUsername.mockResolvedValue({
     username: "admin",
     permissions: '{"toolingStore":"admin"}'
+  });
+  toolingRepository.validateActiveItemLocation.mockResolvedValue({
+    item: { id: 1, minimumStock: 5 },
+    location: { id: 1 }
   });
 });
 
@@ -189,7 +194,14 @@ describe("tooling phase 2 master and stock routes", () => {
 
   test("GET /api/tooling/stock returns stock balance rows", async () => {
     toolingRepository.list.mockResolvedValue({
-      data: [{ itemId: 1, locationId: 1, quantityOnHand: 12 }],
+      data: [{
+        itemId: 1,
+        itemCode: "SP-001",
+        itemName: "Bearing 6204",
+        locationId: 1,
+        locationName: "Rack A-01",
+        quantityOnHand: 12
+      }],
       pagination: { page: 1, pageSize: 10, total: 1 }
     });
 
@@ -200,6 +212,8 @@ describe("tooling phase 2 master and stock routes", () => {
       .expect(200);
 
     expect(response.body.data[0].quantityOnHand).toBe(12);
+    expect(response.body.data[0].itemName).toBe("Bearing 6204");
+    expect(response.body.data[0].locationName).toBe("Rack A-01");
     expect(toolingRepository.list).toHaveBeenCalledWith(
       "stock",
       expect.objectContaining({ itemId: "1" })
@@ -223,7 +237,12 @@ describe("tooling phase 2 master and stock routes", () => {
   });
 
   test("GET /api/tooling/items/qr/:qrCode returns item by QR code", async () => {
-    toolingRepository.findItemByQrCode.mockResolvedValue({ id: 1, ...itemPayload });
+    toolingRepository.findItemByQrCode.mockResolvedValue({
+      id: 1,
+      ...itemPayload,
+      quantityOnHand: 12,
+      locationName: "Rack A-01"
+    });
 
     const response = await request(app)
       .get("/api/tooling/items/qr/QR-SP-001")
@@ -231,6 +250,8 @@ describe("tooling phase 2 master and stock routes", () => {
       .expect(200);
 
     expect(response.body.itemCode).toBe("SP-001");
+    expect(response.body.quantityOnHand).toBe(12);
+    expect(response.body.locationName).toBe("Rack A-01");
     expect(toolingRepository.findItemByQrCode).toHaveBeenCalledWith("QR-SP-001");
   });
 });
@@ -338,13 +359,17 @@ describe("tooling phase 3 stock movement routes", () => {
     const response = await request(app)
       .get("/api/tooling/transactions")
       .set("x-username", "admin")
-      .query({ movementType: "stock_out" })
+      .query({ movementType: "stock_out", dateFrom: "2026-05-01", dateTo: "2026-05-11" })
       .expect(200);
 
     expect(response.body.data[0].transactionNo).toBe("TOUT-001");
     expect(toolingRepository.list).toHaveBeenCalledWith(
       "transactions",
-      expect.objectContaining({ movementType: "stock_out" })
+      expect.objectContaining({
+        movementType: "stock_out",
+        dateFrom: "2026-05-01",
+        dateTo: "2026-05-11"
+      })
     );
   });
 });

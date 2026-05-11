@@ -127,6 +127,10 @@ async function findItemByQrCode(qrCode) {
 
 async function stockIn(payload) {
   assertStockMovementPayload(payload);
+  const { item } = await toolingRepository.validateActiveItemLocation(
+    payload.itemId,
+    payload.locationId
+  );
   const movement = await toolingRepository.stockIn({
     ...payload,
     transactionNo: createTransactionNo("TIN"),
@@ -141,11 +145,32 @@ async function stockIn(payload) {
     locationId: movement.locationId
   });
 
+  if (
+    Number(movement.balanceBefore || 0) <= Number(item.minimumStock || 0) &&
+    Number(movement.balanceAfter || 0) > Number(item.minimumStock || 0)
+  ) {
+    emitToolingChange(
+      {
+        action: "stock_recovered",
+        resource: "stock",
+        id: movement.id,
+        itemId: movement.itemId,
+        locationId: movement.locationId,
+        balanceAfter: movement.balanceAfter
+      },
+      "tooling:stock-recovered"
+    );
+  }
+
   return movement;
 }
 
 async function stockOut(payload) {
   assertStockMovementPayload(payload);
+  const { item } = await toolingRepository.validateActiveItemLocation(
+    payload.itemId,
+    payload.locationId
+  );
   const movement = await toolingRepository.stockOut({
     ...payload,
     transactionNo: createTransactionNo("TOUT"),
@@ -159,6 +184,20 @@ async function stockOut(payload) {
     itemId: movement.itemId,
     locationId: movement.locationId
   });
+
+  if (Number(movement.balanceAfter || 0) <= Number(item.minimumStock || 0)) {
+    emitToolingChange(
+      {
+        action: "low_stock",
+        resource: "stock",
+        id: movement.id,
+        itemId: movement.itemId,
+        locationId: movement.locationId,
+        balanceAfter: movement.balanceAfter
+      },
+      "tooling:low-stock"
+    );
+  }
 
   return movement;
 }

@@ -66,6 +66,16 @@ function buildWhere(config, filters, request) {
     where.push(`${key} = @${key}`);
   });
 
+  if (filters.dateFrom && config.table === "dbo.tb_tooling_stock_transaction") {
+    request.input("dateFrom", sql.DateTime2, new Date(filters.dateFrom));
+    where.push("transactionDate >= @dateFrom");
+  }
+
+  if (filters.dateTo && config.table === "dbo.tb_tooling_stock_transaction") {
+    request.input("dateTo", sql.DateTime2, new Date(filters.dateTo));
+    where.push("transactionDate <= @dateTo");
+  }
+
   return where.length ? `WHERE ${where.join(" AND ")}` : "";
 }
 
@@ -101,13 +111,32 @@ async function list(resource, filters) {
   listRequest.input("offset", sql.Int, offset);
   listRequest.input("pageSize", sql.Int, pageSize);
 
-  const dataResult = await listRequest.query(`
-    SELECT *
-    FROM ${config.table}
-    ${where}
-    ORDER BY ${config.defaultSort}
-    OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
-  `);
+  const selectSql = resource === "stock"
+    ? `
+      SELECT
+        balance.*,
+        item.itemCode,
+        item.itemName,
+        item.unit,
+        item.minimumStock,
+        location.locationCode,
+        location.locationName
+      FROM dbo.tb_tooling_stock_balance AS balance
+      INNER JOIN dbo.tbm_tooling_item AS item ON item.id = balance.itemId
+      INNER JOIN dbo.tbm_tooling_location AS location ON location.id = balance.locationId
+      ${where}
+      ORDER BY ${config.defaultSort}
+      OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
+    `
+    : `
+      SELECT *
+      FROM ${config.table}
+      ${where}
+      ORDER BY ${config.defaultSort}
+      OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
+    `;
+
+  const dataResult = await listRequest.query(selectSql);
 
   const countResult = await countRequest.query(`
     SELECT COUNT(1) AS total
@@ -211,12 +240,44 @@ async function searchItems(query) {
 async function findItemByQrCode(qrCode) {
   const pool = await getPool();
   const result = await pool.request().input("qrCode", sql.NVarChar, qrCode).query(`
-    SELECT TOP 1 *
-    FROM dbo.tbm_tooling_item
-    WHERE qrCode = @qrCode OR itemCode = @qrCode
+    SELECT TOP 1
+      item.*,
+      location.locationName,
+      COALESCE(balance.quantityOnHand, 0) AS quantityOnHand
+    FROM dbo.tbm_tooling_item AS item
+    LEFT JOIN dbo.tbm_tooling_location AS location ON location.id = item.locationId
+    LEFT JOIN dbo.tb_tooling_stock_balance AS balance
+      ON balance.itemId = item.id
+      AND (item.locationId IS NULL OR balance.locationId = item.locationId)
+    WHERE item.qrCode = @qrCode OR item.itemCode = @qrCode
   `);
 
   return result.recordset[0] || null;
+}
+
+async function validateActiveItemLocation(itemId, locationId) {
+  const pool = await getPool();
+  const itemResult = await pool.request().input("itemId", sql.Int, Number(itemId)).query(`
+    SELECT TOP 1 *
+    FROM dbo.tbm_tooling_item
+    WHERE id = @itemId AND status = 'active'
+  `);
+  const locationResult = await pool.request().input("locationId", sql.Int, Number(locationId)).query(`
+    SELECT TOP 1 *
+    FROM dbo.tbm_tooling_location
+    WHERE id = @locationId AND status = 'active'
+  `);
+
+  if (!itemResult.recordset[0] || !locationResult.recordset[0]) {
+    const error = new Error("Item or location is inactive");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return {
+    item: itemResult.recordset[0],
+    location: locationResult.recordset[0]
+  };
 }
 
 async function stockIn(payload) {
@@ -258,7 +319,7 @@ async function stockIn(payload) {
         `);
     }
 
-    const movement = await insertStockTransaction(transaction, payload, balanceAfter);
+    const movement = await insertStockTransaction(transaction, payload, currentBalance, balanceAfter);
     await transaction.commit();
     return movement;
   } catch (error) {
@@ -302,7 +363,7 @@ async function stockOut(payload) {
         WHERE itemId = @itemId AND locationId = @locationId
       `);
 
-    const movement = await insertStockTransaction(transaction, payload, balanceAfter);
+    const movement = await insertStockTransaction(transaction, payload, currentBalance, balanceAfter);
     await transaction.commit();
     return movement;
   } catch (error) {
@@ -311,7 +372,7 @@ async function stockOut(payload) {
   }
 }
 
-async function insertStockTransaction(transaction, payload, balanceAfter) {
+async function insertStockTransaction(transaction, payload, balanceBefore, balanceAfter) {
   const request = new sql.Request(transaction);
 
   request.input("transactionNo", sql.NVarChar, payload.transactionNo);
@@ -359,7 +420,10 @@ async function insertStockTransaction(transaction, payload, balanceAfter) {
     )
   `);
 
-  return result.recordset[0];
+  return {
+    ...result.recordset[0],
+    balanceBefore
+  };
 }
 
 module.exports = {
@@ -371,6 +435,7 @@ module.exports = {
   remove,
   searchItems,
   findItemByQrCode,
+  validateActiveItemLocation,
   stockIn,
   stockOut
 };

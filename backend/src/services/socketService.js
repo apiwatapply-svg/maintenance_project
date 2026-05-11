@@ -5,6 +5,7 @@ function initSocket(io) {
 
   io.on("connection", (socket) => {
     socket.emit("admin:connected", { connected: true });
+    socket.emit("tooling:connected", { connected: true });
   });
 }
 
@@ -19,12 +20,12 @@ function emitAdminChange(payload) {
   });
 }
 
-function emitToolingChange(payload) {
+function emitToolingChange(payload, eventName = "tooling:data-changed") {
   if (!ioInstance) {
     return;
   }
 
-  ioInstance.emit("tooling:data-changed", {
+  ioInstance.emit(eventName, {
     ...payload,
     changedAt: new Date().toISOString()
   });
