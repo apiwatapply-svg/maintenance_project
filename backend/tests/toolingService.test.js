@@ -2,7 +2,13 @@ jest.mock("../src/repositories/adminRepository", () => ({
   findUserByUsername: jest.fn()
 }));
 
+jest.mock("../src/repositories/toolingRepository", () => ({
+  searchItems: jest.fn(),
+  findItemByQrCode: jest.fn()
+}));
+
 const adminRepository = require("../src/repositories/adminRepository");
+const toolingRepository = require("../src/repositories/toolingRepository");
 
 describe("tooling access middleware", () => {
   beforeEach(() => {
@@ -63,5 +69,51 @@ describe("tooling access middleware", () => {
       message: "Toolling & Store admin access required",
       statusCode: 403
     }));
+  });
+});
+
+describe("tooling service item lookup helpers", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test("searchItems maps repository rows to dropdown options", async () => {
+    const toolingService = require("../src/services/toolingService");
+
+    toolingRepository.searchItems.mockResolvedValue([
+      {
+        id: 7,
+        itemCode: "SP-007",
+        itemName: "Oil Seal",
+        quantityOnHand: 2,
+        minimumStock: 5,
+        unit: "pcs"
+      }
+    ]);
+
+    const result = await toolingService.searchItems("seal");
+
+    expect(result).toEqual([
+      {
+        value: 7,
+        label: "SP-007 - Oil Seal",
+        itemCode: "SP-007",
+        itemName: "Oil Seal",
+        quantityOnHand: 2,
+        unit: "pcs",
+        isLowStock: true
+      }
+    ]);
+  });
+
+  test("findItemByQrCode returns 404 error when item is missing", async () => {
+    const toolingService = require("../src/services/toolingService");
+
+    toolingRepository.findItemByQrCode.mockResolvedValue(null);
+
+    await expect(toolingService.findItemByQrCode("missing")).rejects.toMatchObject({
+      message: "Item not found",
+      statusCode: 404
+    });
   });
 });

@@ -16,7 +16,61 @@ async function list(req, res, next) {
   }
 }
 
+async function getById(req, res, next) {
+  try {
+    res.json(await toolingService.getById(req.params.resource, req.params.id));
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function create(req, res, next) {
+  try {
+    res.status(201).json(await toolingService.create(req.params.resource, req.body));
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function update(req, res, next) {
+  try {
+    res.json(await toolingService.update(req.params.resource, req.params.id, req.body));
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function remove(req, res, next) {
+  try {
+    res.json(await toolingService.remove(req.params.resource, req.params.id));
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function searchItems(req, res, next) {
+  try {
+    res.json(await toolingService.searchItems(req.query.q));
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function findItemByQrCode(req, res, next) {
+  try {
+    res.json(await toolingService.findItemByQrCode(req.params.qrCode));
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   dashboard,
-  list
+  list,
+  getById,
+  create,
+  update,
+  remove,
+  searchItems,
+  findItemByQrCode
 };

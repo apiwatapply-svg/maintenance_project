@@ -14,6 +14,41 @@ function addInput(request, key, value) {
   request.input(key, sql.NVarChar, String(value));
 }
 
+function addPayloadInput(request, key, value) {
+  if (value === undefined) {
+    return;
+  }
+
+  if (
+    [
+      "categoryId",
+      "locationId",
+      "preferredSupplierId",
+      "leadTimeDays",
+      "slowMovementDays",
+      "deadStockDays"
+    ].includes(key)
+  ) {
+    request.input(key, sql.Int, value === null ? null : Number(value));
+    return;
+  }
+
+  if (
+    [
+      "minimumStock",
+      "maximumStock",
+      "safetyStock",
+      "minimumOrderQuantity",
+      "quantityOnHand"
+    ].includes(key)
+  ) {
+    request.input(key, sql.Decimal(18, 2), Number(value));
+    return;
+  }
+
+  request.input(key, sql.NVarChar, value === null ? null : String(value));
+}
+
 function buildWhere(config, filters, request) {
   const where = [];
 
@@ -90,7 +125,107 @@ async function list(resource, filters) {
   };
 }
 
+async function getById(resource, id) {
+  const config = getToolingResourceConfig(resource);
+  const pool = await getPool();
+  const result = await pool.request().input("id", sql.Int, Number(id)).query(`
+    SELECT *
+    FROM ${config.table}
+    WHERE id = @id
+  `);
+
+  return result.recordset[0] || null;
+}
+
+async function create(resource, payload) {
+  const config = getToolingResourceConfig(resource);
+  const fields = config.fields.filter((field) => payload[field] !== undefined);
+  const pool = await getPool();
+  const request = pool.request();
+
+  fields.forEach((field) => addPayloadInput(request, field, payload[field]));
+
+  const result = await request.query(`
+    INSERT INTO ${config.table} (${fields.join(", ")})
+    OUTPUT INSERTED.*
+    VALUES (${fields.map((field) => `@${field}`).join(", ")})
+  `);
+
+  return result.recordset[0];
+}
+
+async function update(resource, id, payload) {
+  const config = getToolingResourceConfig(resource);
+  const fields = config.fields.filter((field) => payload[field] !== undefined);
+  const pool = await getPool();
+  const request = pool.request();
+
+  request.input("id", sql.Int, Number(id));
+  fields.forEach((field) => addPayloadInput(request, field, payload[field]));
+
+  const result = await request.query(`
+    UPDATE ${config.table}
+    SET ${fields.map((field) => `${field} = @${field}`).join(", ")}
+    OUTPUT INSERTED.*
+    WHERE id = @id
+  `);
+
+  return result.recordset[0] || null;
+}
+
+async function remove(resource, id) {
+  const config = getToolingResourceConfig(resource);
+  const pool = await getPool();
+  const result = await pool.request().input("id", sql.Int, Number(id)).query(`
+    DELETE FROM ${config.table}
+    OUTPUT DELETED.*
+    WHERE id = @id
+  `);
+
+  return result.recordset[0] || null;
+}
+
+async function searchItems(query) {
+  const pool = await getPool();
+  const request = pool.request().input("search", sql.NVarChar, `%${query || ""}%`);
+  const result = await request.query(`
+    SELECT TOP 20
+      item.id,
+      item.itemCode,
+      item.itemName,
+      item.unit,
+      item.minimumStock,
+      item.status,
+      COALESCE(SUM(balance.quantityOnHand), 0) AS quantityOnHand
+    FROM dbo.tbm_tooling_item AS item
+    LEFT JOIN dbo.tb_tooling_stock_balance AS balance ON balance.itemId = item.id
+    WHERE item.status = 'active'
+      AND (item.itemCode LIKE @search OR item.itemName LIKE @search)
+    GROUP BY item.id, item.itemCode, item.itemName, item.unit, item.minimumStock, item.status
+    ORDER BY item.itemCode
+  `);
+
+  return result.recordset;
+}
+
+async function findItemByQrCode(qrCode) {
+  const pool = await getPool();
+  const result = await pool.request().input("qrCode", sql.NVarChar, qrCode).query(`
+    SELECT TOP 1 *
+    FROM dbo.tbm_tooling_item
+    WHERE qrCode = @qrCode OR itemCode = @qrCode
+  `);
+
+  return result.recordset[0] || null;
+}
+
 module.exports = {
   dashboard,
-  list
+  list,
+  getById,
+  create,
+  update,
+  remove,
+  searchItems,
+  findItemByQrCode
 };
