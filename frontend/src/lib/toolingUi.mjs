@@ -139,6 +139,37 @@ export function getToolingPageRange(pagination) {
   return { from, to };
 }
 
+function getDefaultToolingApiBaseUrl() {
+  if (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_BASE_URL) {
+    return process.env.NEXT_PUBLIC_API_BASE_URL;
+  }
+
+  if (typeof window !== "undefined" && window.location.hostname === "127.0.0.1") {
+    return "http://127.0.0.1:5000/api";
+  }
+
+  return "http://localhost:5000/api";
+}
+
+export function resolveToolingImageUrl(value, apiBaseUrl = getDefaultToolingApiBaseUrl()) {
+  const imagePath = String(value || "").trim();
+
+  if (!imagePath) {
+    return "";
+  }
+
+  if (/^https?:\/\//i.test(imagePath) || imagePath.startsWith("data:")) {
+    return imagePath;
+  }
+
+  const apiOrigin = String(apiBaseUrl || "")
+    .replace(/\/api\/?$/i, "")
+    .replace(/\/$/, "");
+  const normalizedPath = imagePath.startsWith("/") ? imagePath : `/${imagePath}`;
+
+  return `${apiOrigin}${normalizedPath}`;
+}
+
 export function getToolingMovementConfig(key) {
   const config = movementConfigs[key];
 

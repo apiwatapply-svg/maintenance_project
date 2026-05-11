@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import api from "@/lib/api";
-import { getToolingReturnDefaultForm, validateToolingReturnForm } from "@/lib/toolingUi.mjs";
+import {
+  getToolingReturnDefaultForm,
+  resolveToolingImageUrl,
+  validateToolingReturnForm
+} from "@/lib/toolingUi.mjs";
 import ToolingLayout from "./ToolingLayout";
 
 export default function ToolingReturnPage() {
@@ -183,7 +187,7 @@ function ToolingReturnContent({ headers, session }) {
                     alt={`${selectedItem.itemName || selectedItem.itemCode} photo`}
                     loading="lazy"
                     referrerPolicy="no-referrer"
-                    src={selectedItem.imageUrl}
+                    src={resolveToolingImageUrl(selectedItem.imageUrl)}
                   />
                 ) : null}
                 <b>{selectedItem?.label || "-"}</b>

@@ -396,7 +396,7 @@ describe("tooling phase 2 master and stock routes", () => {
     minimumOrderQuantity: 10,
     criticalLevel: "important",
     qrCode: "QR-SP-001",
-    imageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Ball_bearing.jpg",
+    imageUrl: "/images/tooling/bearing-6204.jpg",
     status: "active"
   };
 

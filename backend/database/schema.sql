@@ -405,12 +405,12 @@ SELECT
   'active'
 FROM (
   VALUES
-    ('SP-BRG-6204', 'Bearing 6204 ZZ', 'BRG', 'ST-A01', 'SUP-MRO', 'pcs', 8, 60, 5, 7, 90, 180, 10, 'important', 'QR-SP-BRG-6204', 'https://commons.wikimedia.org/wiki/Special:FilePath/Ball_bearing.jpg', 24),
-    ('SP-BRG-6305', 'Bearing 6305 ZZ', 'BRG', 'ST-A01', 'SUP-MRO', 'pcs', 6, 48, 4, 7, 90, 180, 10, 'normal', 'QR-SP-BRG-6305', 'https://commons.wikimedia.org/wiki/Special:FilePath/Rolling-element_bearing_60_mm.jpg', 18),
-    ('SP-SEN-PROX', 'Proximity Sensor M12', 'ELC', 'ST-B01', 'SUP-ELEC', 'pcs', 5, 30, 3, 14, 120, 240, 5, 'critical', 'QR-SP-SEN-PROX', 'https://commons.wikimedia.org/wiki/Special:FilePath/Inductive%20Proximity%20Switch.jpg', 9),
-    ('SP-REL-24V', 'Relay 24VDC', 'ELC', 'ST-B01', 'SUP-ELEC', 'pcs', 10, 80, 5, 10, 120, 240, 10, 'important', 'QR-SP-REL-24V', 'https://commons.wikimedia.org/wiki/Special:FilePath/2019-08-04_Relay.jpg', 35),
-    ('SP-CYL-25', 'Pneumatic Cylinder 25mm', 'PNE', 'ST-C01', 'SUP-MRO', 'pcs', 4, 24, 2, 21, 120, 240, 4, 'critical', 'QR-SP-CYL-25', 'https://commons.wikimedia.org/wiki/Special:FilePath/Pneumatic_cylinder_2172.jpg', 6),
-    ('SP-FIT-8MM', 'PU Fitting 8mm', 'PNE', 'ST-C01', 'SUP-MRO', 'pcs', 20, 150, 10, 5, 90, 180, 20, 'normal', 'QR-SP-FIT-8MM', 'https://commons.wikimedia.org/wiki/Special:FilePath/Pneumatic_Tubing_(11569966005).jpg', 65)
+    ('SP-BRG-6204', 'Bearing 6204 ZZ', 'BRG', 'ST-A01', 'SUP-MRO', 'pcs', 8, 60, 5, 7, 90, 180, 10, 'important', 'QR-SP-BRG-6204', '/images/tooling/bearing-6204.jpg', 24),
+    ('SP-BRG-6305', 'Bearing 6305 ZZ', 'BRG', 'ST-A01', 'SUP-MRO', 'pcs', 6, 48, 4, 7, 90, 180, 10, 'normal', 'QR-SP-BRG-6305', '/images/tooling/bearing-6305.jpg', 18),
+    ('SP-SEN-PROX', 'Proximity Sensor M12', 'ELC', 'ST-B01', 'SUP-ELEC', 'pcs', 5, 30, 3, 14, 120, 240, 5, 'critical', 'QR-SP-SEN-PROX', '/images/tooling/proximity-sensor-m12.jpg', 9),
+    ('SP-REL-24V', 'Relay 24VDC', 'ELC', 'ST-B01', 'SUP-ELEC', 'pcs', 10, 80, 5, 10, 120, 240, 10, 'important', 'QR-SP-REL-24V', '/images/tooling/relay-24vdc.jpg', 35),
+    ('SP-CYL-25', 'Pneumatic Cylinder 25mm', 'PNE', 'ST-C01', 'SUP-MRO', 'pcs', 4, 24, 2, 21, 120, 240, 4, 'critical', 'QR-SP-CYL-25', '/images/tooling/pneumatic-cylinder-25mm.jpg', 6),
+    ('SP-FIT-8MM', 'PU Fitting 8mm', 'PNE', 'ST-C01', 'SUP-MRO', 'pcs', 20, 150, 10, 5, 90, 180, 20, 'normal', 'QR-SP-FIT-8MM', '/images/tooling/pu-fitting-8mm.jpg', 65)
 ) AS seed(
   itemCode,
   itemName,

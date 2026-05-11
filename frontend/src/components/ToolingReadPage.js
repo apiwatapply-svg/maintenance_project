@@ -8,6 +8,7 @@ import {
   buildToolingQuery,
   getToolingItemDefaultForm,
   getToolingPageRange,
+  resolveToolingImageUrl,
   toolingCriticalLevelOptions,
   toolingFilterStorageKeys,
   validateToolingItemForm
@@ -559,7 +560,7 @@ function CellValue({ column, row }) {
         className="item-thumb"
         loading="lazy"
         referrerPolicy="no-referrer"
-        src={value}
+        src={resolveToolingImageUrl(value)}
       />
     ) : (
       <span className="no-photo">No photo</span>

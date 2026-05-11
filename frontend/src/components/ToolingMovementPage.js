@@ -9,6 +9,7 @@ import {
   getToolingMovementConfig,
   getToolingReferenceOptions,
   getToolingScanFormPatch,
+  resolveToolingImageUrl,
   validateToolingMovementForm
 } from "@/lib/toolingUi.mjs";
 import ToolingLayout from "./ToolingLayout";
@@ -386,7 +387,7 @@ function ToolingMovementContent({ config, headers, session }) {
                     alt={`${selectedItem.itemName || selectedItem.itemCode} photo`}
                     loading="lazy"
                     referrerPolicy="no-referrer"
-                    src={selectedItem.imageUrl}
+                    src={resolveToolingImageUrl(selectedItem.imageUrl)}
                   />
                 ) : null}
                 <b>{selectedItem?.label || "-"}</b>

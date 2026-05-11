@@ -17,6 +17,7 @@ import {
   getToolingScanFormPatch,
   getToolingSessionRedirect,
   normalizeToolingScanCode,
+  resolveToolingImageUrl,
   toolingCriticalLevelOptions,
   toolingFilterStorageKeys,
   validateToolingItemForm,
@@ -85,6 +86,18 @@ test("toolingFilterStorageKeys keeps filter state scoped by page", () => {
 
 test("toolingCriticalLevelOptions matches item form and planning values", () => {
   assert.deepEqual(toolingCriticalLevelOptions, ["", "normal", "important", "critical"]);
+});
+
+test("resolveToolingImageUrl maps backend image paths to the API origin", () => {
+  assert.equal(
+    resolveToolingImageUrl("/images/tooling/bearing-6204.jpg", "http://localhost:5000/api"),
+    "http://localhost:5000/images/tooling/bearing-6204.jpg"
+  );
+  assert.equal(
+    resolveToolingImageUrl("https://example.com/bearing.jpg", "http://localhost:5000/api"),
+    "https://example.com/bearing.jpg"
+  );
+  assert.equal(resolveToolingImageUrl("", "http://localhost:5000/api"), "");
 });
 
 test("getToolingMovementConfig maps movement pages to backend endpoints", () => {
