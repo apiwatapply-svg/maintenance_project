@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildToolingScanLookupPath,
   buildToolingQuery,
   formatToolingBalance,
   getToolingApiHeaders,
@@ -13,6 +14,7 @@ import {
   getToolingRequestDefaultForm,
   getToolingReturnDefaultForm,
   getToolingSessionRedirect,
+  normalizeToolingScanCode,
   toolingFilterStorageKeys,
   validateToolingItemForm,
   validateToolingMovementForm,
@@ -82,6 +84,17 @@ test("getToolingMovementConfig maps movement pages to backend endpoints", () => 
   assert.equal(getToolingMovementConfig("stockIn").endpoint, "/tooling/stock-in");
   assert.equal(getToolingMovementConfig("stockOut").endpoint, "/tooling/stock-out");
   assert.throws(() => getToolingMovementConfig("unknown"), /not found/);
+});
+
+test("normalizeToolingScanCode trims scanner and manual input", () => {
+  assert.equal(normalizeToolingScanCode("  SP-001  "), "SP-001");
+  assert.equal(normalizeToolingScanCode(null), "");
+  assert.equal(normalizeToolingScanCode(undefined), "");
+});
+
+test("buildToolingScanLookupPath returns an encoded QR lookup path", () => {
+  assert.equal(buildToolingScanLookupPath(" SP/001 A "), "/tooling/items/qr/SP%2F001%20A");
+  assert.equal(buildToolingScanLookupPath("   "), "");
 });
 
 test("validateToolingMovementForm requires item, location, and positive quantity", () => {

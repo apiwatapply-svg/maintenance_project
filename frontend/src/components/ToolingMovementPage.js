@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import api from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import {
+  buildToolingScanLookupPath,
   formatToolingBalance,
   getToolingMovementConfig,
   validateToolingMovementForm
@@ -143,16 +144,16 @@ function ToolingMovementContent({ config, headers, session }) {
   }
 
   async function handleQrLookup(event) {
-    event.preventDefault();
+    event?.preventDefault?.();
 
-    if (!qrCode.trim()) {
+    const lookupPath = buildToolingScanLookupPath(qrCode);
+
+    if (!lookupPath) {
       return;
     }
 
     try {
-      const response = await api.get(`/tooling/items/qr/${encodeURIComponent(qrCode.trim())}`, {
-        headers
-      });
+      const response = await api.get(lookupPath, { headers });
       const item = response.data;
       setItems((current) => [
         {
@@ -173,7 +174,7 @@ function ToolingMovementContent({ config, headers, session }) {
       if (item.locationId) {
         loadCurrentBalance(item.id, item.locationId);
       }
-      setMessage("Item loaded from QR.");
+      setMessage("Item ready. Confirm quantity and save.");
     } catch (error) {
       setMessage(error.response?.data?.message || "Item not found.");
     }
@@ -237,34 +238,43 @@ function ToolingMovementContent({ config, headers, session }) {
       <section className="movement-card">
         <div className="movement-panel">
           <div className="scan-head">
-            <span>{config.key === "stockIn" ? "RECEIVE" : "ISSUE"}</span>
+            <span>{config.key === "stockIn" ? "Receiving counter" : "Issue counter"}</span>
             <b>{config.title}</b>
+            <p>
+              Scan QR code or type the item code, then confirm quantity. Manual search is available
+              when a label cannot be scanned.
+            </p>
           </div>
-          <div className="scan-indicator" aria-hidden="true">
+          <div className="counter-status" aria-hidden="true">
             <span />
-            <span />
-            <span />
+            <strong>{config.key === "stockIn" ? "IN" : "OUT"}</strong>
           </div>
         </div>
 
         <form className="movement-form" onSubmit={handleSubmit}>
           <div className="form-grid">
-            <label className="wide">
-              <span>QR / Manual Code</span>
-              <div className="inline-field">
+            <label className="wide scan-field">
+              <span>Scan QR / Item Code</span>
+              <div className="inline-field scanner-input">
                 <input
+                  autoFocus
                   value={qrCode}
-                  placeholder="Scan or type code"
+                  placeholder="Scan QR code or type item code"
                   onChange={(event) => setQrCode(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      handleQrLookup(event);
+                    }
+                  }}
                 />
                 <button type="button" onClick={handleQrLookup}>
-                  Load
+                  Scan
                 </button>
               </div>
             </label>
 
             <label className="wide">
-              <span>Search Item</span>
+              <span>Manual Search</span>
               <input
                 value={search}
                 placeholder="Type item code or name"
@@ -355,9 +365,9 @@ function ToolingMovementContent({ config, headers, session }) {
 }
 
 const movementStyles = `
-@keyframes scanPulse {
-  0%, 100% { transform: translateX(-12px); opacity: .45; }
-  50% { transform: translateX(12px); opacity: 1; }
+@keyframes counterReady {
+  0%, 100% { transform: translateY(0); opacity: .72; }
+  50% { transform: translateY(-3px); opacity: 1; }
 }
 .tooling-alert,
 .tooling-message {
@@ -378,7 +388,7 @@ const movementStyles = `
 }
 .movement-card {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 280px 1fr;
   gap: 16px;
 }
 .movement-panel,
@@ -390,14 +400,14 @@ const movementStyles = `
 }
 .movement-panel {
   position: relative;
-  min-height: 360px;
+  min-height: 320px;
   overflow: hidden;
   background:
-    linear-gradient(90deg, rgb(255 255 255 / .08) 1px, transparent 1px),
-    linear-gradient(180deg, rgb(255 255 255 / .08) 1px, transparent 1px),
-    #0f1f2e;
-  background-size: 28px 28px;
-  color: white;
+    linear-gradient(90deg, rgb(15 23 42 / .04) 1px, transparent 1px),
+    linear-gradient(180deg, rgb(15 23 42 / .04) 1px, transparent 1px),
+    #f8fafc;
+  background-size: 32px 32px;
+  color: #0f172a;
   padding: 22px;
 }
 .scan-head span,
@@ -410,35 +420,47 @@ const movementStyles = `
   text-transform: uppercase;
 }
 .scan-head span {
-  color: #fbbf24;
+  color: #0f766e;
 }
 .scan-head b {
   display: block;
   margin-top: 10px;
-  font-size: 2.8rem;
+  font-size: 2.2rem;
   line-height: 1;
 }
-.scan-indicator {
+.scan-head p {
+  margin: 14px 0 0;
+  color: #475569;
+  font-weight: 750;
+  line-height: 1.6;
+}
+.counter-status {
   position: absolute;
-  left: 22px;
-  right: 22px;
-  bottom: 28px;
-  display: grid;
+  left: 24px;
+  bottom: 24px;
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  align-items: center;
   gap: 12px;
-}
-.scan-indicator span {
-  display: block;
-  height: 34px;
-  border: 2px solid rgb(255 255 255 / .18);
+  border: 1px solid #cbd5e1;
   border-radius: 8px;
-  background: linear-gradient(90deg, #f59e0b, #22c55e);
-  animation: scanPulse 2s ease-in-out infinite;
+  background: white;
+  padding: 12px 14px;
+  box-shadow: 0 10px 22px rgb(15 23 42 / .08);
 }
-.scan-indicator span:nth-child(2) {
-  animation-delay: .25s;
+.counter-status span {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #22c55e;
+  box-shadow: 0 0 0 6px rgb(34 197 94 / .12);
+  animation: counterReady 1.8s ease-in-out infinite;
 }
-.scan-indicator span:nth-child(3) {
-  animation-delay: .5s;
+.counter-status strong {
+  color: #0f172a;
+  font-weight: 950;
+  letter-spacing: .12em;
 }
 .movement-form {
   padding: 18px;
@@ -466,6 +488,18 @@ const movementStyles = `
   padding: 0 12px;
   font-weight: 850;
 }
+.scan-field {
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  background: #fffbeb;
+  padding: 14px;
+}
+.scan-field input {
+  height: 54px;
+  border-color: #f59e0b;
+  background: white;
+  font-size: 1.02rem;
+}
 .form-grid small {
   color: #b91c1c;
   font-weight: 850;
@@ -479,10 +513,15 @@ const movementStyles = `
 .movement-summary button {
   border: 0;
   border-radius: 8px;
-  background: #f59e0b;
-  color: #111827;
+  background: #0f766e;
+  color: white;
   padding: 0 18px;
   font-weight: 950;
+}
+.scanner-input button {
+  min-width: 92px;
+  background: #f59e0b;
+  color: #111827;
 }
 .movement-summary {
   display: grid;

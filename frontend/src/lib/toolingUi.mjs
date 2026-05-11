@@ -132,6 +132,15 @@ export function getToolingMovementConfig(key) {
   return config;
 }
 
+export function normalizeToolingScanCode(value) {
+  return String(value || "").trim();
+}
+
+export function buildToolingScanLookupPath(value) {
+  const code = normalizeToolingScanCode(value);
+  return code ? `/tooling/items/qr/${encodeURIComponent(code)}` : "";
+}
+
 export function validateToolingMovementForm(form, options = {}) {
   const errors = {};
 
