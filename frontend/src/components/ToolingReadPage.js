@@ -8,6 +8,7 @@ import {
   buildToolingQuery,
   getToolingItemDefaultForm,
   getToolingPageRange,
+  getToolingRowNumber,
   resolveToolingImageUrl,
   toolingCriticalLevelOptions,
   toolingFilterStorageKeys,
@@ -373,6 +374,7 @@ function ToolingReadContent({ headers, resource }) {
           <table>
             <thead>
               <tr>
+                <th>No</th>
                 {config.columns.map((column) => (
                   <th key={column.key}>{column.label}</th>
                 ))}
@@ -380,8 +382,9 @@ function ToolingReadContent({ headers, resource }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {rows.map((row, index) => (
                 <tr key={row.id || `${row.itemId}-${row.locationId}`}>
+                  <td>{getToolingRowNumber(index, pagination)}</td>
                   {config.columns.map((column) => (
                     <td key={column.key}>
                       <CellValue column={column} row={row} />
@@ -403,12 +406,12 @@ function ToolingReadContent({ headers, resource }) {
               ))}
               {!isLoading && !rows.length ? (
                 <tr>
-                  <td colSpan={config.columns.length}>No records found.</td>
+                  <td colSpan={config.columns.length + 1 + (canManageItems ? 1 : 0)}>No records found.</td>
                 </tr>
               ) : null}
               {isLoading ? (
                 <tr>
-                  <td colSpan={config.columns.length}>Loading...</td>
+                  <td colSpan={config.columns.length + 1 + (canManageItems ? 1 : 0)}>Loading...</td>
                 </tr>
               ) : null}
             </tbody>

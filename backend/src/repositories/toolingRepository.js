@@ -893,12 +893,67 @@ async function planning(filters = {}) {
   };
 }
 
+async function lowStockReport(filters = {}) {
+  const page = Math.max(Number(filters.page || 1), 1);
+  const pageSize = Math.min(Math.max(Number(filters.pageSize || 10), 1), 100);
+  const offset = (page - 1) * pageSize;
+  const pool = await getPool();
+  const listRequest = pool.request();
+  const countRequest = pool.request();
+
+  listRequest.input("offset", sql.Int, offset);
+  listRequest.input("pageSize", sql.Int, pageSize);
+
+  const baseFromSql = `
+    FROM dbo.tbm_tooling_item AS item
+    LEFT JOIN (
+      SELECT itemId, SUM(quantityOnHand) AS currentStock
+      FROM dbo.tb_tooling_stock_balance
+      GROUP BY itemId
+    ) AS stock ON stock.itemId = item.id
+    WHERE item.status = 'active'
+      AND COALESCE(stock.currentStock, 0) <= item.minimumStock
+  `;
+
+  const dataResult = await listRequest.query(`
+    SELECT
+      item.id AS itemId,
+      item.itemCode,
+      item.itemName,
+      COALESCE(stock.currentStock, 0) AS currentStock,
+      item.unit,
+      item.minimumStock,
+      item.maximumStock,
+      item.safetyStock
+    ${baseFromSql}
+    ORDER BY item.itemCode
+    OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
+  `);
+
+  const countResult = await countRequest.query(`
+    SELECT COUNT(1) AS total
+    ${baseFromSql}
+  `);
+
+  return {
+    data: dataResult.recordset,
+    pagination: {
+      page,
+      pageSize,
+      total: countResult.recordset[0]?.total || 0
+    }
+  };
+}
+
 async function report(reportKey, filters = {}) {
-  if (["low-stock", "reorder-suggestion", "stockout-risk", "slow-movement", "overstock"].includes(reportKey)) {
+  if (reportKey === "low-stock") {
+    return lowStockReport(filters);
+  }
+
+  if (["reorder-suggestion", "stockout-risk", "slow-movement", "overstock"].includes(reportKey)) {
     return planning({
       ...filters,
       planningStatus: {
-        "low-stock": "need_order",
         "reorder-suggestion": "reorder_soon",
         "stockout-risk": "stockout_risk",
         "slow-movement": "slow_movement",

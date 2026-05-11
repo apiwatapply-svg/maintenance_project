@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import api from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { getPaginationPages } from "@/lib/pagination.mjs";
-import { buildToolingQuery, getToolingPageRange } from "@/lib/toolingUi.mjs";
+import { buildToolingQuery, getToolingPageRange, getToolingRowNumber } from "@/lib/toolingUi.mjs";
 import ToolingLayout from "./ToolingLayout";
 
 const emptyPagination = { page: 1, pageSize: 10, total: 0 };
@@ -130,6 +130,7 @@ function ToolingPlanningContent({ headers }) {
           <table>
             <thead>
               <tr>
+                <th>No</th>
                 <th>Item</th>
                 <th>Current</th>
                 <th>Avg / Day</th>
@@ -141,8 +142,9 @@ function ToolingPlanningContent({ headers }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {rows.map((row, index) => (
                 <tr key={row.itemId || row.itemCode}>
+                  <td>{getToolingRowNumber(index, pagination)}</td>
                   <td>{row.itemCode} - {row.itemName}</td>
                   <td>{row.currentStock}</td>
                   <td>{row.averageDailyUsage}</td>
@@ -153,8 +155,8 @@ function ToolingPlanningContent({ headers }) {
                   <td>{row.criticalLevel}</td>
                 </tr>
               ))}
-              {!isLoading && !rows.length ? <tr><td colSpan="8">No planning records found.</td></tr> : null}
-              {isLoading ? <tr><td colSpan="8">Loading...</td></tr> : null}
+              {!isLoading && !rows.length ? <tr><td colSpan="9">No planning records found.</td></tr> : null}
+              {isLoading ? <tr><td colSpan="9">Loading...</td></tr> : null}
             </tbody>
           </table>
         </div>

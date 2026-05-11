@@ -141,6 +141,18 @@ export function getToolingPageRange(pagination) {
   return { from, to };
 }
 
+export function getToolingRowNumber(index, pagination) {
+  const page = Math.max(Number(pagination?.page || 1), 1);
+  const pageSize = Math.max(Number(pagination?.pageSize || 10), 1);
+
+  return (page - 1) * pageSize + index + 1;
+}
+
+export function sanitizeToolingReportFilters(filters) {
+  const { dateFrom, dateTo, ...allowedFilters } = filters || {};
+  return allowedFilters;
+}
+
 function getDefaultToolingApiBaseUrl() {
   if (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_BASE_URL) {
     return process.env.NEXT_PUBLIC_API_BASE_URL;

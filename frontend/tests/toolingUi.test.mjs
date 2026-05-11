@@ -14,6 +14,8 @@ import {
   getToolingReferenceOptions,
   getToolingRequestDefaultForm,
   getToolingReturnDefaultForm,
+  getToolingRowNumber,
+  sanitizeToolingReportFilters,
   getToolingScanFormPatch,
   getToolingSessionRedirect,
   normalizeToolingScanCode,
@@ -79,6 +81,18 @@ test("getToolingPageRange reports visible result range", () => {
     from: 0,
     to: 0
   });
+});
+
+test("getToolingRowNumber calculates visible row numbers across pages", () => {
+  assert.equal(getToolingRowNumber(0, { page: 1, pageSize: 10 }), 1);
+  assert.equal(getToolingRowNumber(2, { page: 3, pageSize: 25 }), 53);
+});
+
+test("sanitizeToolingReportFilters removes date filters from reports", () => {
+  assert.deepEqual(
+    sanitizeToolingReportFilters({ dateFrom: "2026-05-01", dateTo: "2026-05-12", page: 2, pageSize: 25 }),
+    { page: 2, pageSize: 25 }
+  );
 });
 
 test("toolingFilterStorageKeys keeps filter state scoped by page", () => {

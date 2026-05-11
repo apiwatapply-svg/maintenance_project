@@ -4,7 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import api from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { getPaginationPages } from "@/lib/pagination.mjs";
-import { buildToolingQuery, getToolingPageRange } from "@/lib/toolingUi.mjs";
+import {
+  buildToolingQuery,
+  getToolingPageRange,
+  getToolingRowNumber,
+  sanitizeToolingReportFilters
+} from "@/lib/toolingUi.mjs";
 import ToolingLayout from "./ToolingLayout";
 
 const emptyPagination = { page: 1, pageSize: 10, total: 0 };
@@ -30,7 +35,7 @@ export default function ToolingReportsPage() {
 
 function ToolingReportsContent({ headers }) {
   const [reportKey, setReportKey] = useState("low-stock");
-  const [filters, setFilters] = useState({ dateFrom: "", dateTo: "", page: 1, pageSize: 10 });
+  const [filters, setFilters] = useState({ page: 1, pageSize: 10 });
   const [rows, setRows] = useState([]);
   const [pagination, setPagination] = useState(emptyPagination);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,7 +49,7 @@ function ToolingReportsContent({ headers }) {
       try {
         const response = await api.get(`/tooling/reports/${key}`, {
           headers,
-          params: buildToolingQuery(nextFilters)
+          params: buildToolingQuery(sanitizeToolingReportFilters(nextFilters))
         });
         setRows(response.data.data || []);
         setPagination(response.data.pagination || emptyPagination);
@@ -118,26 +123,6 @@ function ToolingReportsContent({ headers }) {
             ))}
           </select>
         </label>
-        <label>
-          <span>Date From</span>
-          <input
-            inputMode="numeric"
-            pattern="\\d{4}-\\d{2}-\\d{2}"
-            placeholder="YYYY-MM-DD"
-            value={filters.dateFrom}
-            onChange={(event) => updateFilter("dateFrom", event.target.value)}
-          />
-        </label>
-        <label>
-          <span>Date To</span>
-          <input
-            inputMode="numeric"
-            pattern="\\d{4}-\\d{2}-\\d{2}"
-            placeholder="YYYY-MM-DD"
-            value={filters.dateTo}
-            onChange={(event) => updateFilter("dateTo", event.target.value)}
-          />
-        </label>
       </div>
 
       {message ? <div className="report-message">{message}</div> : null}
@@ -150,16 +135,20 @@ function ToolingReportsContent({ headers }) {
         <div className="report-table-wrap">
           <table>
             <thead>
-              <tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr>
+              <tr>
+                <th>No</th>
+                {columns.map((column) => <th key={column}>{column}</th>)}
+              </tr>
             </thead>
             <tbody>
               {rows.map((row, index) => (
                 <tr key={row.id || row.itemId || row.groupId || index}>
+                  <td>{getToolingRowNumber(index, pagination)}</td>
                   {columns.map((column) => <td key={column}>{formatCell(row[column])}</td>)}
                 </tr>
               ))}
-              {!isLoading && !rows.length ? <tr><td colSpan={Math.max(columns.length, 1)}>No report data.</td></tr> : null}
-              {isLoading ? <tr><td colSpan={Math.max(columns.length, 1)}>Loading...</td></tr> : null}
+              {!isLoading && !rows.length ? <tr><td colSpan={Math.max(columns.length + 1, 1)}>No report data.</td></tr> : null}
+              {isLoading ? <tr><td colSpan={Math.max(columns.length + 1, 1)}>Loading...</td></tr> : null}
             </tbody>
           </table>
         </div>
@@ -214,7 +203,7 @@ function formatCell(value) {
 const reportStyles = `
 .report-toolbar {
   display: grid;
-  grid-template-columns: 1fr 220px 220px;
+  grid-template-columns: minmax(220px, 1fr);
   gap: 12px;
   margin-bottom: 14px;
 }

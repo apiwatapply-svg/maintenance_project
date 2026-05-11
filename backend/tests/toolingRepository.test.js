@@ -57,4 +57,22 @@ describe("tooling repository reports", () => {
       expect(request.input).toHaveBeenCalledWith("dateTo", "DateTime2", expect.any(Date));
     });
   });
+
+  test("low-stock report filters items by current stock against minimum stock", async () => {
+    const createdRequests = [createMockRequest(), createMockRequest()];
+    const requestQueue = [...createdRequests];
+
+    getPool.mockResolvedValue({
+      request: jest.fn(() => requestQueue.shift())
+    });
+
+    const toolingRepository = require("../src/repositories/toolingRepository");
+
+    await toolingRepository.report("low-stock", { page: 1, pageSize: 10 });
+
+    const allSql = createdRequests.flatMap((request) => request.queries).join("\n");
+
+    expect(allSql).toContain("COALESCE(stock.currentStock, 0) <= item.minimumStock");
+    expect(allSql).not.toContain("planningStatus");
+  });
 });
