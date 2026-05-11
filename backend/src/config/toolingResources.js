@@ -19,6 +19,7 @@ const toolingResources = {
       "criticalLevel",
       "locationId",
       "qrCode",
+      "imageUrl",
       "status"
     ],
     requiredFields: ["itemCode", "itemName"],

@@ -224,6 +224,7 @@ async function searchItems(query) {
     label: `${item.itemCode} - ${item.itemName}`,
     itemCode: item.itemCode,
     itemName: item.itemName,
+    imageUrl: item.imageUrl,
     quantityOnHand: item.quantityOnHand,
     unit: item.unit,
     isLowStock: Number(item.quantityOnHand || 0) <= Number(item.minimumStock || 0)

@@ -153,6 +153,7 @@ test("getToolingItemDefaultForm provides safe item defaults", () => {
     criticalLevel: "normal",
     locationId: "",
     qrCode: "",
+    imageUrl: "",
     status: "active"
   });
 });

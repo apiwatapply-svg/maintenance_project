@@ -161,6 +161,7 @@ function ToolingMovementContent({ config, headers, session }) {
           label: `${item.itemCode} - ${item.itemName}`,
           itemCode: item.itemCode,
           itemName: item.itemName,
+          imageUrl: item.imageUrl,
           quantityOnHand: item.quantityOnHand,
           unit: item.unit
         },
@@ -344,7 +345,17 @@ function ToolingMovementContent({ config, headers, session }) {
           <div className="movement-summary">
             <div>
               <span>Selected</span>
-              <b>{selectedItem?.label || "-"}</b>
+              <div className="selected-item">
+                {selectedItem?.imageUrl ? (
+                  <img
+                    alt={`${selectedItem.itemName || selectedItem.itemCode} photo`}
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    src={selectedItem.imageUrl}
+                  />
+                ) : null}
+                <b>{selectedItem?.label || "-"}</b>
+              </div>
             </div>
             <div
               className={`balance-card ${
@@ -536,6 +547,23 @@ const movementStyles = `
 .movement-summary b {
   display: block;
   margin-top: 4px;
+}
+.selected-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+.selected-item img {
+  width: 54px;
+  height: 42px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  object-fit: cover;
+}
+.selected-item b {
+  margin-top: 0;
 }
 .movement-summary button {
   min-width: 160px;

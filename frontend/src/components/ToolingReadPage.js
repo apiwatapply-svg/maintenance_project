@@ -27,6 +27,7 @@ const resourceConfigs = {
       { key: "criticalLevel", label: "Critical", type: "select", options: toolingCriticalLevelOptions }
     ],
     columns: [
+      { key: "imageUrl", label: "Photo", type: "image" },
       { key: "itemCode", label: "Code" },
       { key: "itemName", label: "Item Name" },
       { key: "itemType", label: "Type" },
@@ -44,6 +45,7 @@ const resourceConfigs = {
       { key: "locationId", label: "Location ID", type: "text", placeholder: "Location ID" }
     ],
     columns: [
+      { key: "imageUrl", label: "Photo", type: "image" },
       { key: "itemCode", label: "Item Code" },
       { key: "itemName", label: "Item Name" },
       { key: "locationCode", label: "Location" },
@@ -511,6 +513,9 @@ function ItemModal({ editingId, errors, form, isSaving, lookups, onChange, onClo
           <ItemField label="QR Code">
             <input value={form.qrCode || ""} onChange={(event) => onChange("qrCode", event.target.value)} />
           </ItemField>
+          <ItemField label="Image URL">
+            <input value={form.imageUrl || ""} onChange={(event) => onChange("imageUrl", event.target.value)} />
+          </ItemField>
           <ItemField label="Status">
             <select value={form.status || "active"} onChange={(event) => onChange("status", event.target.value)}>
               <option value="active">Active</option>
@@ -546,6 +551,20 @@ function CellValue({ column, row }) {
   const value = row[column.key];
   const isLow =
     column.highlightLow && Number(row.quantityOnHand || 0) <= Number(row.minimumStock || 0);
+
+  if (column.type === "image") {
+    return value ? (
+      <img
+        alt={`${row.itemName || row.itemCode || "Tooling item"} photo`}
+        className="item-thumb"
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        src={value}
+      />
+    ) : (
+      <span className="no-photo">No photo</span>
+    );
+  }
 
   if (column.key === "status") {
     return <span className={`status-pill ${value === "active" ? "is-active" : ""}`}>{value}</span>;
@@ -644,7 +663,7 @@ const readStyles = `
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 820px;
+  min-width: 900px;
 }
 th,
 td {
@@ -690,6 +709,21 @@ td {
 .stock-pill.is-low {
   background: #fef3c7;
   color: #92400e;
+}
+.item-thumb {
+  display: block;
+  width: 62px;
+  height: 48px;
+  margin: 0 auto;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  object-fit: cover;
+}
+.no-photo {
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 850;
 }
 .read-pagination {
   display: grid;

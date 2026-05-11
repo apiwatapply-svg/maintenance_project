@@ -118,10 +118,17 @@ BEGIN
     criticalLevel NVARCHAR(30) NOT NULL DEFAULT 'normal',
     locationId INT NULL,
     qrCode NVARCHAR(120) NULL,
+    imageUrl NVARCHAR(500) NULL,
     status NVARCHAR(20) NOT NULL DEFAULT 'active',
     createdAt DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
     updatedAt DATETIME2 NOT NULL DEFAULT SYSDATETIME()
   );
+END;
+
+IF COL_LENGTH('dbo.tbm_tooling_item', 'imageUrl') IS NULL
+BEGIN
+  ALTER TABLE dbo.tbm_tooling_item
+  ADD imageUrl NVARCHAR(500) NULL;
 END;
 
 IF OBJECT_ID('dbo.tbm_tooling_supplier', 'U') IS NULL

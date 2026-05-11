@@ -120,6 +120,7 @@ async function list(resource, filters) {
         balance.*,
         item.itemCode,
         item.itemName,
+        item.imageUrl,
         item.unit,
         item.minimumStock,
         location.locationCode,
@@ -227,13 +228,14 @@ async function searchItems(query) {
       item.itemName,
       item.unit,
       item.minimumStock,
-      item.status,
-      COALESCE(SUM(balance.quantityOnHand), 0) AS quantityOnHand
+        item.status,
+        item.imageUrl,
+        COALESCE(SUM(balance.quantityOnHand), 0) AS quantityOnHand
     FROM dbo.tbm_tooling_item AS item
     LEFT JOIN dbo.tb_tooling_stock_balance AS balance ON balance.itemId = item.id
     WHERE item.status = 'active'
       AND (item.itemCode LIKE @search OR item.itemName LIKE @search)
-    GROUP BY item.id, item.itemCode, item.itemName, item.unit, item.minimumStock, item.status
+    GROUP BY item.id, item.itemCode, item.itemName, item.unit, item.minimumStock, item.status, item.imageUrl
     ORDER BY item.itemCode
   `);
 

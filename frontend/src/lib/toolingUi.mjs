@@ -188,6 +188,7 @@ export function getToolingItemDefaultForm() {
     criticalLevel: "normal",
     locationId: "",
     qrCode: "",
+    imageUrl: "",
     status: "active"
   };
 }

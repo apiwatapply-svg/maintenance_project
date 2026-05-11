@@ -177,7 +177,17 @@ function ToolingReturnContent({ headers, session }) {
           <div className="return-summary">
             <div>
               <span>Selected</span>
-              <b>{selectedItem?.label || "-"}</b>
+              <div className="return-selected">
+                {selectedItem?.imageUrl ? (
+                  <img
+                    alt={`${selectedItem.itemName || selectedItem.itemCode} photo`}
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    src={selectedItem.imageUrl}
+                  />
+                ) : null}
+                <b>{selectedItem?.label || "-"}</b>
+              </div>
             </div>
             <button disabled={isSaving || !isAdmin} type="submit">
               {isSaving ? "Saving..." : "Save Return"}
@@ -289,6 +299,23 @@ const returnStyles = `
 .return-summary b {
   display: block;
   margin-top: 4px;
+}
+.return-selected {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+.return-selected img {
+  width: 54px;
+  height: 42px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  object-fit: cover;
+}
+.return-selected b {
+  margin-top: 0;
 }
 .return-summary button {
   min-width: 160px;

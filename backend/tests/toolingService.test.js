@@ -100,6 +100,7 @@ describe("tooling service item lookup helpers", () => {
         id: 7,
         itemCode: "SP-007",
         itemName: "Oil Seal",
+        imageUrl: "https://example.com/oil-seal.jpg",
         quantityOnHand: 2,
         minimumStock: 5,
         unit: "pcs"
@@ -114,6 +115,7 @@ describe("tooling service item lookup helpers", () => {
         label: "SP-007 - Oil Seal",
         itemCode: "SP-007",
         itemName: "Oil Seal",
+        imageUrl: "https://example.com/oil-seal.jpg",
         quantityOnHand: 2,
         unit: "pcs",
         isLowStock: true

@@ -34,6 +34,8 @@ describe("tooling database scripts", () => {
     [
       "SP-BRG-6204",
       "QR-SP-BRG-6204",
+      "Ball_bearing.jpg",
+      "Pneumatic_cylinder_2172.jpg",
       "ST-A01",
       "SUP-MRO",
       "dbo.tb_tooling_stock_balance"
@@ -41,6 +43,17 @@ describe("tooling database scripts", () => {
       expect(migrationSql).toContain(requiredSeed);
       expect(schemaSql).toContain(requiredSeed);
     });
+  });
+
+  test("tooling item image migration adds imageUrl and updates seeded items", () => {
+    const migrationSql = readProjectFile("database/migrations/20260514_add_tooling_item_images.sql");
+
+    expect(migrationSql).toContain("ALTER TABLE dbo.tbm_tooling_item");
+    expect(migrationSql).toContain("imageUrl NVARCHAR(500)");
+    expect(migrationSql).toContain("SP-SEN-PROX");
+    expect(migrationSql).toContain("Inductive%20Proximity%20Switch.jpg");
+    expect(migrationSql).toContain("SP-REL-24V");
+    expect(migrationSql).toContain("2019-08-04_Relay.jpg");
   });
 
   test("database check script verifies tooling tables after migration", () => {

@@ -378,6 +378,7 @@ describe("tooling phase 2 master and stock routes", () => {
     minimumOrderQuantity: 10,
     criticalLevel: "important",
     qrCode: "QR-SP-001",
+    imageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Ball_bearing.jpg",
     status: "active"
   };
 
@@ -468,6 +469,7 @@ describe("tooling phase 2 master and stock routes", () => {
         itemId: 1,
         itemCode: "SP-001",
         itemName: "Bearing 6204",
+        imageUrl: itemPayload.imageUrl,
         locationId: 1,
         locationName: "Rack A-01",
         quantityOnHand: 12
@@ -483,6 +485,7 @@ describe("tooling phase 2 master and stock routes", () => {
 
     expect(response.body.data[0].quantityOnHand).toBe(12);
     expect(response.body.data[0].itemName).toBe("Bearing 6204");
+    expect(response.body.data[0].imageUrl).toBe(itemPayload.imageUrl);
     expect(response.body.data[0].locationName).toBe("Rack A-01");
     expect(toolingRepository.list).toHaveBeenCalledWith(
       "stock",
@@ -492,7 +495,14 @@ describe("tooling phase 2 master and stock routes", () => {
 
   test("GET /api/tooling/items/search returns dropdown options", async () => {
     toolingRepository.searchItems.mockResolvedValue([
-      { id: 1, itemCode: "SP-001", itemName: "Bearing 6204", quantityOnHand: 12, unit: "pcs" }
+      {
+        id: 1,
+        itemCode: "SP-001",
+        itemName: "Bearing 6204",
+        imageUrl: itemPayload.imageUrl,
+        quantityOnHand: 12,
+        unit: "pcs"
+      }
     ]);
 
     const response = await request(app)
@@ -502,6 +512,7 @@ describe("tooling phase 2 master and stock routes", () => {
       .expect(200);
 
     expect(response.body[0].label).toContain("SP-001");
+    expect(response.body[0].imageUrl).toBe(itemPayload.imageUrl);
     expect(response.body[0].value).toBe(1);
     expect(toolingRepository.searchItems).toHaveBeenCalledWith("bearing");
   });
@@ -521,6 +532,7 @@ describe("tooling phase 2 master and stock routes", () => {
 
     expect(response.body.itemCode).toBe("SP-001");
     expect(response.body.quantityOnHand).toBe(12);
+    expect(response.body.imageUrl).toBe(itemPayload.imageUrl);
     expect(response.body.locationName).toBe("Rack A-01");
     expect(toolingRepository.findItemByQrCode).toHaveBeenCalledWith("QR-SP-001");
   });
