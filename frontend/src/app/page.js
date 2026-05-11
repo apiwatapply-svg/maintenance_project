@@ -28,6 +28,14 @@ const systems = [
     code: "AD",
     theme: "admin",
     description: "Manage users, permissions, and system configuration."
+  },
+  {
+    name: "MMS Dashboard",
+    href: "/mms-dashboard",
+    code: "MMS",
+    theme: "mms",
+    actionLabel: "Open",
+    description: "View machine status, maintenance KPIs, and factory overview."
   }
 ];
 
@@ -74,9 +82,9 @@ export default function Home() {
             >
               <GatewayIcon theme={system.theme} code={system.code} />
               <h2>{system.name}</h2>
-              <p>{system.description}</p>
-              <div className="gateway-card-footer">
-                <span>Login</span>
+                <p>{system.description}</p>
+                <div className="gateway-card-footer">
+                <span>{system.actionLabel || "Login"}</span>
                 <strong>&rarr;</strong>
               </div>
             </Link>
@@ -292,6 +300,7 @@ const gatewayStyles = `
 .gateway-card-store::before { background: #fde68a; }
 .gateway-card-job::before { background: #bae6fd; }
 .gateway-card-admin::before { background: #ddd6fe; }
+.gateway-card-mms::before { background: #ccfbf1; }
 .gateway-card h2 {
   position: relative;
   min-height: 66px;
@@ -329,6 +338,7 @@ const gatewayStyles = `
 .gateway-icon-store { background: #d97706; }
 .gateway-icon-job { background: #0284c7; }
 .gateway-icon-admin { background: #6d28d9; }
+.gateway-icon-mms { background: #0f766e; }
 .icon-code {
   position: relative;
   z-index: 3;
@@ -373,7 +383,7 @@ const gatewayStyles = `
 }
 @media (max-width: 1100px) {
   .gateway-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .gateway-hero {
     grid-template-columns: 1fr;
@@ -385,6 +395,11 @@ const gatewayStyles = `
   }
   .factory-mascot {
     justify-self: start;
+  }
+}
+@media (max-width: 900px) {
+  .gateway-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 640px) {
