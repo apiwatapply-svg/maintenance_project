@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import api from "@/lib/api";
+import { getSocket } from "@/lib/socket";
 import { getPaginationPages } from "@/lib/pagination.mjs";
 import { buildToolingQuery, getToolingPageRange } from "@/lib/toolingUi.mjs";
 import ToolingLayout from "./ToolingLayout";
@@ -60,6 +61,23 @@ function ToolingPlanningContent({ headers }) {
   useEffect(() => {
     loadPlanning();
   }, [loadPlanning]);
+
+  useEffect(() => {
+    const socket = getSocket();
+    const refresh = () => loadPlanning(filters);
+
+    socket.on("tooling:data-changed", refresh);
+    socket.on("tooling:low-stock", refresh);
+    socket.on("tooling:stock-recovered", refresh);
+    socket.on("tooling:request-issued", refresh);
+
+    return () => {
+      socket.off("tooling:data-changed", refresh);
+      socket.off("tooling:low-stock", refresh);
+      socket.off("tooling:stock-recovered", refresh);
+      socket.off("tooling:request-issued", refresh);
+    };
+  }, [filters, loadPlanning]);
 
   function updateFilter(key, value) {
     const nextFilters = { ...filters, [key]: value, page: 1 };
