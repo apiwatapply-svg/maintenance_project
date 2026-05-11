@@ -1,5 +1,5 @@
-import SystemWorkspacePage from "@/components/SystemWorkspacePage";
+import ToolingDashboard from "@/components/ToolingDashboard";
 
 export default function ToolingStorePage() {
-  return <SystemWorkspacePage type="store" />;
+  return <ToolingDashboard />;
 }
