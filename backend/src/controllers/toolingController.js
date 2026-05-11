@@ -155,6 +155,14 @@ async function planning(req, res, next) {
   }
 }
 
+async function report(req, res, next) {
+  try {
+    res.json(await toolingService.report(req.params.reportKey, req.query));
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   dashboard,
   list,
@@ -173,5 +181,6 @@ module.exports = {
   rejectRequest,
   issueRequest,
   returnItem,
-  planning
+  planning,
+  report
 };

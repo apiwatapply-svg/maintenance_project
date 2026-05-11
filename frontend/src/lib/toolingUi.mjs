@@ -59,6 +59,13 @@ const navItems = [
     label: "Planning",
     icon: "PL",
     title: "Inventory Planning"
+  },
+  {
+    key: "reports",
+    href: "/tooling-store/reports",
+    label: "Reports",
+    icon: "RP",
+    title: "Reports"
   }
 ];
 

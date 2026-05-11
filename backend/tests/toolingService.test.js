@@ -13,7 +13,8 @@ jest.mock("../src/repositories/toolingRepository", () => ({
   rejectRequest: jest.fn(),
   issueRequest: jest.fn(),
   returnItem: jest.fn(),
-  planning: jest.fn()
+  planning: jest.fn(),
+  report: jest.fn()
 }));
 
 jest.mock("../src/services/socketService", () => ({
@@ -542,5 +543,34 @@ describe("tooling service planning calculations", () => {
 
     expect(result.data[0].planningStatus).toBe("stockout_risk");
     expect(result.pagination.total).toBe(1);
+  });
+});
+
+describe("tooling service reports", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test("report delegates supported report keys to repository", async () => {
+    const toolingService = require("../src/services/toolingService");
+
+    toolingRepository.report.mockResolvedValue({
+      data: [{ movementType: "stock_out" }],
+      pagination: { page: 1, pageSize: 10, total: 1 }
+    });
+
+    const result = await toolingService.report("movement", { page: 1 });
+
+    expect(result.data[0].movementType).toBe("stock_out");
+    expect(toolingRepository.report).toHaveBeenCalledWith("movement", { page: 1 });
+  });
+
+  test("report rejects unsupported report keys", async () => {
+    const toolingService = require("../src/services/toolingService");
+
+    await expect(toolingService.report("unknown", {})).rejects.toMatchObject({
+      message: "Tooling report not found",
+      statusCode: 404
+    });
   });
 });

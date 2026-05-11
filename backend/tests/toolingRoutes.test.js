@@ -23,7 +23,8 @@ jest.mock("../src/repositories/toolingRepository", () => ({
   rejectRequest: jest.fn(),
   issueRequest: jest.fn(),
   returnItem: jest.fn(),
-  planning: jest.fn()
+  planning: jest.fn(),
+  report: jest.fn()
 }));
 
 const app = require("../src/app");
@@ -272,6 +273,34 @@ describe("tooling phase 6 planning routes", () => {
     expect(toolingRepository.planning).toHaveBeenCalledWith(
       expect.objectContaining({ planningStatus: "stockout_risk" })
     );
+  });
+});
+
+describe("tooling phase 7 report routes", () => {
+  test("GET /api/tooling/reports/movement returns filtered report data", async () => {
+    toolingRepository.report.mockResolvedValue({
+      data: [{ movementType: "stock_out", quantity: 3 }],
+      pagination: { page: 1, pageSize: 10, total: 1 }
+    });
+
+    const response = await request(app)
+      .get("/api/tooling/reports/movement")
+      .set("x-username", "admin")
+      .query({ dateFrom: "2026-05-01", dateTo: "2026-05-11" })
+      .expect(200);
+
+    expect(response.body.data[0].movementType).toBe("stock_out");
+    expect(toolingRepository.report).toHaveBeenCalledWith(
+      "movement",
+      expect.objectContaining({ dateFrom: "2026-05-01", dateTo: "2026-05-11" })
+    );
+  });
+
+  test("GET /api/tooling/reports/unknown rejects unsupported report keys", async () => {
+    await request(app)
+      .get("/api/tooling/reports/unknown")
+      .set("x-username", "admin")
+      .expect(404);
   });
 });
 

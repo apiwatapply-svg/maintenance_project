@@ -888,6 +888,85 @@ async function planning(filters = {}) {
   };
 }
 
+async function report(reportKey, filters = {}) {
+  if (["low-stock", "reorder-suggestion", "stockout-risk", "slow-movement", "overstock"].includes(reportKey)) {
+    return planning({
+      ...filters,
+      planningStatus: {
+        "low-stock": "need_order",
+        "reorder-suggestion": "reorder_soon",
+        "stockout-risk": "stockout_risk",
+        "slow-movement": "slow_movement",
+        overstock: "overstock"
+      }[reportKey]
+    });
+  }
+
+  if (reportKey === "movement") {
+    return list("transactions", filters);
+  }
+
+  const page = Math.max(Number(filters.page || 1), 1);
+  const pageSize = Math.min(Math.max(Number(filters.pageSize || 10), 1), 100);
+  const offset = (page - 1) * pageSize;
+  const pool = await getPool();
+  const groupRequest = pool.request();
+  const countRequest = pool.request();
+  const referenceType = {
+    "issue-by-job": "job_request",
+    "issue-by-machine": "machine",
+    "issue-by-department": null
+  }[reportKey];
+  const groupColumn = reportKey === "issue-by-department"
+    ? "departmentId"
+    : "referenceId";
+
+  if (referenceType) {
+    groupRequest.input("referenceType", sql.NVarChar, referenceType);
+    countRequest.input("referenceType", sql.NVarChar, referenceType);
+  }
+
+  groupRequest.input("offset", sql.Int, offset);
+  groupRequest.input("pageSize", sql.Int, pageSize);
+
+  const where = ["movementType = 'stock_out'"];
+  if (referenceType) {
+    where.push("referenceType = @referenceType");
+  }
+  const whereSql = `WHERE ${where.join(" AND ")}`;
+
+  const dataResult = await groupRequest.query(`
+    SELECT
+      ${groupColumn} AS groupId,
+      COUNT(1) AS transactionCount,
+      SUM(quantity) AS totalQuantity
+    FROM dbo.tb_tooling_stock_transaction
+    ${whereSql}
+    GROUP BY ${groupColumn}
+    ORDER BY totalQuantity DESC
+    OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
+  `);
+
+  const countResult = await countRequest.query(`
+    SELECT COUNT(1) AS total
+    FROM (
+      SELECT ${groupColumn}
+      FROM dbo.tb_tooling_stock_transaction
+      ${whereSql}
+      GROUP BY ${groupColumn}
+    ) AS grouped
+  `);
+
+  return {
+    data: dataResult.recordset,
+    pagination: {
+      page,
+      pageSize,
+      total: countResult.recordset[0]?.total || 0
+    }
+  };
+}
+
 module.exports = {
   dashboard,
   list,
@@ -907,5 +986,6 @@ module.exports = {
   rejectRequest,
   issueRequest,
   returnItem,
-  planning
+  planning,
+  report
 };

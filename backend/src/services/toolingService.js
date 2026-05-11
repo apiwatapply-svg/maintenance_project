@@ -121,6 +121,18 @@ function calculatePlanningRow(row) {
   };
 }
 
+const reportKeys = new Set([
+  "low-stock",
+  "reorder-suggestion",
+  "stockout-risk",
+  "slow-movement",
+  "overstock",
+  "movement",
+  "issue-by-department",
+  "issue-by-machine",
+  "issue-by-job"
+]);
+
 function assertRequestPayload(payload) {
   if (!payload.requesterId) {
     const error = new Error("Requester is required");
@@ -459,6 +471,16 @@ async function planning(filters) {
   };
 }
 
+async function report(reportKey, filters) {
+  if (!reportKeys.has(reportKey)) {
+    const error = new Error("Tooling report not found");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  return toolingRepository.report(reportKey, filters);
+}
+
 module.exports = {
   dashboard,
   list,
@@ -478,5 +500,6 @@ module.exports = {
   issueRequest,
   returnItem,
   calculatePlanningRow,
-  planning
+  planning,
+  report
 };

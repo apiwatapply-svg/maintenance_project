@@ -12,6 +12,7 @@ router.post("/stock-in", requireToolingAccess("admin"), toolingController.stockI
 router.post("/stock-out", requireToolingAccess("admin"), toolingController.stockOut);
 router.post("/return", requireToolingAccess("admin"), toolingController.returnItem);
 router.get("/planning", toolingController.planning);
+router.get("/reports/:reportKey", toolingController.report);
 router.get("/requests", toolingController.listRequests);
 router.post("/requests", toolingController.createRequest);
 router.get("/requests/:id", toolingController.getRequestById);
