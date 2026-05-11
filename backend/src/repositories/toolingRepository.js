@@ -870,9 +870,32 @@ async function returnItem(payload) {
   }
 }
 
+async function getReturnableQuantity(itemId, locationId) {
+  const pool = await getPool();
+  const result = await pool.request()
+    .input("itemId", sql.Int, Number(itemId))
+    .input("locationId", sql.Int, Number(locationId))
+    .query(`
+      SELECT
+        COALESCE(SUM(CASE
+          WHEN movementType = 'stock_out' THEN quantity
+          WHEN movementType IN ('return_good', 'return_damaged', 'return_lost') THEN -quantity
+          ELSE 0
+        END), 0) AS returnableQuantity
+      FROM dbo.tb_tooling_stock_transaction
+      WHERE itemId = @itemId
+        AND locationId = @locationId
+        AND movementType IN ('stock_out', 'return_good', 'return_damaged', 'return_lost')
+    `);
+
+  return {
+    returnableQuantity: Math.max(Number(result.recordset[0]?.returnableQuantity || 0), 0)
+  };
+}
+
 async function planning(filters = {}) {
   const page = Math.max(Number(filters.page || 1), 1);
-  const pageSize = Math.min(Math.max(Number(filters.pageSize || 10), 1), 100);
+  const pageSize = Math.min(Math.max(Number(filters.pageSize || 10), 1), 1000);
   const lookbackDays = Math.max(Number(filters.lookbackDays || 90), 1);
   const offset = (page - 1) * pageSize;
   const pool = await getPool();
@@ -1150,6 +1173,7 @@ module.exports = {
   rejectRequest,
   issueRequest,
   returnItem,
+  getReturnableQuantity,
   planning,
   report
 };

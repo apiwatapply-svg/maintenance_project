@@ -14,6 +14,7 @@ import {
   getToolingPageMeta,
   getToolingPageRange,
   getToolingDashboardBarMax,
+  getToolingDashboardBarTooltip,
   getToolingDashboardDefaultMonth,
   getToolingDashboardPieSegments,
   getToolingDashboardSelectedItems,
@@ -21,6 +22,7 @@ import {
   getToolingReferenceOptions,
   getToolingRequestDefaultForm,
   getToolingReturnDefaultForm,
+  getToolingReturnQuantityPatch,
   getToolingRowNumber,
   sanitizeToolingReportFilters,
   getToolingScanFormPatch,
@@ -42,6 +44,10 @@ test("getToolingNavItems exposes UI-1 pages in order", () => {
   assert.deepEqual(
     getToolingNavItems().map((item) => item.key),
     ["dashboard", "items", "stock", "stockIn", "stockOut", "return", "planning", "reports"]
+  );
+  assert.deepEqual(
+    getToolingNavItems("admin").map((item) => item.key),
+    ["dashboard", "items", "stock", "stockIn", "stockOut", "return", "planning", "reports", "history"]
   );
   assert.equal(getToolingNavItems()[0].href, "/tooling-store");
 });
@@ -170,6 +176,17 @@ test("getToolingDashboardBarMax and pie segments handle empty chart data safely"
 test("getToolingDashboardTickValues avoids repeated axis labels for small quantities", () => {
   assert.deepEqual(getToolingDashboardTickValues(1), [0, 1]);
   assert.deepEqual(getToolingDashboardTickValues(8), [0, 2, 4, 6, 8]);
+});
+
+test("getToolingDashboardBarTooltip explains daily and drilldown chart bars", () => {
+  assert.equal(
+    getToolingDashboardBarTooltip({ date: "2026-05-11", stockIn: 4, stockOut: 2 }),
+    "2026-05-11: Stock In 4 pcs, Stock Out 2 pcs"
+  );
+  assert.equal(
+    getToolingDashboardBarTooltip({ itemCode: "SP-001", itemName: "Bearing", stockIn: 1, stockOut: 3 }, true),
+    "SP-001 - Bearing: Stock In 1 pcs, Stock Out 3 pcs"
+  );
 });
 
 test("resolveToolingImageUrl maps backend image paths to the API origin", () => {
@@ -399,5 +416,19 @@ test("validateToolingReturnForm requires item, location, quantity, and valid con
   assert.deepEqual(
     validateToolingReturnForm({ itemId: 1, locationId: 2, quantity: "text", condition: "good" }),
     { quantity: "Quantity must be a number greater than zero." }
+  );
+});
+
+test("getToolingReturnQuantityPatch adjusts by one and caps at returnable quantity", () => {
+  assert.equal(getToolingReturnQuantityPatch("", 1, 3), "1");
+  assert.equal(getToolingReturnQuantityPatch("2", 1, 3), "3");
+  assert.equal(getToolingReturnQuantityPatch("3", 1, 3), "3");
+  assert.equal(getToolingReturnQuantityPatch("1", -1, 3), "1");
+});
+
+test("validateToolingReturnForm rejects quantities greater than returnable issued stock", () => {
+  assert.deepEqual(
+    validateToolingReturnForm({ itemId: 1, locationId: 2, quantity: 5, condition: "good" }, { returnableQuantity: 3 }),
+    { quantity: "Quantity cannot exceed issued quantity available to return." }
   );
 });

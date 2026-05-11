@@ -75,7 +75,7 @@ export default function ToolingLayout({ children }) {
         </button>
 
         <nav className="tooling-nav" aria-label="Toolling navigation">
-          {getToolingNavItems().map((item) => (
+          {getToolingNavItems(session?.user?.permissions?.toolingStore).map((item) => (
             <Link
               className={`tooling-nav-link ${pageMeta.key === item.key ? "is-active" : ""}`}
               href={item.href}

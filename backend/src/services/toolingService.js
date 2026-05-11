@@ -120,6 +120,12 @@ function assertStockMovementPayload(payload) {
 function assertReturnPayload(payload) {
   assertStockMovementPayload(payload);
 
+  if (!Number.isInteger(Number(payload.quantity))) {
+    const error = new Error("Return quantity must be a whole number");
+    error.statusCode = 400;
+    throw error;
+  }
+
   if (!["good", "damaged", "lost"].includes(payload.condition)) {
     const error = new Error("Return condition must be good, damaged, or lost");
     error.statusCode = 400;
@@ -166,12 +172,12 @@ function calculatePlanningRow(row) {
   const lastIssueAge = daysSince(row.lastIssueDate);
   let planningStatus = "normal";
 
-  if (currentStock > 0 && lastIssueAge !== null && lastIssueAge >= deadStockDays) {
+  if (maximumStock > 0 && currentStock > maximumStock) {
+    planningStatus = "overstock";
+  } else if (currentStock > 0 && lastIssueAge !== null && lastIssueAge >= deadStockDays) {
     planningStatus = "dead_stock";
   } else if (currentStock > 0 && lastIssueAge !== null && lastIssueAge >= slowMovementDays) {
     planningStatus = criticalLevel === "critical" ? "critical_slow_movement" : "slow_movement";
-  } else if (maximumStock > 0 && currentStock > maximumStock) {
-    planningStatus = "overstock";
   } else if (daysUntilStockout !== null && daysUntilStockout <= leadTimeDays) {
     planningStatus = "stockout_risk";
   } else if (currentStock <= reorderPoint) {
@@ -193,6 +199,7 @@ function calculatePlanningRow(row) {
 }
 
 const reportKeys = new Set([
+  "all",
   "low-stock",
   "reorder-suggestion",
   "stockout-risk",
@@ -523,6 +530,14 @@ async function issueRequest(id, issuedBy) {
 async function returnItem(payload) {
   assertReturnPayload(payload);
   await toolingRepository.validateActiveItemLocation(payload.itemId, payload.locationId);
+  const returnable = await toolingRepository.getReturnableQuantity(payload.itemId, payload.locationId);
+
+  if (Number(payload.quantity) > Number(returnable.returnableQuantity || 0)) {
+    const error = new Error("Quantity cannot exceed issued quantity available to return");
+    error.statusCode = 400;
+    throw error;
+  }
+
   const movement = await toolingRepository.returnItem({
     ...payload,
     transactionNo: createTransactionNo("TRTN"),
@@ -538,6 +553,18 @@ async function returnItem(payload) {
   });
 
   return movement;
+}
+
+async function getReturnableQuantity(filters) {
+  const missing = ["itemId", "locationId"].filter((field) => !filters?.[field]);
+
+  if (missing.length) {
+    const error = new Error(`Missing required field(s): ${missing.join(", ")}`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return toolingRepository.getReturnableQuantity(Number(filters.itemId), Number(filters.locationId));
 }
 
 async function planning(filters) {
@@ -563,7 +590,46 @@ async function report(reportKey, filters) {
     throw error;
   }
 
+  if (["all", "slow-movement", "overstock"].includes(reportKey)) {
+    return planningReport(reportKey, filters || {});
+  }
+
   return toolingRepository.report(reportKey, filters);
+}
+
+async function planningReport(reportKey, filters) {
+  const page = Math.max(Number(filters.page || 1), 1);
+  const pageSize = Math.min(Math.max(Number(filters.pageSize || 10), 1), 100);
+  const result = await toolingRepository.planning({
+    ...filters,
+    page: 1,
+    pageSize: 1000
+  });
+  const rows = (result.data || []).map((row) => calculatePlanningRow({
+    ...row,
+    lookbackDays: filters.lookbackDays || 90
+  }));
+  const filteredRows = rows.filter((row) => {
+    if (reportKey === "all") {
+      return true;
+    }
+
+    if (reportKey === "slow-movement") {
+      return ["slow_movement", "critical_slow_movement", "dead_stock"].includes(row.planningStatus);
+    }
+
+    return row.planningStatus === "overstock";
+  });
+  const offset = (page - 1) * pageSize;
+
+  return {
+    data: filteredRows.slice(offset, offset + pageSize),
+    pagination: {
+      page,
+      pageSize,
+      total: filteredRows.length
+    }
+  };
 }
 
 module.exports = {
@@ -585,6 +651,7 @@ module.exports = {
   rejectRequest,
   issueRequest,
   returnItem,
+  getReturnableQuantity,
   calculatePlanningRow,
   buildDashboardMovementChart,
   normalizeDashboardYearMonth,

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import api from "@/lib/api";
 import {
   getToolingReturnDefaultForm,
+  getToolingReturnQuantityPatch,
   getToolingSearchMatch,
   normalizeToolingQuantityInput,
   resolveToolingImageUrl,
@@ -26,6 +27,7 @@ function ToolingReturnContent({ headers, session }) {
   const [search, setSearch] = useState("");
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState("");
+  const [returnableQuantity, setReturnableQuantity] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const isAdmin = session?.user?.permissions?.toolingStore === "admin";
   const selectedItem = useMemo(
@@ -68,6 +70,27 @@ function ToolingReturnContent({ headers, session }) {
   }, [headers, search]);
 
   useEffect(() => {
+    async function loadReturnableQuantity() {
+      if (!form.itemId || !form.locationId || !isAdmin) {
+        setReturnableQuantity(0);
+        return;
+      }
+
+      try {
+        const response = await api.get("/tooling/returnable", {
+          headers,
+          params: { itemId: form.itemId, locationId: form.locationId }
+        });
+        setReturnableQuantity(Number(response.data.returnableQuantity || 0));
+      } catch {
+        setReturnableQuantity(0);
+      }
+    }
+
+    loadReturnableQuantity();
+  }, [form.itemId, form.locationId, headers, isAdmin]);
+
+  useEffect(() => {
     const item = getToolingSearchMatch(search, items);
 
     if (item && String(form.itemId) !== String(item.value)) {
@@ -108,7 +131,7 @@ function ToolingReturnContent({ headers, session }) {
       return;
     }
 
-    const nextErrors = validateToolingReturnForm(form);
+    const nextErrors = validateToolingReturnForm(form, { returnableQuantity });
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
 
@@ -192,15 +215,25 @@ function ToolingReturnContent({ headers, session }) {
             <span>Quantity</span>
             <input
               className="quantity-input"
-              inputMode="decimal"
-              min="0"
-              step="0.01"
+              inputMode="numeric"
+              min="1"
+              max={returnableQuantity || undefined}
+              step="1"
               type="number"
               value={form.quantity}
-              onChange={(event) =>
-                updateField("quantity", normalizeToolingQuantityInput(event.target.value))
-              }
+              onChange={(event) => {
+                const nextQuantity = normalizeToolingQuantityInput(event.target.value).split(".")[0];
+                const cappedQuantity = returnableQuantity
+                  ? Math.min(Number(nextQuantity || 0), returnableQuantity)
+                  : Number(nextQuantity || 0);
+                updateField("quantity", cappedQuantity ? String(cappedQuantity) : "");
+              }}
             />
+            <div className="quantity-stepper">
+              <button type="button" onClick={() => updateField("quantity", getToolingReturnQuantityPatch(form.quantity, -1, returnableQuantity))}>-</button>
+              <span>Returnable: {returnableQuantity.toLocaleString()} pcs</span>
+              <button type="button" onClick={() => updateField("quantity", getToolingReturnQuantityPatch(form.quantity, 1, returnableQuantity))}>+</button>
+            </div>
             {errors.quantity ? <small>{errors.quantity}</small> : null}
           </label>
           <label>
@@ -235,7 +268,7 @@ function ToolingReturnContent({ headers, session }) {
                 <b>{selectedItem?.label || "-"}</b>
               </div>
             </div>
-            <button disabled={isSaving || !isAdmin} type="submit">
+            <button disabled={isSaving || !isAdmin || returnableQuantity <= 0} type="submit">
               {isSaving ? "Saving..." : "Save Return"}
             </button>
           </div>
@@ -331,6 +364,28 @@ const returnStyles = `
 }
 .return-form .quantity-input {
   text-align: right;
+}
+.quantity-stepper {
+  display: grid;
+  grid-template-columns: 40px 1fr 40px;
+  gap: 8px;
+  align-items: center;
+}
+.quantity-stepper button {
+  height: 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #0f172a;
+  font-weight: 950;
+}
+.quantity-stepper span {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0;
+  text-align: center;
+  text-transform: none;
 }
 .return-form small {
   color: #b91c1c;

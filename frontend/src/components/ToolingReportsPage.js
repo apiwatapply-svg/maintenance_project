@@ -8,7 +8,6 @@ import {
   buildToolingQuery,
   buildToolingExcelHtml,
   getToolingPageRange,
-  getToolingReportFilterConfig,
   getToolingRowNumber,
   resolveToolingImageUrl,
   sanitizeToolingReportFilters
@@ -17,15 +16,10 @@ import ToolingLayout from "./ToolingLayout";
 
 const emptyPagination = { page: 1, pageSize: 10, total: 0 };
 const reportOptions = [
-  "low-stock",
-  "reorder-suggestion",
-  "stockout-risk",
-  "slow-movement",
-  "overstock",
-  "movement",
-  "issue-by-department",
-  "issue-by-machine",
-  "issue-by-job"
+  { value: "all", label: "All" },
+  { value: "low-stock", label: "Low stock" },
+  { value: "slow-movement", label: "Slow movement" },
+  { value: "overstock", label: "Over stock" }
 ];
 
 export default function ToolingReportsPage() {
@@ -37,7 +31,7 @@ export default function ToolingReportsPage() {
 }
 
 function ToolingReportsContent({ headers }) {
-  const [reportKey, setReportKey] = useState("low-stock");
+  const [reportKey, setReportKey] = useState("all");
   const [filters, setFilters] = useState({ page: 1, pageSize: 10 });
   const [rows, setRows] = useState([]);
   const [pagination, setPagination] = useState(emptyPagination);
@@ -145,7 +139,6 @@ function ToolingReportsContent({ headers }) {
   }
 
   const columns = buildColumns(rows);
-  const filterConfig = getToolingReportFilterConfig(reportKey);
 
   return (
     <section className="tooling-content">
@@ -155,28 +148,10 @@ function ToolingReportsContent({ headers }) {
           <span>Report</span>
           <select value={reportKey} onChange={(event) => updateReportKey(event.target.value)}>
             {reportOptions.map((option) => (
-              <option key={option} value={option}>{option}</option>
+              <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
         </label>
-        {filterConfig.map((filter) => (
-          <label key={filter.key}>
-            <span>{filter.label}</span>
-            {filter.type === "select" ? (
-              <select value={filters[filter.key] || ""} onChange={(event) => updateFilter(filter.key, event.target.value)}>
-                {filter.options.map((option) => (
-                  <option key={option} value={option}>{option || "All"}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                value={filters[filter.key] || ""}
-                placeholder={filter.placeholder}
-                onChange={(event) => updateFilter(filter.key, event.target.value)}
-              />
-            )}
-          </label>
-        ))}
         <button className="export-button" type="button" onClick={exportExcel}>
           Export Excel
         </button>
@@ -273,7 +248,7 @@ function formatCell(value) {
 const reportStyles = `
 .report-toolbar {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) repeat(2, minmax(180px, 240px)) auto;
+  grid-template-columns: minmax(220px, 1fr) auto;
   gap: 12px;
   margin-bottom: 14px;
   align-items: end;

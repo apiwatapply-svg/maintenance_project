@@ -25,6 +25,7 @@ jest.mock("../src/repositories/toolingRepository", () => ({
   rejectRequest: jest.fn(),
   issueRequest: jest.fn(),
   returnItem: jest.fn(),
+  getReturnableQuantity: jest.fn(),
   planning: jest.fn(),
   report: jest.fn()
 }));
@@ -45,6 +46,7 @@ beforeEach(() => {
     item: { id: 1, minimumStock: 5 },
     location: { id: 1 }
   });
+  toolingRepository.getReturnableQuantity.mockResolvedValue({ returnableQuantity: 99 });
 });
 
 describe("tooling phase 4 request and approval routes", () => {
@@ -247,6 +249,19 @@ describe("tooling phase 5 return routes", () => {
       .set("x-username", "engineer01")
       .send({ itemId: 1, locationId: 1, quantity: 2, condition: "good" })
       .expect(403);
+  });
+
+  test("GET /api/tooling/returnable returns remaining quantity that can be returned", async () => {
+    toolingRepository.getReturnableQuantity.mockResolvedValue({ returnableQuantity: 4 });
+
+    const response = await request(app)
+      .get("/api/tooling/returnable")
+      .set("x-username", "admin")
+      .query({ itemId: 1, locationId: 1 })
+      .expect(200);
+
+    expect(response.body.returnableQuantity).toBe(4);
+    expect(toolingRepository.getReturnableQuantity).toHaveBeenCalledWith(1, 1);
   });
 });
 
@@ -694,6 +709,24 @@ describe("tooling phase 3 stock movement routes", () => {
         dateFrom: "2026-05-01",
         dateTo: "2026-05-11"
       })
+    );
+  });
+
+  test("GET /api/tooling/history requires admin and returns transaction log", async () => {
+    toolingRepository.list.mockResolvedValue({
+      data: [{ id: 1, transactionNo: "TIN-001", movementType: "stock_in" }],
+      pagination: { page: 1, pageSize: 10, total: 1 }
+    });
+
+    const response = await request(app)
+      .get("/api/tooling/history")
+      .set("x-username", "admin")
+      .expect(200);
+
+    expect(response.body.data[0].transactionNo).toBe("TIN-001");
+    expect(toolingRepository.list).toHaveBeenCalledWith(
+      "transactions",
+      expect.any(Object)
     );
   });
 });

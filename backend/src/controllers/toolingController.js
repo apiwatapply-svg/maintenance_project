@@ -155,6 +155,22 @@ async function returnItem(req, res, next) {
   }
 }
 
+async function getReturnableQuantity(req, res, next) {
+  try {
+    res.json(await toolingService.getReturnableQuantity(req.query));
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function history(req, res, next) {
+  try {
+    res.json(await toolingService.list("transactions", req.query));
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function planning(req, res, next) {
   try {
     res.json(await toolingService.planning(req.query));
@@ -190,6 +206,8 @@ module.exports = {
   rejectRequest,
   issueRequest,
   returnItem,
+  getReturnableQuantity,
+  history,
   planning,
   report
 };

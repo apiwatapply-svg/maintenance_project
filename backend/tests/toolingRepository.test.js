@@ -163,4 +163,27 @@ describe("tooling repository reports", () => {
     expect(movementSql).toContain("transactionRow.movementType IN ('stock_in', 'stock_out')");
     expect(movementSql).toContain("item.imageUrl");
   });
+
+  test("getReturnableQuantity subtracts prior returns from issued stock", async () => {
+    const request = createMockRequest();
+    request.query.mockImplementation(function query(sqlText) {
+      this.queries.push(sqlText);
+      return Promise.resolve({ recordset: [{ returnableQuantity: 3 }] });
+    });
+
+    getPool.mockResolvedValue({
+      request: jest.fn(() => request)
+    });
+
+    const toolingRepository = require("../src/repositories/toolingRepository");
+    const result = await toolingRepository.getReturnableQuantity(1, 2);
+
+    const sqlText = request.queries.join("\n");
+
+    expect(result.returnableQuantity).toEqual(3);
+    expect(request.input).toHaveBeenCalledWith("itemId", "Int", 1);
+    expect(request.input).toHaveBeenCalledWith("locationId", "Int", 2);
+    expect(sqlText).toContain("movementType = 'stock_out'");
+    expect(sqlText).toContain("movementType IN ('return_good', 'return_damaged', 'return_lost')");
+  });
 });

@@ -5,6 +5,7 @@ import api from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import {
   getToolingDashboardBarMax,
+  getToolingDashboardBarTooltip,
   getToolingDashboardDefaultMonth,
   getToolingDashboardPieSegments,
   getToolingDashboardSelectedItems,
@@ -245,6 +246,7 @@ function BarChart({ rows, maxValue, selectedDate, onSelectDate }) {
               }
             }}
           >
+            <title>{getToolingDashboardBarTooltip(row, Boolean(selectedDate))}</title>
             {canDrill ? (
               <rect
                 x={centerX - (groupWidth / 2)}

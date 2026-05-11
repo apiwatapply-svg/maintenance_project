@@ -14,6 +14,7 @@ jest.mock("../src/repositories/toolingRepository", () => ({
   rejectRequest: jest.fn(),
   issueRequest: jest.fn(),
   returnItem: jest.fn(),
+  getReturnableQuantity: jest.fn(),
   planning: jest.fn(),
   report: jest.fn()
 }));
@@ -485,6 +486,7 @@ describe("tooling service returns", () => {
       item: { id: 1, minimumStock: 5 },
       location: { id: 1 }
     });
+    toolingRepository.getReturnableQuantity.mockResolvedValue({ returnableQuantity: 4 });
     toolingRepository.returnItem.mockResolvedValue({
       id: 9,
       movementType: "return_good",
@@ -516,6 +518,24 @@ describe("tooling service returns", () => {
     );
   });
 
+  test("returnItem rejects quantity greater than returnable issued quantity", async () => {
+    const toolingService = require("../src/services/toolingService");
+
+    toolingRepository.validateActiveItemLocation.mockResolvedValue({
+      item: { id: 1 },
+      location: { id: 1 }
+    });
+    toolingRepository.getReturnableQuantity.mockResolvedValue({ returnableQuantity: 1 });
+
+    await expect(
+      toolingService.returnItem({ itemId: 1, locationId: 1, quantity: 2, condition: "good" })
+    ).rejects.toMatchObject({
+      message: "Quantity cannot exceed issued quantity available to return",
+      statusCode: 400
+    });
+    expect(toolingRepository.returnItem).not.toHaveBeenCalled();
+  });
+
   test("returnItem rejects invalid condition", async () => {
     const toolingService = require("../src/services/toolingService");
 
@@ -523,6 +543,17 @@ describe("tooling service returns", () => {
       toolingService.returnItem({ itemId: 1, locationId: 1, quantity: 1, condition: "scrap" })
     ).rejects.toMatchObject({
       message: "Return condition must be good, damaged, or lost",
+      statusCode: 400
+    });
+  });
+
+  test("returnItem rejects decimal quantities", async () => {
+    const toolingService = require("../src/services/toolingService");
+
+    await expect(
+      toolingService.returnItem({ itemId: 1, locationId: 1, quantity: 1.5, condition: "good" })
+    ).rejects.toMatchObject({
+      message: "Return quantity must be a whole number",
       statusCode: 400
     });
   });
@@ -589,6 +620,22 @@ describe("tooling service planning calculations", () => {
     expect(result.planningStatus).toBe("critical_slow_movement");
   });
 
+  test("calculatePlanningRow treats stock above maximum as overstock before slow movement", () => {
+    const { calculatePlanningRow } = require("../src/services/toolingService");
+    const oldDate = new Date(Date.now() - 220 * 24 * 60 * 60 * 1000).toISOString();
+
+    const result = calculatePlanningRow({
+      currentStock: 25,
+      maximumStock: 10,
+      issuedQuantity: 0,
+      lastIssueDate: oldDate,
+      slowMovementDays: 90,
+      deadStockDays: 180
+    });
+
+    expect(result.planningStatus).toBe("overstock");
+  });
+
   test("planning maps repository rows through calculation", async () => {
     const toolingService = require("../src/services/toolingService");
 
@@ -629,6 +676,27 @@ describe("tooling service reports", () => {
 
     expect(result.data[0].movementType).toBe("stock_out");
     expect(toolingRepository.report).toHaveBeenCalledWith("movement", { page: 1 });
+  });
+
+  test("report all and slow movement use calculated planning rows", async () => {
+    const toolingService = require("../src/services/toolingService");
+    const oldDate = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString();
+
+    toolingRepository.planning.mockResolvedValue({
+      data: [
+        { itemCode: "SP-SLOW", currentStock: 5, maximumStock: 10, issuedQuantity: 0, lastIssueDate: oldDate },
+        { itemCode: "SP-OVER", currentStock: 25, maximumStock: 10, issuedQuantity: 0, lastIssueDate: oldDate }
+      ],
+      pagination: { page: 1, pageSize: 1000, total: 2 }
+    });
+
+    const all = await toolingService.report("all", { page: 1, pageSize: 10 });
+    const slow = await toolingService.report("slow-movement", { page: 1, pageSize: 10 });
+    const over = await toolingService.report("overstock", { page: 1, pageSize: 10 });
+
+    expect(all.data).toHaveLength(2);
+    expect(slow.data.map((row) => row.itemCode)).toEqual(["SP-SLOW"]);
+    expect(over.data.map((row) => row.itemCode)).toEqual(["SP-OVER"]);
   });
 
   test("report rejects unsupported report keys", async () => {

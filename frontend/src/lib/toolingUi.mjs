@@ -63,6 +63,14 @@ const navItems = [
     label: "Reports",
     icon: "RP",
     title: "Reports"
+  },
+  {
+    key: "history",
+    href: "/tooling-store/history",
+    label: "History",
+    icon: "HS",
+    title: "Transaction History",
+    adminOnly: true
   }
 ];
 
@@ -100,8 +108,8 @@ const toolingReferenceOptions = {
   ]
 };
 
-export function getToolingNavItems() {
-  return navItems;
+export function getToolingNavItems(access = "user") {
+  return navItems.filter((item) => !item.adminOnly || access === "admin");
 }
 
 export function getToolingPageMeta(pathname) {
@@ -251,6 +259,14 @@ export function getToolingDashboardTickValues(maxValue) {
   return [0, 0.25, 0.5, 0.75, 1]
     .map((ratio) => Math.round(max * ratio))
     .filter((value, index, values) => values.indexOf(value) === index);
+}
+
+export function getToolingDashboardBarTooltip(row, isDrilldown = false) {
+  const label = isDrilldown
+    ? [row?.itemCode, row?.itemName].filter(Boolean).join(" - ") || "Item"
+    : row?.date || "Date";
+
+  return `${label}: Stock In ${Number(row?.stockIn || 0).toLocaleString()} pcs, Stock Out ${Number(row?.stockOut || 0).toLocaleString()} pcs`;
 }
 
 export function getToolingDashboardPieSegments(totals) {
@@ -521,9 +537,18 @@ export function getToolingReturnDefaultForm() {
   };
 }
 
-export function validateToolingReturnForm(form) {
+export function getToolingReturnQuantityPatch(value, delta, maxQuantity = Infinity) {
+  const current = Math.max(Number(value || 0), 0);
+  const max = Number.isFinite(Number(maxQuantity)) ? Math.max(Number(maxQuantity), 0) : Infinity;
+  const nextValue = Math.min(Math.max(current + Number(delta || 0), 1), max || 1);
+
+  return String(nextValue);
+}
+
+export function validateToolingReturnForm(form, options = {}) {
   const errors = {};
   const quantity = Number(form?.quantity);
+  const returnableQuantity = Number(options.returnableQuantity);
 
   if (!form?.itemId) {
     errors.itemId = "Item is required.";
@@ -535,6 +560,8 @@ export function validateToolingReturnForm(form) {
 
   if (!Number.isFinite(quantity) || quantity <= 0) {
     errors.quantity = "Quantity must be a number greater than zero.";
+  } else if (Number.isFinite(returnableQuantity) && quantity > returnableQuantity) {
+    errors.quantity = "Quantity cannot exceed issued quantity available to return.";
   }
 
   if (!["good", "damaged", "lost"].includes(form?.condition)) {
