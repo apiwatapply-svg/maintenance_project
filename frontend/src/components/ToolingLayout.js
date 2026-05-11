@@ -210,7 +210,9 @@ const toolingLayoutStyles = `
   animation: toolingSignal 1.7s ease-in-out infinite;
 }
 .tooling-shell {
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
   padding: 22px;
 }
 .tooling-header {
@@ -258,6 +260,7 @@ const toolingLayoutStyles = `
 }
 .tooling-content {
   margin-top: 18px;
+  min-width: 0;
 }
 @media (max-width: 820px) {
   .tooling-page {

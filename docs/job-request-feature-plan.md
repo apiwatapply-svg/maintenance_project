@@ -1,0 +1,1026 @@
+# Job Request Feature Plan
+
+## เป้าหมาย
+
+สร้างระบบ Job Request สำหรับงานซ่อมแบบครบวงจร ตั้งแต่ Production แจ้งงาน, Maintenance รับและซ่อม, QC ตรวจสอบ, Production confirm, จนจบงาน พร้อม realtime notification, เสียงแจ้งเตือน, popup กลางจอ, history ทุกครั้งที่ส่งต่องาน, dashboard วิเคราะห์หลายชั้น และระบบต่อกะสำหรับ Production, Maintenance, QC
+
+ระบบต้องยึดหลัก:
+
+- ใช้ Next.js + Tailwind + Axios สำหรับ frontend
+- ใช้ Node.js + Express MVC สำหรับ backend
+- ใช้ MSSQL โดยไม่ใช้ ORM
+- ตาราง master ใช้ prefix `tbm_`
+- ตาราง transaction/log ใช้ prefix `tb_`
+- รองรับ Socket.IO สำหรับ realtime
+- ใช้ SweetAlert2 สำหรับ popup notification กลางหน้าจอ
+- ทุกหน่วยงานเห็นเฉพาะหน้าของตัวเอง ยกเว้น super admin
+- ทุก form ต้องพิมพ์น้อยที่สุด ใช้ searchable dropdown และจำค่าที่เลือกบ่อยไว้ใน localStorage
+- ทุกขั้นตอนต้องแนบรูปได้ โดยเลือกไฟล์หรือเปิดกล้องถ่ายรูป
+- ทุก endpoint ต้องมี unit test
+
+## บทบาทและสิทธิ์
+
+### Production
+
+- Login ด้วยรหัส Production
+- สร้างใบ Request
+- เห็นเฉพาะงาน Production
+- Confirm เครื่องหลัง Maintenance หรือ QC ส่งกลับมา
+- Production admin สามารถ CRUD master ที่เกี่ยวกับ Production ได้
+- ต้องกรอก Emp ID ตอนสร้าง/รับ/confirm งาน
+
+### Maintenance
+
+- Login ด้วยรหัส Maintenance
+- เห็นงานที่ Production หรือ QC ส่งมาให้ Maintenance
+- กดรับงานและระบุผู้รับงาน
+- บันทึกผลซ่อม
+- เลือกส่งต่อไป QC หรือ Production
+- Maintenance admin สามารถ CRUD master ที่เกี่ยวกับ Maintenance ได้
+
+### QC
+
+- Login ด้วยรหัส QC
+- เห็นงานที่ Maintenance ส่งมาตรวจ
+- กดรับงานและระบุผู้รับงาน
+- ตรวจเครื่องและเลือกผลลัพธ์
+- QC admin สามารถ CRUD master ที่เกี่ยวกับ QC ได้
+
+### Super Admin
+
+- เห็นทุกหน่วยงาน
+- จัดการ master ทุกหมวด
+- ดู dashboard และ histories ทุกส่วน
+- จัดการ worker ทุกหน่วยงาน
+
+## โครงสร้างเมนู
+
+### Production
+
+- Production Request
+- Production Confirm
+- Production Shift Handover
+- Production History
+
+### Maintenance
+
+- Maintenance Incoming
+- Maintenance Active Job
+- Maintenance Repair Result
+- Maintenance Shift Handover
+- Maintenance History
+
+### QC
+
+- QC Incoming
+- QC Inspection
+- QC Shift Handover
+- QC History
+
+### Dashboard
+
+- Machine Analyze
+- Worker Analyze (สร้างรอไว้ก่อน แต่ยังไม่ทำกราฟ)
+
+### Histories
+
+- Repair Histories
+
+### Admin Mode
+
+แยก sidebar ตามส่วนงาน:
+
+- Production Master
+- Maintenance Master
+- QC Master
+- Worker Master
+- Machine Master
+- Notification Setting
+
+## Database Plan
+
+### Worker Master
+
+ตาราง `tbm_worker`
+
+ใช้เก็บพนักงานทุกหน่วยงาน
+
+Field หลัก:
+
+- id
+- empId
+- workerCode
+- workerName
+- departmentCode: production, maintenance, qc
+- position
+- phone
+- email
+- imageUrl
+- status
+- createdAt
+- updatedAt
+
+Mock data:
+
+- PRD-001, Production Operator A, Production
+- PRD-002, Production Leader B, Production
+- MNT-001, Maintenance Technician A, Maintenance
+- MNT-002, Maintenance Engineer B, Maintenance
+- QC-001, QC Inspector A, QC
+- QC-002, QC Leader B, QC
+
+### Production Master
+
+ตาราง `tbm_job_request_area`
+
+- areaCode
+- areaName
+- departmentCode
+- status
+
+Mock data:
+
+- LINE-A, Line A
+- LINE-B, Line B
+- PACKING, Packing Area
+- UTILITY, Utility Area
+
+ตาราง `tbm_job_request_machine_type`
+
+- machineTypeCode
+- machineTypeName
+- areaId
+- status
+
+Mock data:
+
+- CONVEYOR, Conveyor
+- MIXER, Mixer
+- PACKER, Packing Machine
+- PUMP, Pump
+- COMPRESSOR, Air Compressor
+- ROBOT, Robot Arm
+
+ตาราง `tbm_job_request_machine`
+
+- machineNo
+- machineName
+- areaId
+- machineTypeId
+- status
+
+Mock data:
+
+- CV-A-001, Conveyor Line A 001
+- CV-A-002, Conveyor Line A 002
+- MX-B-001, Mixer Line B 001
+- PK-001, Packing Machine 001
+- PMP-UT-001, Utility Pump 001
+
+ตาราง `tbm_job_request_problem`
+
+- problemCode
+- problemName
+- machineTypeId
+- priorityDefault
+- status
+
+Mock data:
+
+- ABNORMAL-NOISE, Abnormal noise
+- NOT-RUNNING, Machine not running
+- SENSOR-ERROR, Sensor error
+- AIR-LEAK, Air leak
+- OIL-LEAK, Oil leak
+- JAM, Product jam
+
+ตาราง `tbm_job_request_priority`
+
+- priorityCode
+- priorityName
+- slaMinutes
+- status
+
+Mock data:
+
+- LOW, Low, 240
+- NORMAL, Normal, 120
+- HIGH, High, 60
+- URGENT, Urgent, 30
+
+ตาราง `tbm_job_request_production_confirm_result`
+
+- resultCode
+- resultName
+- status
+
+Mock data:
+
+- OK-RUNNING, Machine running normally
+- NG-SEND-MAINTENANCE, Not OK - send back to Maintenance
+- NG-SEND-QC, Not OK - send to QC
+
+### Maintenance Master
+
+ตาราง `tbm_job_request_downtime`
+
+- downtimeCode
+- downtimeName
+- machineTypeId
+- status
+
+Mock data:
+
+- ELECTRICAL, Electrical issue
+- MECHANICAL, Mechanical issue
+- PNEUMATIC, Pneumatic issue
+- SENSOR, Sensor issue
+- OPERATION, Operation setting issue
+
+ตาราง `tbm_job_request_repair_action`
+
+- actionCode
+- actionName
+- machineTypeId
+- status
+
+Mock data:
+
+- ADJUST, Adjust setting
+- REPLACE-PART, Replace part
+- CLEANING, Cleaning
+- TIGHTENING, Tightening
+- WIRING-CHECK, Wiring check
+- TEST-RUN, Test run
+
+ตาราง `tbm_job_request_root_cause`
+
+- causeCode
+- causeName
+- machineTypeId
+- status
+
+Mock data:
+
+- WEAR, Part wear
+- LOOSE, Loose part
+- DIRTY, Dirty sensor
+- BROKEN, Broken part
+- SETTING, Wrong setting
+
+ตาราง `tbm_job_request_maintenance_result`
+
+- resultCode
+- resultName
+- nextTarget
+- status
+
+Mock data:
+
+- SEND-QC, Send to QC
+- SEND-PRODUCTION, Send to Production Confirm
+
+### QC Master
+
+ตาราง `tbm_job_request_qc_check_item`
+
+- checkCode
+- checkName
+- machineTypeId
+- status
+
+Mock data:
+
+- SAFETY-GUARD, Safety guard check
+- PRODUCT-SAMPLE, Product sample check
+- NOISE-VIBRATION, Noise and vibration check
+- SENSOR-STATUS, Sensor status check
+- TRIAL-RUN, Trial run check
+
+ตาราง `tbm_job_request_qc_result`
+
+- resultCode
+- resultName
+- nextTarget
+- status
+
+Mock data:
+
+- NG-MAINTENANCE, Not pass - return to Maintenance
+- SEND-PRODUCTION, Send to Production Confirm
+- PASS-CLOSE, Pass - close job
+
+### Shift Handover Master
+
+ตาราง `tbm_job_request_shift`
+
+- shiftCode
+- shiftName
+- startTime
+- endTime
+- departmentCode
+- status
+
+Mock data:
+
+- PRD-DAY, Production Day Shift
+- PRD-NIGHT, Production Night Shift
+- MNT-DAY, Maintenance Day Shift
+- MNT-NIGHT, Maintenance Night Shift
+- QC-DAY, QC Day Shift
+- QC-NIGHT, QC Night Shift
+
+### Job Transaction Tables
+
+ตาราง `tb_job_request`
+
+- id
+- requestNo
+- requestDate
+- productionEmpId
+- productionWorkerId
+- areaId
+- machineTypeId
+- machineId
+- problemId
+- priorityId
+- description
+- status
+- currentDepartment
+- currentAssigneeWorkerId
+- currentStep
+- lastActionAt
+- createdBy
+- createdAt
+- updatedAt
+
+Status หลัก:
+
+- requested
+- maintenance_accepted
+- maintenance_repairing
+- sent_to_qc
+- qc_accepted
+- qc_rejected
+- sent_to_production
+- production_rejected_to_maintenance
+- production_rejected_to_qc
+- completed
+- cancelled
+
+ตาราง `tb_job_request_attachment`
+
+- id
+- requestId
+- stepCode
+- departmentCode
+- fileUrl
+- fileType
+- capturedBy
+- createdAt
+
+ตาราง `tb_job_request_history`
+
+- id
+- requestId
+- actionCode
+- fromDepartment
+- toDepartment
+- statusBefore
+- statusAfter
+- actorWorkerId
+- actorEmpId
+- remark
+- payloadJson
+- createdAt
+
+ใช้ table นี้เป็น timeline ทั้งหมดตั้งแต่ Production Request จนจบงาน
+
+ตาราง `tb_job_request_maintenance_result`
+
+- id
+- requestId
+- maintenanceWorkerId
+- downtimeId
+- rootCauseId
+- repairActionId
+- repairRemark
+- nextTarget
+- createdAt
+
+ตาราง `tb_job_request_qc_result`
+
+- id
+- requestId
+- qcWorkerId
+- checkItemId
+- qcResultId
+- qcRemark
+- createdAt
+
+ตาราง `tb_job_request_production_confirm`
+
+- id
+- requestId
+- productionWorkerId
+- confirmResultId
+- confirmRemark
+- createdAt
+
+ตาราง `tb_job_request_shift_handover`
+
+- id
+- departmentCode
+- shiftId
+- handoverFromWorkerId
+- handoverToWorkerId
+- activeRequestIdsJson
+- summary
+- createdAt
+
+## Workflow Detail
+
+### 1. Production Request
+
+Production login แล้วสร้างใบ Request
+
+ข้อมูลที่ต้องกรอก:
+
+- Emp ID: searchable dropdown จาก `tbm_worker` เฉพาะ Production
+- Area: searchable dropdown และจำค่ารอบก่อนใน localStorage
+- Machine Type: searchable dropdown กรองตาม Area และจำค่ารอบก่อนใน localStorage
+- Machine No: searchable dropdown กรองตาม Machine Type
+- Problem: searchable dropdown กรองตาม Machine Type
+- Priority: dropdown
+- Description: optional text
+- Attachment: เลือกรูปหรือเปิดกล้องถ่ายรูป
+
+UX เพื่อลดการพิมพ์:
+
+- ถ้าเลือก Area แล้วครั้งต่อไป prefill Area เดิม
+- ถ้าเลือก Machine Type แล้วครั้งต่อไป prefill Machine Type เดิม
+- Machine No แสดงเฉพาะเครื่องใน Area + Type
+- Problem แสดงตาม Machine Type
+- Emp ID autocomplete จากรหัสหรือชื่อ
+
+หลัง submit:
+
+- สร้าง `tb_job_request`
+- เพิ่ม history action `production_requested`
+- ส่ง Socket.IO ไป Maintenance room
+- Maintenance ได้ยินเสียงแจ้งเตือน
+- Maintenance เห็น SweetAlert2 popup กลางหน้าจอ พร้อมรายละเอียดงาน
+
+### 2. Maintenance Accept
+
+Maintenance เห็นรายการ incoming job
+
+เมื่อกดรับงานต้องระบุ:
+
+- Emp ID หรือ Worker ผู้รับงาน
+- เวลาเริ่มรับงาน
+
+ระบบต้อง:
+
+- update status เป็น `maintenance_accepted`
+- update currentDepartment = maintenance
+- update currentAssigneeWorkerId
+- เพิ่ม history action `maintenance_accepted`
+- แสดงรายละเอียดทั้งหมดจาก Production
+
+### 3. Maintenance Repair Result
+
+Maintenance ไปซ่อมและบันทึกผล
+
+ข้อมูลที่ต้องกรอก:
+
+- Downtime: searchable dropdown ตาม Machine Type
+- Root Cause: searchable dropdown ตาม Machine Type
+- Repair Action: searchable dropdown ตาม Machine Type
+- Repair Remark: optional
+- Attachment: เลือกรูปหรือเปิดกล้อง
+- Next Target:
+  - Send to QC
+  - Send to Production Confirm
+
+หลัง save:
+
+- insert `tb_job_request_maintenance_result`
+- insert `tb_job_request_history`
+- ถ้า send QC:
+  - status = sent_to_qc
+  - currentDepartment = qc
+  - ส่ง Socket.IO ไป QC room
+  - QC ได้เสียงแจ้งเตือน + SweetAlert2 popup
+- ถ้า send Production:
+  - status = sent_to_production
+  - currentDepartment = production
+  - ส่ง Socket.IO ไป Production room
+  - Production ได้เสียงแจ้งเตือน + SweetAlert2 popup
+
+ข้อมูลที่ส่งต่อ:
+
+- Production Request detail
+- Maintenance repair result
+- Attachment ทุกขั้น
+- History timeline ทั้งหมด
+
+### 4. QC Inspection
+
+QC เห็นงานที่ Maintenance ส่งมา
+
+เมื่อกดรับ:
+
+- ต้องเลือก QC Worker หรือ Emp ID
+- status = qc_accepted
+- เพิ่ม history `qc_accepted`
+
+ตอนตรวจสอบ:
+
+- Check Item: searchable dropdown ตาม Machine Type
+- QC Result:
+  - Not pass - return to Maintenance
+  - Send to Production Confirm
+  - Pass - close job
+- Remark
+- Attachment: เลือกรูปหรือเปิดกล้อง
+
+ผลลัพธ์:
+
+4.1 ไม่ผ่าน ส่งกลับ Maintenance
+
+- status = qc_rejected
+- currentDepartment = maintenance
+- เพิ่ม history `qc_rejected_to_maintenance`
+- ส่ง Socket.IO ไป Maintenance พร้อมเสียงและ popup
+- เข้า loop Maintenance อีกครั้ง
+
+4.2 ส่งให้ Production Confirm
+
+- status = sent_to_production
+- currentDepartment = production
+- เพิ่ม history `qc_sent_to_production`
+- ส่ง Socket.IO ไป Production พร้อมเสียงและ popup
+
+4.3 ผ่านและจบงาน
+
+- status = completed
+- currentDepartment = none
+- เพิ่ม history `qc_completed_job`
+
+### 5. Production Confirm
+
+Production เห็นงานที่ Maintenance หรือ QC ส่งมา
+
+ต้องกรอก:
+
+- Production Worker / Emp ID
+- Confirm Result: searchable dropdown จาก `tbm_job_request_production_confirm_result`
+- Remark
+- Attachment: เลือกรูปหรือเปิดกล้อง
+
+ทางเลือก:
+
+5.1 ไม่ผ่าน ส่งกลับ Maintenance
+
+- status = production_rejected_to_maintenance
+- currentDepartment = maintenance
+- เพิ่ม history
+- ส่ง Socket.IO ไป Maintenance พร้อมเสียงและ popup
+- เข้า loop Maintenance
+
+5.2 ไม่ผ่าน ส่งให้ QC
+
+- status = production_rejected_to_qc
+- currentDepartment = qc
+- เพิ่ม history
+- ส่ง Socket.IO ไป QC พร้อมเสียงและ popup
+- เข้า loop QC
+
+5.3 ผ่าน จบงาน
+
+- status = completed
+- เพิ่ม history `production_completed_job`
+
+## Shift Handover Plan
+
+ต้องมีหน้า Shift Handover สำหรับ Production, Maintenance, QC
+
+ปัญหาที่ต้องจัดการ:
+
+- งานค้างระหว่างกะ
+- คนรับงานเดิมเลิกกะ
+- งานซ่อมยังไม่เสร็จ
+- งานอยู่ระหว่างรอ QC/Production Confirm
+- งาน popup แจ้งเตือนแล้วแต่ยังไม่มีคนรับ
+
+แนวทาง:
+
+- ทุกหน่วยงานมีหน้า `Shift Handover`
+- ผู้ส่งกะเลือก Shift ปัจจุบัน, ผู้รับกะ, และรายการงานค้าง
+- ระบบดึง active jobs ของหน่วยงานนั้นให้อัตโนมัติ
+- ผู้ส่งกะใส่ summary หรือ remark
+- ผู้รับกะกดยืนยันรับต่อ
+- หลังยืนยัน ระบบเพิ่ม history action `shift_handover`
+- ถ้ามี currentAssignee เดิม ให้เปลี่ยนเป็น assignee ใหม่เฉพาะงานที่เลือก
+- ส่ง Socket.IO ไปผู้รับกะหรือ department room
+
+Field ที่ควรมี:
+
+- Department
+- Shift
+- Handover From
+- Handover To
+- Active Jobs
+- Important Remark
+- Attachment optional
+
+## Realtime Notification Plan
+
+ใช้ Socket.IO room ตามหน่วยงาน:
+
+- production
+- maintenance
+- qc
+- admin
+
+Event หลัก:
+
+- job-request:created
+- job-request:maintenance-accepted
+- job-request:sent-to-maintenance
+- job-request:sent-to-qc
+- job-request:sent-to-production
+- job-request:completed
+- job-request:cancelled
+- job-request:shift-handover
+
+Frontend behavior:
+
+- เมื่อได้รับ event ของหน่วยงานตัวเอง ให้เล่นเสียงแจ้งเตือน
+- แสดง SweetAlert2 popup กลางจอ
+- Popup ต้องแสดง:
+  - Request No
+  - Area
+  - Machine Type
+  - Machine No
+  - Problem
+  - Priority
+  - Current Status
+  - ปุ่ม View Detail
+- ถ้า user อยู่คนละหน้า ให้ popup ยังขึ้นได้
+- ถ้า user ไม่ได้ login หน่วยงานนั้น ไม่ต้องรับ event
+
+## Attachment And Camera Plan
+
+ทุก step รองรับ:
+
+- Upload image
+- Open camera
+- Preview image ก่อนบันทึก
+- ลบรูปก่อน submit
+- บันทึก path ใน backend image folder แยก feature
+
+Folder:
+
+- `backend/images/job-request/production`
+- `backend/images/job-request/maintenance`
+- `backend/images/job-request/qc`
+- `backend/images/job-request/handover`
+
+## Dashboard Plan
+
+### Header Summary
+
+หน้า Dashboard ควรมี summary card:
+
+- Total Requests
+- Pending Maintenance
+- Waiting QC
+- Waiting Production Confirm
+- Completed
+- Cancelled
+- Average Repair Time
+- Over SLA
+
+Filter:
+
+- Year
+- Month หรือ All Months
+- Department scope ตามสิทธิ์
+- จำค่า filter ใน localStorage
+
+### Tab 1: Machine Analyze
+
+Chart layout:
+
+- ชั้นที่ 1 ใช้ bar chart กว้าง 100%
+- ชั้นที่ 2-4 ใช้ bar chart 70% และ pie chart 30%
+- ทุกชั้นต้องมี back button แบบเลือกกลับไป layer ที่ต้องการ
+- ใช้คำ button:
+  - Back to Daily
+  - Back to Area
+  - Back to Machine Type
+  - Back to Machine No
+
+Status ที่ใช้ในกราฟ:
+
+- request
+- cancel
+- success
+
+#### Layer 1: Daily Analyze
+
+Filter เดือนหรือ All Months ในปีนั้น
+
+- X axis: จำนวนครั้งที่ซ่อม
+- Y axis: วันที่ในเดือน หรือเดือนถ้าเลือก All Months
+- Series: request, cancel, success
+- ไม่มี pie chart
+- Bar chart กว้าง 100%
+
+Click day/month เพื่อไป Layer 2
+
+#### Layer 2: Area Analyze
+
+- X axis: จำนวนครั้งที่ซ่อม
+- Y axis: Area
+- Series: request, cancel, success
+- Pie chart: สัดส่วนแต่ละ Area
+
+Click Area เพื่อไป Layer 3
+
+#### Layer 3: Machine Type Analyze
+
+- X axis: จำนวนครั้งที่ซ่อม
+- Y axis: Machine Type ใน Area ที่เลือก
+- Series: request, cancel, success
+- Pie chart: สัดส่วนแต่ละ Machine Type
+
+Click Machine Type เพื่อไป Layer 4
+
+#### Layer 4: Machine No Analyze
+
+- X axis: จำนวนครั้งที่ซ่อม
+- Y axis: Machine No ใน Machine Type ที่เลือก
+- Series: request, cancel, success
+- Pie chart: สัดส่วนแต่ละ Machine No
+
+Click Machine No เพื่อดูรายการ request ที่เกี่ยวข้องใน modal หรือ side panel
+
+### Tab 2: Worker Analyze
+
+สร้าง tab และ route ไว้ก่อน แต่ยังไม่ทำกราฟ
+
+อนาคตจะใช้วิเคราะห์:
+
+- จำนวนงานที่รับต่อคน
+- เวลาเฉลี่ยซ่อมต่อคน
+- งานที่ rework
+- งานที่เกิน SLA
+- งานที่ส่งกลับจาก QC/Production
+
+## Histories Page
+
+หน้า Histories ใช้ดูประวัติการซ่อมงานทั้งหมด
+
+Filter:
+
+- Department
+- Area
+- Machine Type
+- Machine No
+- Status
+- Date From
+- Date To
+
+ต้องจำค่า filter ใน localStorage
+
+Pagination:
+
+- โหลดข้อมูลเฉพาะหน้าที่แสดง
+- ไม่โหลดทั้งหมดแล้วค่อย slice ที่ frontend
+
+Table columns:
+
+- No
+- Request No
+- Request Date
+- Department
+- Area
+- Machine Type
+- Machine No
+- Problem
+- Current Status
+- Last Action
+- Last Actor
+- Updated At
+- Action Detail
+
+Detail view:
+
+- แสดง timeline จาก `tb_job_request_history`
+- แสดงรูปทุกขั้น
+- แสดงข้อมูล Production Request
+- แสดง Maintenance result
+- แสดง QC result
+- แสดง Production confirm
+- แสดง Shift handover history
+
+## Admin Mode Plan
+
+เพิ่ม sidebar แยกหัวข้อ:
+
+### Production Master
+
+- Area
+- Machine Type
+- Machine No
+- Problem List
+- Priority
+- Production Confirm Result
+
+### Maintenance Master
+
+- Worker
+- Downtime by Machine Type
+- Root Cause by Machine Type
+- Repair Action by Machine Type
+- Maintenance Result
+
+### QC Master
+
+- Worker
+- QC Check Item by Machine Type
+- QC Result
+
+### Shift Master
+
+- Shift by Department
+- Handover Setting
+
+### Worker Master
+
+- Worker CRUD
+- Emp ID
+- Name
+- Department
+- Position
+- Image
+- Status
+
+### Notification Setting
+
+- Enable sound
+- Sound file
+- Popup duration
+- Department room mapping
+
+## API Plan
+
+Production:
+
+- `POST /api/job-request/requests`
+- `GET /api/job-request/production/incoming`
+- `POST /api/job-request/:id/production-confirm`
+
+Maintenance:
+
+- `GET /api/job-request/maintenance/incoming`
+- `PUT /api/job-request/:id/maintenance-accept`
+- `POST /api/job-request/:id/maintenance-result`
+
+QC:
+
+- `GET /api/job-request/qc/incoming`
+- `PUT /api/job-request/:id/qc-accept`
+- `POST /api/job-request/:id/qc-result`
+
+Dashboard:
+
+- `GET /api/job-request/dashboard/summary`
+- `GET /api/job-request/dashboard/machine-analyze`
+- `GET /api/job-request/dashboard/machine-analyze/:layer`
+
+Histories:
+
+- `GET /api/job-request/histories`
+- `GET /api/job-request/histories/:id`
+
+Shift:
+
+- `GET /api/job-request/shift/active-jobs`
+- `POST /api/job-request/shift/handover`
+- `PUT /api/job-request/shift/handover/:id/accept`
+
+Attachments:
+
+- `POST /api/job-request/attachments`
+
+Master:
+
+- CRUD endpoint แยกตาม resource เช่น `/api/job-request/admin/areas`
+
+## Phase Plan
+
+### Phase 1: Foundation
+
+- สร้าง migration tables
+- Seed mock master data
+- เพิ่ม auth/session role สำหรับ Production, Maintenance, QC, Super Admin
+- เพิ่ม worker master
+- เพิ่ม image folder
+- Unit test database scripts และ auth
+
+### Phase 2: Production Request
+
+- Backend create request
+- Frontend Production Request form
+- searchable dropdown
+- localStorage remember Area + Machine Type
+- image/camera attachment
+- socket notify Maintenance
+- unit test endpoint + helper
+
+### Phase 3: Maintenance Flow
+
+- Maintenance incoming page
+- Accept job
+- Repair result form
+- Send to QC หรือ Production
+- socket notify target department
+- history timeline
+- unit test
+
+### Phase 4: QC Flow
+
+- QC incoming page
+- Accept job
+- QC inspection form
+- Return to Maintenance, Send Production, Close job
+- socket notify
+- history timeline
+- unit test
+
+### Phase 5: Production Confirm
+
+- Production confirm page
+- Pass close job
+- Fail to Maintenance
+- Fail to QC
+- socket notify
+- unit test
+
+### Phase 6: Shift Handover
+
+- Shift handover page ทั้ง 3 หน่วยงาน
+- active jobs transfer
+- handover history
+- socket notify receiver
+- unit test
+
+### Phase 7: Admin Mode Extension
+
+- เพิ่ม sidebar admin ตามหน่วยงาน
+- CRUD master ทุกหมวด
+- Worker CRUD พร้อมรูป
+- unit test endpoint
+
+### Phase 8: Dashboard
+
+- Machine Analyze layer 1-4
+- localStorage filter
+- summary header
+- drilldown
+- responsive chart
+- unit test calculation
+
+### Phase 9: Histories
+
+- Histories page
+- filter Department, Area, Type, Machine No
+- localStorage filters
+- pagination server-side
+- detail timeline
+- unit test filters
+
+### Phase 10: Realtime QA + Polish
+
+- ตรวจ socket ทุกหน่วยงาน
+- ตรวจเสียงแจ้งเตือน
+- ตรวจ SweetAlert2 popup
+- ตรวจ responsive
+- run full test + build
+- Browser QA ทุก flow
+
+## จุดที่ต้องระวัง
+
+- ห้ามให้หน่วยงานเห็นหน้าของหน่วยงานอื่น ยกเว้น super admin
+- ทุกการส่งต่องานต้องมี history
+- ทุกการรับงานต้องระบุคนรับ
+- ทุก loop กลับ Maintenance/QC/Production ต้องเก็บว่าเป็นรอบที่เท่าไหร่
+- การต่อกะต้องไม่ทำให้ owner งานหาย
+- Dashboard ต้องใช้ server aggregation ไม่โหลดทุก record มาคำนวณหน้าเว็บ
+- Histories ต้อง pagination ที่ backend
+- รูปภาพต้องจัดเก็บแยก folder ตาม feature และ step
+- SweetAlert2 และเสียงต้องทำงานเฉพาะ department ที่เกี่ยวข้อง
