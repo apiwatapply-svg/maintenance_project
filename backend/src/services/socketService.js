@@ -19,7 +19,19 @@ function emitAdminChange(payload) {
   });
 }
 
+function emitToolingChange(payload) {
+  if (!ioInstance) {
+    return;
+  }
+
+  ioInstance.emit("tooling:data-changed", {
+    ...payload,
+    changedAt: new Date().toISOString()
+  });
+}
+
 module.exports = {
   initSocket,
-  emitAdminChange
+  emitAdminChange,
+  emitToolingChange
 };

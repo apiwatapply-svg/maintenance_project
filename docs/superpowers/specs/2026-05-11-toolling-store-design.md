@@ -580,6 +580,13 @@ All Toolling & Store pages should use the same layout:
 - Table headers centered.
 - Action buttons aligned consistently.
 
+Visual direction:
+
+- Reduce cartoon styling for Toolling & Store pages.
+- Use clear industrial icons, subtle line animations, status pulses, loading sweeps, and small motion cues.
+- Keep the UI practical and factory-focused: readable tables, strong contrast, compact filters, and clear action buttons.
+- Avoid large illustrated scenes on operational pages. Save visual interest for icons, realtime indicators, and small animated system states.
+
 Pages:
 
 - `/tooling-store`
