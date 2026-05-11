@@ -10,16 +10,18 @@ import {
   getToolingNavItems,
   getToolingPageMeta,
   getToolingPageRange,
+  getToolingRequestDefaultForm,
   getToolingSessionRedirect,
   toolingFilterStorageKeys,
   validateToolingItemForm,
-  validateToolingMovementForm
+  validateToolingMovementForm,
+  validateToolingRequestForm
 } from "../src/lib/toolingUi.mjs";
 
 test("getToolingNavItems exposes UI-1 pages in order", () => {
   assert.deepEqual(
     getToolingNavItems().map((item) => item.key),
-    ["dashboard", "items", "stock", "stockIn", "stockOut"]
+    ["dashboard", "items", "stock", "stockIn", "stockOut", "requests"]
   );
   assert.equal(getToolingNavItems()[0].href, "/tooling-store");
 });
@@ -153,4 +155,33 @@ test("formatToolingBalance formats balance with unit and low stock state", () =>
     label: "0",
     isLow: true
   });
+});
+
+test("getToolingRequestDefaultForm gives a simple request draft", () => {
+  assert.deepEqual(getToolingRequestDefaultForm(), {
+    referenceType: "general",
+    referenceId: "",
+    remark: "",
+    items: []
+  });
+});
+
+test("validateToolingRequestForm requires at least one valid item", () => {
+  assert.deepEqual(validateToolingRequestForm({ items: [] }), {
+    items: "Add at least one item."
+  });
+
+  assert.deepEqual(
+    validateToolingRequestForm({
+      items: [{ itemId: 1, locationId: 2, quantity: 0 }]
+    }),
+    { items: "Every item needs item, location, and quantity greater than zero." }
+  );
+
+  assert.deepEqual(
+    validateToolingRequestForm({
+      items: [{ itemId: 1, locationId: 2, quantity: 3 }]
+    }),
+    {}
+  );
 });

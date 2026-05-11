@@ -38,6 +38,13 @@ const navItems = [
     label: "Stock Out",
     icon: "OUT",
     title: "Stock Out"
+  },
+  {
+    key: "requests",
+    href: "/tooling-store/requests",
+    label: "Requests",
+    icon: "RQ",
+    title: "Issue Requests"
   }
 ];
 
@@ -185,4 +192,32 @@ export function formatToolingBalance(balance) {
     label: `${quantity.toLocaleString()}${unit}`,
     isLow: quantity <= minimumStock
   };
+}
+
+export function getToolingRequestDefaultForm() {
+  return {
+    referenceType: "general",
+    referenceId: "",
+    remark: "",
+    items: []
+  };
+}
+
+export function validateToolingRequestForm(form) {
+  const errors = {};
+
+  if (!Array.isArray(form?.items) || form.items.length === 0) {
+    errors.items = "Add at least one item.";
+    return errors;
+  }
+
+  const hasInvalidItem = form.items.some(
+    (item) => !item.itemId || !item.locationId || Number(item.quantity || 0) <= 0
+  );
+
+  if (hasInvalidItem) {
+    errors.items = "Every item needs item, location, and quantity greater than zero.";
+  }
+
+  return errors;
 }
