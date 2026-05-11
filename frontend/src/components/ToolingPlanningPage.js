@@ -4,7 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import api from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { getPaginationPages } from "@/lib/pagination.mjs";
-import { buildToolingQuery, getToolingPageRange, getToolingRowNumber } from "@/lib/toolingUi.mjs";
+import {
+  buildToolingQuery,
+  getToolingPageRange,
+  getToolingRowNumber,
+  resolveToolingImageUrl
+} from "@/lib/toolingUi.mjs";
 import ToolingLayout from "./ToolingLayout";
 
 const emptyPagination = { page: 1, pageSize: 10, total: 0 };
@@ -131,6 +136,7 @@ function ToolingPlanningContent({ headers }) {
             <thead>
               <tr>
                 <th>No</th>
+                <th>Photo</th>
                 <th>Item</th>
                 <th>Current</th>
                 <th>Avg / Day</th>
@@ -145,6 +151,17 @@ function ToolingPlanningContent({ headers }) {
               {rows.map((row, index) => (
                 <tr key={row.itemId || row.itemCode}>
                   <td>{getToolingRowNumber(index, pagination)}</td>
+                  <td>
+                    {row.imageUrl ? (
+                      <img
+                        alt={`${row.itemName || row.itemCode} photo`}
+                        className="planning-thumb"
+                        src={resolveToolingImageUrl(row.imageUrl)}
+                      />
+                    ) : (
+                      <span className="no-photo">No photo</span>
+                    )}
+                  </td>
                   <td>{row.itemCode} - {row.itemName}</td>
                   <td>{row.currentStock}</td>
                   <td>{row.averageDailyUsage}</td>
@@ -155,8 +172,8 @@ function ToolingPlanningContent({ headers }) {
                   <td>{row.criticalLevel}</td>
                 </tr>
               ))}
-              {!isLoading && !rows.length ? <tr><td colSpan="9">No planning records found.</td></tr> : null}
-              {isLoading ? <tr><td colSpan="9">Loading...</td></tr> : null}
+              {!isLoading && !rows.length ? <tr><td colSpan="10">No planning records found.</td></tr> : null}
+              {isLoading ? <tr><td colSpan="10">Loading...</td></tr> : null}
             </tbody>
           </table>
         </div>
@@ -250,6 +267,19 @@ th {
   text-transform: uppercase;
 }
 td { font-weight: 750; }
+.planning-thumb {
+  width: 58px;
+  height: 44px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  object-fit: cover;
+}
+.no-photo {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 850;
+}
 .planning-status {
   display: inline-flex;
   min-width: 120px;

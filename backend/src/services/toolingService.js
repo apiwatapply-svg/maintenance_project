@@ -230,6 +230,7 @@ async function searchItems(query) {
     itemCode: item.itemCode,
     itemName: item.itemName,
     imageUrl: item.imageUrl,
+    locationId: item.locationId,
     quantityOnHand: item.quantityOnHand,
     unit: item.unit,
     isLowStock: Number(item.quantityOnHand || 0) <= Number(item.minimumStock || 0)

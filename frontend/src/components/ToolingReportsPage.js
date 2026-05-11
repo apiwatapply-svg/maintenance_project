@@ -8,6 +8,7 @@ import {
   buildToolingQuery,
   getToolingPageRange,
   getToolingRowNumber,
+  resolveToolingImageUrl,
   sanitizeToolingReportFilters
 } from "@/lib/toolingUi.mjs";
 import ToolingLayout from "./ToolingLayout";
@@ -137,6 +138,7 @@ function ToolingReportsContent({ headers }) {
             <thead>
               <tr>
                 <th>No</th>
+                <th>Photo</th>
                 {columns.map((column) => <th key={column}>{column}</th>)}
               </tr>
             </thead>
@@ -144,11 +146,22 @@ function ToolingReportsContent({ headers }) {
               {rows.map((row, index) => (
                 <tr key={row.id || row.itemId || row.groupId || index}>
                   <td>{getToolingRowNumber(index, pagination)}</td>
+                  <td>
+                    {row.imageUrl ? (
+                      <img
+                        alt={`${row.itemName || row.itemCode || "Tooling item"} photo`}
+                        className="report-thumb"
+                        src={resolveToolingImageUrl(row.imageUrl)}
+                      />
+                    ) : (
+                      <span className="no-photo">No photo</span>
+                    )}
+                  </td>
                   {columns.map((column) => <td key={column}>{formatCell(row[column])}</td>)}
                 </tr>
               ))}
-              {!isLoading && !rows.length ? <tr><td colSpan={Math.max(columns.length + 1, 1)}>No report data.</td></tr> : null}
-              {isLoading ? <tr><td colSpan={Math.max(columns.length + 1, 1)}>Loading...</td></tr> : null}
+              {!isLoading && !rows.length ? <tr><td colSpan={Math.max(columns.length + 2, 1)}>No report data.</td></tr> : null}
+              {isLoading ? <tr><td colSpan={Math.max(columns.length + 2, 1)}>Loading...</td></tr> : null}
             </tbody>
           </table>
         </div>
@@ -177,6 +190,7 @@ function buildColumns(rows) {
   const preferred = [
     "itemCode",
     "itemName",
+    "imageUrl",
     "currentStock",
     "planningStatus",
     "suggestedOrderQuantity",
@@ -189,7 +203,7 @@ function buildColumns(rows) {
     "totalQuantity"
   ];
   const keys = rows[0] ? Object.keys(rows[0]) : preferred.slice(0, 6);
-  return preferred.filter((key) => keys.includes(key)).concat(keys.filter((key) => !preferred.includes(key))).slice(0, 8);
+  return preferred.filter((key) => keys.includes(key)).concat(keys.filter((key) => !preferred.includes(key))).filter((key) => key !== "imageUrl").slice(0, 8);
 }
 
 function formatCell(value) {
@@ -269,6 +283,19 @@ th {
   text-transform: uppercase;
 }
 td { font-weight: 750; }
+.report-thumb {
+  width: 58px;
+  height: 44px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  object-fit: cover;
+}
+.no-photo {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 850;
+}
 .report-pagination {
   display: grid;
   grid-template-columns: 1fr auto 1fr;

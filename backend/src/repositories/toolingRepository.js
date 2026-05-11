@@ -79,6 +79,13 @@ function buildWhere(config, filters, request) {
   return where.length ? `WHERE ${where.join(" AND ")}` : "";
 }
 
+function qualifyTransactionWhere(whereSql) {
+  return whereSql.replace(
+    /(?<!@)\b(transactionNo|referenceNo|movementType|itemId|locationId|departmentId|transactionDate)\b/g,
+    "transactionRow.$1"
+  );
+}
+
 async function dashboard() {
   const pool = await getPool();
   const result = await pool.request().query(`
@@ -110,6 +117,7 @@ async function list(resource, filters) {
   const countRequest = pool.request();
   const where = buildWhere(config, filters, listRequest);
   const countWhere = buildWhere(config, filters, countRequest);
+  const transactionWhere = resource === "transactions" ? qualifyTransactionWhere(where) : where;
 
   listRequest.input("offset", sql.Int, offset);
   listRequest.input("pageSize", sql.Int, pageSize);
@@ -128,6 +136,22 @@ async function list(resource, filters) {
       FROM dbo.tb_tooling_stock_balance AS balance
       INNER JOIN dbo.tbm_tooling_item AS item ON item.id = balance.itemId
       INNER JOIN dbo.tbm_tooling_location AS location ON location.id = balance.locationId
+      ${transactionWhere}
+      ORDER BY ${config.defaultSort}
+      OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
+    `
+    : resource === "transactions"
+      ? `
+      SELECT
+        transactionRow.*,
+        item.itemCode,
+        item.itemName,
+        item.imageUrl,
+        location.locationCode,
+        location.locationName
+      FROM dbo.tb_tooling_stock_transaction AS transactionRow
+      LEFT JOIN dbo.tbm_tooling_item AS item ON item.id = transactionRow.itemId
+      LEFT JOIN dbo.tbm_tooling_location AS location ON location.id = transactionRow.locationId
       ${where}
       ORDER BY ${config.defaultSort}
       OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
@@ -226,16 +250,17 @@ async function searchItems(query) {
       item.id,
       item.itemCode,
       item.itemName,
+      item.locationId,
       item.unit,
       item.minimumStock,
-        item.status,
-        item.imageUrl,
-        COALESCE(SUM(balance.quantityOnHand), 0) AS quantityOnHand
+      item.status,
+      item.imageUrl,
+      COALESCE(SUM(balance.quantityOnHand), 0) AS quantityOnHand
     FROM dbo.tbm_tooling_item AS item
     LEFT JOIN dbo.tb_tooling_stock_balance AS balance ON balance.itemId = item.id
     WHERE item.status = 'active'
-      AND (item.itemCode LIKE @search OR item.itemName LIKE @search)
-    GROUP BY item.id, item.itemCode, item.itemName, item.unit, item.minimumStock, item.status, item.imageUrl
+      AND (item.qrCode LIKE @search OR item.itemCode LIKE @search OR item.itemName LIKE @search)
+    GROUP BY item.id, item.itemCode, item.itemName, item.locationId, item.unit, item.minimumStock, item.status, item.imageUrl
     ORDER BY item.itemCode
   `);
 
@@ -836,6 +861,7 @@ async function planning(filters = {}) {
       item.id AS itemId,
       item.itemCode,
       item.itemName,
+      item.imageUrl,
       item.unit,
       item.minimumStock,
       item.maximumStock,
@@ -920,6 +946,7 @@ async function lowStockReport(filters = {}) {
       item.id AS itemId,
       item.itemCode,
       item.itemName,
+      item.imageUrl,
       COALESCE(stock.currentStock, 0) AS currentStock,
       item.unit,
       item.minimumStock,

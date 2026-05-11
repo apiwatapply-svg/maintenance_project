@@ -345,7 +345,6 @@ export default function AdminResourcePage({ resourceKey }) {
               <thead>
                 <tr>
                   <th>No</th>
-                  <th>ID</th>
                   {columns.map((field) => (
                     <th key={field.key}>{field.label}</th>
                   ))}
@@ -360,7 +359,6 @@ export default function AdminResourcePage({ resourceKey }) {
                 {items.map((item, index) => (
                   <tr key={item.id}>
                     <td>{(pagination.page - 1) * pagination.pageSize + index + 1}</td>
-                    <td>{item.id}</td>
                     {columns.map((field) => (
                       <td key={field.key}>{formatValue(field, item, lookups)}</td>
                     ))}
@@ -386,7 +384,7 @@ export default function AdminResourcePage({ resourceKey }) {
                 ))}
                 {!items.length && (
                   <tr>
-                    <td colSpan={columns.length + (resourceKey === "users" ? featureOptions.length : 0) + 3}>
+                    <td colSpan={columns.length + (resourceKey === "users" ? featureOptions.length : 0) + 2}>
                       {isLoading ? "Loading..." : "No records"}
                     </td>
                   </tr>

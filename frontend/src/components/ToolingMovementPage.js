@@ -41,7 +41,6 @@ function ToolingMovementContent({ config, headers, session }) {
   const [locations, setLocations] = useState([]);
   const [referenceSearch, setReferenceSearch] = useState("");
   const [qrCode, setQrCode] = useState("");
-  const [search, setSearch] = useState("");
   const [currentBalance, setCurrentBalance] = useState(null);
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   const [errors, setErrors] = useState({});
@@ -119,7 +118,7 @@ function ToolingMovementContent({ config, headers, session }) {
 
   useEffect(() => {
     const timeoutId = setTimeout(async () => {
-      if (!search.trim()) {
+      if (!qrCode.trim()) {
         setItems([]);
         return;
       }
@@ -127,7 +126,7 @@ function ToolingMovementContent({ config, headers, session }) {
       try {
         const response = await api.get("/tooling/items/search", {
           headers,
-          params: { q: search.trim() }
+          params: { q: qrCode.trim() }
         });
         setItems(response.data || []);
       } catch {
@@ -136,7 +135,7 @@ function ToolingMovementContent({ config, headers, session }) {
     }, 250);
 
     return () => clearTimeout(timeoutId);
-  }, [headers, search]);
+  }, [headers, qrCode]);
 
   useEffect(() => {
     loadCurrentBalance();
@@ -160,6 +159,17 @@ function ToolingMovementContent({ config, headers, session }) {
   function updateField(key, value) {
     setForm((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: "" }));
+  }
+
+  function selectItem(value) {
+    const item = items.find((entry) => String(entry.value) === String(value));
+
+    setForm((current) => ({
+      ...current,
+      itemId: value,
+      locationId: item?.locationId || current.locationId
+    }));
+    setErrors((current) => ({ ...current, itemId: "", locationId: "" }));
   }
 
   async function handleQrLookup(event) {
@@ -233,7 +243,6 @@ function ToolingMovementContent({ config, headers, session }) {
         locationId: current.locationId
       }));
       setQrCode("");
-      setSearch("");
       setReferenceSearch("");
       setMessage(`${config.title} saved.`);
       loadCurrentBalance(form.itemId, form.locationId);
@@ -259,8 +268,7 @@ function ToolingMovementContent({ config, headers, session }) {
             <span>{config.key === "stockIn" ? "Receiving counter" : "Issue counter"}</span>
             <b>{config.title}</b>
             <p>
-              Scan QR code or type the item code, then confirm quantity. Manual search is available
-              when a label cannot be scanned.
+              Scan QR code or type item code, QR code, or item name. Select the item and confirm quantity.
             </p>
           </div>
           <div className="counter-status" aria-hidden="true">
@@ -277,7 +285,7 @@ function ToolingMovementContent({ config, headers, session }) {
                 <input
                   autoFocus
                   value={qrCode}
-                  placeholder="Scan QR code or type item code"
+                  placeholder="Scan QR, item code, or item name"
                   onChange={(event) => setQrCode(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
@@ -292,19 +300,10 @@ function ToolingMovementContent({ config, headers, session }) {
             </label>
 
             <label className="wide">
-              <span>Manual Search</span>
-              <input
-                value={search}
-                placeholder="Type item code or name"
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </label>
-
-            <label className="wide">
               <span>Item</span>
               <select
                 value={form.itemId}
-                onChange={(event) => updateField("itemId", event.target.value)}
+                onChange={(event) => selectItem(event.target.value)}
               >
                 <option value="">Select item</option>
                 {items.map((item) => (

@@ -71,6 +71,17 @@ function ToolingReturnContent({ headers, session }) {
     setErrors((current) => ({ ...current, [key]: "" }));
   }
 
+  function selectItem(value) {
+    const item = items.find((entry) => String(entry.value) === String(value));
+
+    setForm((current) => ({
+      ...current,
+      itemId: value,
+      locationId: item?.locationId || current.locationId
+    }));
+    setErrors((current) => ({ ...current, itemId: "", locationId: "" }));
+  }
+
   async function submitReturn(event) {
     event.preventDefault();
 
@@ -120,16 +131,16 @@ function ToolingReturnContent({ headers, session }) {
 
         <div className="return-form">
           <label className="wide">
-            <span>Search Item</span>
+            <span>Scan QR / Item Code / Item Name</span>
             <input
               value={search}
-              placeholder="Type item code or name"
+              placeholder="Scan QR, item code, or item name"
               onChange={(event) => setSearch(event.target.value)}
             />
           </label>
           <label className="wide">
             <span>Item</span>
-            <select value={form.itemId} onChange={(event) => updateField("itemId", event.target.value)}>
+            <select value={form.itemId} onChange={(event) => selectItem(event.target.value)}>
               <option value="">Select item</option>
               {items.map((item) => (
                 <option key={item.value} value={item.value}>

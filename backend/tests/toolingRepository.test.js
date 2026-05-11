@@ -73,6 +73,59 @@ describe("tooling repository reports", () => {
     const allSql = createdRequests.flatMap((request) => request.queries).join("\n");
 
     expect(allSql).toContain("COALESCE(stock.currentStock, 0) <= item.minimumStock");
+    expect(allSql).toContain("item.imageUrl");
     expect(allSql).not.toContain("planningStatus");
+  });
+
+  test("planning rows include item images for planning UI", async () => {
+    const createdRequests = [createMockRequest(), createMockRequest()];
+    const requestQueue = [...createdRequests];
+
+    getPool.mockResolvedValue({
+      request: jest.fn(() => requestQueue.shift())
+    });
+
+    const toolingRepository = require("../src/repositories/toolingRepository");
+
+    await toolingRepository.planning({ page: 1, pageSize: 10 });
+
+    const allSql = createdRequests.flatMap((request) => request.queries).join("\n");
+
+    expect(allSql).toContain("item.imageUrl");
+  });
+
+  test("item search matches QR code, item code, and item name", async () => {
+    const request = createMockRequest();
+
+    getPool.mockResolvedValue({
+      request: jest.fn(() => request)
+    });
+
+    const toolingRepository = require("../src/repositories/toolingRepository");
+
+    await toolingRepository.searchItems("QR-SP-BRG-6204");
+
+    const sqlText = request.queries.join("\n");
+
+    expect(sqlText).toContain("item.qrCode LIKE @search");
+    expect(sqlText).toContain("item.itemCode LIKE @search");
+    expect(sqlText).toContain("item.itemName LIKE @search");
+  });
+
+  test("movement report includes item image data for report UI", async () => {
+    const createdRequests = [createMockRequest(), createMockRequest()];
+    const requestQueue = [...createdRequests];
+
+    getPool.mockResolvedValue({
+      request: jest.fn(() => requestQueue.shift())
+    });
+
+    const toolingRepository = require("../src/repositories/toolingRepository");
+
+    await toolingRepository.report("movement", { page: 1, pageSize: 10 });
+
+    const allSql = createdRequests.flatMap((request) => request.queries).join("\n");
+
+    expect(allSql).toContain("item.imageUrl");
   });
 });
