@@ -23,7 +23,7 @@ import {
 test("getToolingNavItems exposes UI-1 pages in order", () => {
   assert.deepEqual(
     getToolingNavItems().map((item) => item.key),
-    ["dashboard", "items", "stock", "stockIn", "stockOut", "requests", "return"]
+    ["dashboard", "items", "stock", "stockIn", "stockOut", "requests", "return", "planning"]
   );
   assert.equal(getToolingNavItems()[0].href, "/tooling-store");
 });

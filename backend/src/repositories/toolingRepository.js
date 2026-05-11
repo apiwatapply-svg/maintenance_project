@@ -793,6 +793,101 @@ async function returnItem(payload) {
   }
 }
 
+async function planning(filters = {}) {
+  const page = Math.max(Number(filters.page || 1), 1);
+  const pageSize = Math.min(Math.max(Number(filters.pageSize || 10), 1), 100);
+  const lookbackDays = Math.max(Number(filters.lookbackDays || 90), 1);
+  const offset = (page - 1) * pageSize;
+  const pool = await getPool();
+  const listRequest = pool.request();
+  const countRequest = pool.request();
+  const where = ["item.status = 'active'"];
+
+  if (filters.search) {
+    listRequest.input("search", sql.NVarChar, `%${filters.search}%`);
+    countRequest.input("search", sql.NVarChar, `%${filters.search}%`);
+    where.push("(item.itemCode LIKE @search OR item.itemName LIKE @search)");
+  }
+
+  if (filters.criticalLevel) {
+    listRequest.input("criticalLevel", sql.NVarChar, filters.criticalLevel);
+    countRequest.input("criticalLevel", sql.NVarChar, filters.criticalLevel);
+    where.push("item.criticalLevel = @criticalLevel");
+  }
+
+  if (filters.supplierId) {
+    listRequest.input("supplierId", sql.Int, Number(filters.supplierId));
+    countRequest.input("supplierId", sql.Int, Number(filters.supplierId));
+    where.push("item.preferredSupplierId = @supplierId");
+  }
+
+  listRequest.input("lookbackDays", sql.Int, lookbackDays);
+  listRequest.input("offset", sql.Int, offset);
+  listRequest.input("pageSize", sql.Int, pageSize);
+
+  const whereSql = `WHERE ${where.join(" AND ")}`;
+  const dataResult = await listRequest.query(`
+    SELECT
+      item.id AS itemId,
+      item.itemCode,
+      item.itemName,
+      item.unit,
+      item.minimumStock,
+      item.maximumStock,
+      item.safetyStock,
+      item.leadTimeDays,
+      item.slowMovementDays,
+      item.deadStockDays,
+      item.minimumOrderQuantity,
+      item.criticalLevel,
+      item.preferredSupplierId AS supplierId,
+      COALESCE(stock.currentStock, 0) AS currentStock,
+      COALESCE(usage.issuedQuantity, 0) AS issuedQuantity,
+      usage.lastIssueDate,
+      receive.lastReceiveDate
+    FROM dbo.tbm_tooling_item AS item
+    LEFT JOIN (
+      SELECT itemId, SUM(quantityOnHand) AS currentStock
+      FROM dbo.tb_tooling_stock_balance
+      GROUP BY itemId
+    ) AS stock ON stock.itemId = item.id
+    LEFT JOIN (
+      SELECT
+        itemId,
+        SUM(quantity) AS issuedQuantity,
+        MAX(transactionDate) AS lastIssueDate
+      FROM dbo.tb_tooling_stock_transaction
+      WHERE movementType = 'stock_out'
+        AND transactionDate >= DATEADD(day, -@lookbackDays, SYSDATETIME())
+      GROUP BY itemId
+    ) AS usage ON usage.itemId = item.id
+    LEFT JOIN (
+      SELECT itemId, MAX(transactionDate) AS lastReceiveDate
+      FROM dbo.tb_tooling_stock_transaction
+      WHERE movementType IN ('stock_in', 'return_good')
+      GROUP BY itemId
+    ) AS receive ON receive.itemId = item.id
+    ${whereSql}
+    ORDER BY item.itemCode
+    OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
+  `);
+
+  const countResult = await countRequest.query(`
+    SELECT COUNT(1) AS total
+    FROM dbo.tbm_tooling_item AS item
+    ${whereSql}
+  `);
+
+  return {
+    data: dataResult.recordset,
+    pagination: {
+      page,
+      pageSize,
+      total: countResult.recordset[0]?.total || 0
+    }
+  };
+}
+
 module.exports = {
   dashboard,
   list,
@@ -811,5 +906,6 @@ module.exports = {
   approveRequest,
   rejectRequest,
   issueRequest,
-  returnItem
+  returnItem,
+  planning
 };

@@ -56,6 +56,71 @@ function assertReturnPayload(payload) {
   }
 }
 
+function round(value, digits = 2) {
+  return Number(Number(value || 0).toFixed(digits));
+}
+
+function daysSince(dateValue) {
+  if (!dateValue) {
+    return null;
+  }
+
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return Math.floor((Date.now() - date.getTime()) / (24 * 60 * 60 * 1000));
+}
+
+function calculatePlanningRow(row) {
+  const lookbackDays = Math.max(Number(row.lookbackDays || 90), 1);
+  const currentStock = Number(row.currentStock || 0);
+  const issuedQuantity = Number(row.issuedQuantity || 0);
+  const leadTimeDays = Number(row.leadTimeDays || 0);
+  const safetyStock = Number(row.safetyStock || 0);
+  const maximumStock = Number(row.maximumStock || 0);
+  const minimumOrderQuantity = Number(row.minimumOrderQuantity || 0);
+  const slowMovementDays = Number(row.slowMovementDays || 90);
+  const deadStockDays = Number(row.deadStockDays || 180);
+  const criticalLevel = row.criticalLevel || "normal";
+  const averageDailyUsage = round(issuedQuantity / lookbackDays, 4);
+  const reorderPoint = round((averageDailyUsage * leadTimeDays) + safetyStock);
+  const daysUntilStockout = averageDailyUsage > 0
+    ? round(currentStock / averageDailyUsage)
+    : null;
+  const suggestedOrderQuantity = maximumStock > currentStock
+    ? Math.max(round(maximumStock - currentStock), minimumOrderQuantity)
+    : 0;
+  const lastIssueAge = daysSince(row.lastIssueDate);
+  let planningStatus = "normal";
+
+  if (currentStock > 0 && lastIssueAge !== null && lastIssueAge >= deadStockDays) {
+    planningStatus = "dead_stock";
+  } else if (currentStock > 0 && lastIssueAge !== null && lastIssueAge >= slowMovementDays) {
+    planningStatus = criticalLevel === "critical" ? "critical_slow_movement" : "slow_movement";
+  } else if (maximumStock > 0 && currentStock > maximumStock) {
+    planningStatus = "overstock";
+  } else if (daysUntilStockout !== null && daysUntilStockout <= leadTimeDays) {
+    planningStatus = "stockout_risk";
+  } else if (currentStock <= reorderPoint) {
+    planningStatus = "need_order";
+  } else if (currentStock <= reorderPoint + safetyStock) {
+    planningStatus = "reorder_soon";
+  }
+
+  return {
+    ...row,
+    currentStock: round(currentStock),
+    averageDailyUsage,
+    reorderPoint,
+    daysUntilStockout,
+    suggestedOrderQuantity,
+    planningStatus,
+    criticalLevel
+  };
+}
+
 function assertRequestPayload(payload) {
   if (!payload.requesterId) {
     const error = new Error("Requester is required");
@@ -378,6 +443,22 @@ async function returnItem(payload) {
   return movement;
 }
 
+async function planning(filters) {
+  const result = await toolingRepository.planning(filters);
+  const mappedRows = (result.data || []).map((row) => calculatePlanningRow({
+    ...row,
+    lookbackDays: filters.lookbackDays || 90
+  }));
+  const planningStatus = filters.planningStatus;
+
+  return {
+    ...result,
+    data: planningStatus
+      ? mappedRows.filter((row) => row.planningStatus === planningStatus)
+      : mappedRows
+  };
+}
+
 module.exports = {
   dashboard,
   list,
@@ -395,5 +476,7 @@ module.exports = {
   approveRequest,
   rejectRequest,
   issueRequest,
-  returnItem
+  returnItem,
+  calculatePlanningRow,
+  planning
 };

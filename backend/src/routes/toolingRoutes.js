@@ -11,6 +11,7 @@ router.get("/items/qr/:qrCode", toolingController.findItemByQrCode);
 router.post("/stock-in", requireToolingAccess("admin"), toolingController.stockIn);
 router.post("/stock-out", requireToolingAccess("admin"), toolingController.stockOut);
 router.post("/return", requireToolingAccess("admin"), toolingController.returnItem);
+router.get("/planning", toolingController.planning);
 router.get("/requests", toolingController.listRequests);
 router.post("/requests", toolingController.createRequest);
 router.get("/requests/:id", toolingController.getRequestById);

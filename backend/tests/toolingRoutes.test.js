@@ -22,7 +22,8 @@ jest.mock("../src/repositories/toolingRepository", () => ({
   approveRequest: jest.fn(),
   rejectRequest: jest.fn(),
   issueRequest: jest.fn(),
-  returnItem: jest.fn()
+  returnItem: jest.fn(),
+  planning: jest.fn()
 }));
 
 const app = require("../src/app");
@@ -243,6 +244,34 @@ describe("tooling phase 5 return routes", () => {
       .set("x-username", "engineer01")
       .send({ itemId: 1, locationId: 1, quantity: 2, condition: "good" })
       .expect(403);
+  });
+});
+
+describe("tooling phase 6 planning routes", () => {
+  test("GET /api/tooling/planning returns rule-based planning rows", async () => {
+    toolingRepository.planning.mockResolvedValue({
+      data: [{
+        itemCode: "SP-001",
+        itemName: "Bearing",
+        currentStock: 2,
+        issuedQuantity: 90,
+        leadTimeDays: 7,
+        safetyStock: 3,
+        maximumStock: 30
+      }],
+      pagination: { page: 1, pageSize: 10, total: 1 }
+    });
+
+    const response = await request(app)
+      .get("/api/tooling/planning")
+      .set("x-username", "admin")
+      .query({ planningStatus: "stockout_risk" })
+      .expect(200);
+
+    expect(response.body.data[0].planningStatus).toBe("stockout_risk");
+    expect(toolingRepository.planning).toHaveBeenCalledWith(
+      expect.objectContaining({ planningStatus: "stockout_risk" })
+    );
   });
 });
 

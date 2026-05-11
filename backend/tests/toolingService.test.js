@@ -12,7 +12,8 @@ jest.mock("../src/repositories/toolingRepository", () => ({
   approveRequest: jest.fn(),
   rejectRequest: jest.fn(),
   issueRequest: jest.fn(),
-  returnItem: jest.fn()
+  returnItem: jest.fn(),
+  planning: jest.fn()
 }));
 
 jest.mock("../src/services/socketService", () => ({
@@ -457,5 +458,89 @@ describe("tooling service returns", () => {
       message: "Return condition must be good, damaged, or lost",
       statusCode: 400
     });
+  });
+});
+
+describe("tooling service planning calculations", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test("calculatePlanningRow computes average usage, reorder point, stockout days, and suggested order", () => {
+    const { calculatePlanningRow } = require("../src/services/toolingService");
+
+    expect(calculatePlanningRow({
+      itemCode: "SP-001",
+      itemName: "Bearing",
+      currentStock: 10,
+      issuedQuantity: 45,
+      leadTimeDays: 7,
+      safetyStock: 3,
+      maximumStock: 50,
+      minimumOrderQuantity: 5,
+      lookbackDays: 90,
+      criticalLevel: "normal"
+    })).toEqual(expect.objectContaining({
+      averageDailyUsage: 0.5,
+      reorderPoint: 6.5,
+      daysUntilStockout: 20,
+      suggestedOrderQuantity: 40,
+      planningStatus: "normal"
+    }));
+  });
+
+  test("calculatePlanningRow detects need order and stockout risk", () => {
+    const { calculatePlanningRow } = require("../src/services/toolingService");
+
+    const result = calculatePlanningRow({
+      currentStock: 2,
+      issuedQuantity: 90,
+      leadTimeDays: 7,
+      safetyStock: 3,
+      maximumStock: 30,
+      minimumOrderQuantity: 10,
+      lookbackDays: 90
+    });
+
+    expect(result.planningStatus).toBe("stockout_risk");
+    expect(result.suggestedOrderQuantity).toBe(28);
+  });
+
+  test("calculatePlanningRow detects slow movement for critical items separately", () => {
+    const { calculatePlanningRow } = require("../src/services/toolingService");
+    const oldDate = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString();
+
+    const result = calculatePlanningRow({
+      currentStock: 5,
+      issuedQuantity: 0,
+      slowMovementDays: 90,
+      deadStockDays: 180,
+      lastIssueDate: oldDate,
+      criticalLevel: "critical"
+    });
+
+    expect(result.planningStatus).toBe("critical_slow_movement");
+  });
+
+  test("planning maps repository rows through calculation", async () => {
+    const toolingService = require("../src/services/toolingService");
+
+    toolingRepository.planning.mockResolvedValue({
+      data: [{
+        itemCode: "SP-001",
+        itemName: "Bearing",
+        currentStock: 2,
+        issuedQuantity: 90,
+        leadTimeDays: 7,
+        safetyStock: 3,
+        maximumStock: 30
+      }],
+      pagination: { page: 1, pageSize: 10, total: 1 }
+    });
+
+    const result = await toolingService.planning({ page: 1 });
+
+    expect(result.data[0].planningStatus).toBe("stockout_risk");
+    expect(result.pagination.total).toBe(1);
   });
 });

@@ -147,6 +147,14 @@ async function returnItem(req, res, next) {
   }
 }
 
+async function planning(req, res, next) {
+  try {
+    res.json(await toolingService.planning(req.query));
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   dashboard,
   list,
@@ -164,5 +172,6 @@ module.exports = {
   approveRequest,
   rejectRequest,
   issueRequest,
-  returnItem
+  returnItem,
+  planning
 };
