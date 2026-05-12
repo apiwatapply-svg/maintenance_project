@@ -28,6 +28,13 @@ const systems = [
     code: "AD",
     theme: "admin",
     description: "Manage users, permissions, and system configuration."
+  },
+  {
+    name: "MMS Dashboard",
+    href: "/mms-dashboard",
+    code: "MS",
+    theme: "mms",
+    description: "Open realtime dashboard without login."
   }
 ];
 
@@ -292,6 +299,7 @@ const gatewayStyles = `
 .gateway-card-store::before { background: #fde68a; }
 .gateway-card-job::before { background: #bae6fd; }
 .gateway-card-admin::before { background: #ddd6fe; }
+.gateway-card-mms::before { background: #bfdbfe; }
 .gateway-card h2 {
   position: relative;
   min-height: 66px;
@@ -329,6 +337,7 @@ const gatewayStyles = `
 .gateway-icon-store { background: #d97706; }
 .gateway-icon-job { background: #0284c7; }
 .gateway-icon-admin { background: #6d28d9; }
+.gateway-icon-mms { background: #2563eb; }
 .icon-code {
   position: relative;
   z-index: 3;

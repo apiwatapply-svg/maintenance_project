@@ -1,4 +1,10 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import api from "@/lib/api";
+import { getSessionConfig, saveSession } from "@/lib/session";
 
 const themes = {
   pm: {
@@ -120,6 +126,33 @@ function CartoonArt({ type }) {
 
 export default function SystemLoginPage({ type }) {
   const theme = themes[type];
+  const router = useRouter();
+  const sessionConfig = getSessionConfig(type);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setError("");
+    setIsLoading(true);
+
+    try {
+      const response = await api.post("/auth/login", {
+        username,
+        password,
+        feature: sessionConfig.feature
+      });
+
+      saveSession(type, response.data);
+      router.replace(sessionConfig.homePath);
+    } catch (loginError) {
+      setError(loginError?.response?.data?.message || "Login failed.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   return (
     <main className="system-login-page" style={{ backgroundImage: theme.page }}>
@@ -138,7 +171,7 @@ export default function SystemLoginPage({ type }) {
           </div>
         </div>
 
-        <form className="system-login-card">
+        <form className="system-login-card" onSubmit={handleSubmit}>
           <Link href="/" className="system-back-link">
             &larr; Back
           </Link>
@@ -152,19 +185,31 @@ export default function SystemLoginPage({ type }) {
           <div className="system-fields">
             <label>
               <span>Username</span>
-              <input type="text" placeholder="Enter username" />
+              <input
+                type="text"
+                placeholder="Enter username"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+              />
             </label>
             <label>
               <span>Password</span>
-              <input type="password" placeholder="Enter password" />
+              <input
+                type="password"
+                placeholder="Enter password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
             </label>
           </div>
+          {error ? <p className="system-login-error">{error}</p> : null}
           <button
             className="system-login-button"
             style={{ backgroundColor: theme.accent }}
-            type="button"
+            type="submit"
+            disabled={isLoading}
           >
-            Login
+            {isLoading ? "Logging in..." : "Login"}
           </button>
         </form>
       </section>
@@ -367,6 +412,16 @@ const loginStyles = `
   box-shadow: 5px 6px 0 rgb(15 23 42 / .14);
   transform: translate(-2px, -2px);
 }
+.system-login-error {
+  margin: 18px 0 -6px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  padding: 12px;
+  color: #991b1b;
+  font-size: 13px;
+  font-weight: 900;
+}
 .system-login-button {
   width: 100%;
   margin-top: 26px;
@@ -382,6 +437,10 @@ const loginStyles = `
 .system-login-button:hover {
   box-shadow: 3px 4px 0 rgb(15 23 42 / .24);
   transform: translate(3px, 3px);
+}
+.system-login-button:disabled {
+  cursor: not-allowed;
+  opacity: .68;
 }
 .cartoon-stage {
   position: absolute;

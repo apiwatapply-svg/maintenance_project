@@ -1,3 +1,9 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { clearSession, getSessionConfig, getStoredSession } from "@/lib/session";
+
 const adminNavGroups = [
   {
     label: "Overview",
@@ -24,6 +30,32 @@ const adminNavGroups = [
 ];
 
 export default function AdminModePage() {
+  const router = useRouter();
+  const [session, setSession] = useState(null);
+  const [isChecking, setIsChecking] = useState(true);
+  const config = getSessionConfig("admin");
+
+  useEffect(() => {
+    const storedSession = getStoredSession("admin");
+
+    if (!storedSession) {
+      router.replace(config.loginPath);
+      return;
+    }
+
+    setSession(storedSession);
+    setIsChecking(false);
+  }, [config.loginPath, router]);
+
+  function handleLogout() {
+    clearSession("admin");
+    router.replace("/");
+  }
+
+  if (isChecking) {
+    return null;
+  }
+
   return (
     <main className="grid min-h-screen grid-cols-[280px_minmax(0,1fr)] bg-slate-100 text-slate-950 max-[900px]:grid-cols-1">
       <aside className="sticky top-0 h-screen overflow-y-auto border-r border-slate-800 bg-slate-950 p-5 text-white max-[900px]:relative max-[900px]:h-auto">
@@ -86,12 +118,15 @@ export default function AdminModePage() {
           <div>
             <p className="m-0 text-xs font-black uppercase tracking-[0.16em] text-violet-700">Administration</p>
             <h2 className="m-0 mt-1 text-3xl font-black tracking-tight">Admin Console</h2>
+            <span className="mt-1 block text-sm font-bold text-slate-500">
+              Signed in as {session?.user?.empName || session?.user?.username}
+            </span>
           </div>
           <div className="flex items-center gap-3">
             <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-black text-emerald-700">
               Ready
             </span>
-            <button className="h-11 rounded-xl bg-slate-950 px-4 text-sm font-black text-white" type="button">
+            <button className="h-11 rounded-xl bg-slate-950 px-4 text-sm font-black text-white" type="button" onClick={handleLogout}>
               Logout
             </button>
           </div>
