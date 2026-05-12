@@ -8,6 +8,7 @@ import AppFooter from "@/components/AppFooter";
 import api, { getBackendAssetUrl } from "@/lib/api";
 import { adminResourceGroups, buildAdminQuery, getAdminFilterStorageKey, getAdminResource, getPageNumbers } from "@/lib/adminResources";
 import { clearSession, getSessionConfig, getStoredSession } from "@/lib/session";
+import { buildSuccessAlert } from "@/lib/swalHelpers";
 
 function defaultForm(config) {
   return Object.fromEntries(config.fields.map((field) => [field.key, field.type === "status" ? "active" : field.options?.[0] || ""]));
@@ -191,7 +192,7 @@ export default function AdminResourcePage({ resourceKey }) {
       }
 
       setIsModalOpen(false);
-      await Swal.fire("Saved", "Record has been saved.", "success");
+      await Swal.fire(buildSuccessAlert("Saved", "Record has been saved."));
       await loadRows();
     } catch (error) {
       await Swal.fire("Save failed", error?.response?.data?.message || "Please check required fields.", "error");
@@ -214,7 +215,7 @@ export default function AdminResourcePage({ resourceKey }) {
 
     try {
       await api.delete(`/admin/${config.endpoint}/${row.id}`);
-      await Swal.fire("Deleted", "Record has been deleted.", "success");
+      await Swal.fire(buildSuccessAlert("Deleted", "Record has been deleted."));
       await loadRows();
     } catch (error) {
       await Swal.fire("Delete failed", error?.response?.data?.message || "Cannot delete record.", "error");

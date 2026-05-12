@@ -16,6 +16,7 @@
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
+    "recharts": "^3.8.1",
     "sweetalert2": "^11.26.24",
     "tailwindcss": "latest"
   },

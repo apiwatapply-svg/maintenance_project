@@ -1,5 +1,5 @@
-import ProtectedWorkspaceShell from "@/components/ProtectedWorkspaceShell";
+import ToolingStoreShell from "@/components/ToolingStoreShell";
 
 export default function ToolingStorePage() {
-  return <ProtectedWorkspaceShell type="store" />;
+  return <ToolingStoreShell />;
 }

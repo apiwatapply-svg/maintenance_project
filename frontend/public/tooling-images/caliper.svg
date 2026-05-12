@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" role="img" aria-label="Caliper vernier">
+  <rect width="160" height="120" rx="18" fill="#f8fafc"/>
+  <path d="M28 44h104M28 69h88" stroke="#111827" stroke-width="10" stroke-linecap="round"/>
+  <path d="M45 44v42M62 44v26M96 44v26M116 44v42" stroke="#64748b" stroke-width="6" stroke-linecap="round"/>
+  <rect x="56" y="31" width="38" height="54" rx="8" fill="#f59e0b" stroke="#111827" stroke-width="6"/>
+  <path d="M30 44l-10-18M30 69l-10 18M132 44l10-18M116 69l18 19" stroke="#111827" stroke-width="8" stroke-linecap="round"/>
+</svg>

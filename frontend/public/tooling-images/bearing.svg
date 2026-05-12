@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" role="img" aria-label="Bearing">
+  <rect width="160" height="120" rx="18" fill="#f8fafc"/>
+  <circle cx="80" cy="60" r="43" fill="#cbd5e1" stroke="#111827" stroke-width="7"/>
+  <circle cx="80" cy="60" r="21" fill="#f8fafc" stroke="#111827" stroke-width="7"/>
+  <g fill="#64748b">
+    <circle cx="80" cy="25" r="6"/><circle cx="80" cy="95" r="6"/><circle cx="45" cy="60" r="6"/><circle cx="115" cy="60" r="6"/>
+    <circle cx="55" cy="35" r="5"/><circle cx="105" cy="35" r="5"/><circle cx="55" cy="85" r="5"/><circle cx="105" cy="85" r="5"/>
+  </g>
+</svg>

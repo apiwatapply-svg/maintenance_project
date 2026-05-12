@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" role="img" aria-label="Grease cartridge">
+  <rect width="160" height="120" rx="18" fill="#f8fafc"/>
+  <rect x="35" y="43" width="82" height="36" rx="13" fill="#22c55e" stroke="#111827" stroke-width="7"/>
+  <path d="M117 52l22-10v38l-22-10z" fill="#94a3b8" stroke="#111827" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M51 61h43" stroke="#dcfce7" stroke-width="6" stroke-linecap="round"/>
+</svg>

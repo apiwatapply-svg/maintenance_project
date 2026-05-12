@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" role="img" aria-label="Torque wrench">
+  <rect width="160" height="120" rx="18" fill="#f8fafc"/>
+  <path d="M26 78h72l32-32" fill="none" stroke="#111827" stroke-width="13" stroke-linecap="round"/>
+  <path d="M91 78h28" stroke="#f59e0b" stroke-width="13" stroke-linecap="round"/>
+  <circle cx="132" cy="42" r="13" fill="#e2e8f0" stroke="#111827" stroke-width="7"/>
+  <rect x="19" y="67" width="60" height="22" rx="11" fill="#0ea5e9"/>
+  <path d="M31 78h34" stroke="#e0f2fe" stroke-width="4" stroke-linecap="round"/>
+</svg>
