@@ -1024,3 +1024,287 @@ Master:
 - Histories ต้อง pagination ที่ backend
 - รูปภาพต้องจัดเก็บแยก folder ตาม feature และ step
 - SweetAlert2 และเสียงต้องทำงานเฉพาะ department ที่เกี่ยวข้อง
+
+## Open Questions And Recommended Decisions
+
+ส่วนนี้คือจุดที่ยังควรถามหรือกำหนดให้ชัดก่อนเริ่ม implementation จริง ถ้ายังไม่มีคำตอบ ให้ใช้ค่าในหัวข้อ "Recommended decision" เป็น default เพื่อให้ระบบเดินต่อได้อย่างเป็นระเบียบ
+
+### 1. Job Request Cancel
+
+Question:
+
+- ใครสามารถ cancel งานได้บ้าง และ cancel ได้ถึงขั้นตอนไหน
+
+Recommended decision:
+
+- Production admin, Maintenance admin, QC admin และ Super Admin สามารถ cancel ได้
+- User ทั่วไป cancel ได้เฉพาะงานที่ตัวเองสร้างและยังไม่มี Maintenance กดรับ
+- ถ้า Maintenance รับงานแล้ว ต้องให้ admin เท่านั้นเป็นคน cancel
+- ทุก cancel ต้องใส่ reason และบันทึกลง `tb_job_request_history`
+- Status ใช้ `cancelled`
+
+### 2. Priority And SLA
+
+Question:
+
+- SLA ควรนับจากเวลาไหน และใช้กับทุก priority หรือไม่
+
+Recommended decision:
+
+- SLA เริ่มนับจากเวลาที่ Production submit request
+- SLA จบเมื่อ status เป็น `completed` หรือ `cancelled`
+- SLA warning ใช้ตอนใกล้ครบ 80% ของเวลา
+- SLA overdue ใช้เมื่อเกิน `slaMinutes` จาก `tbm_job_request_priority`
+- Dashboard ต้องมี card `Over SLA`
+- Histories ต้อง filter `SLA Status`: all, normal, warning, overdue
+
+### 3. Rework And Loop Count
+
+Question:
+
+- ถ้างานวนกลับ Maintenance/QC/Production หลายรอบ ต้องนับอย่างไร
+
+Recommended decision:
+
+- เพิ่ม field `loopCount` ใน `tb_job_request`
+- ทุกครั้งที่ QC หรือ Production ส่งกลับ Maintenance ให้เพิ่ม `loopCount + 1`
+- ทุก history record ต้องเก็บ `loopNo`
+- Dashboard และ Histories ควรแสดง rework count
+- Worker Analyze ในอนาคตควรใช้ loop count เพื่อดูคุณภาพงานซ่อม
+
+### 4. Work Ownership During Shift Handover
+
+Question:
+
+- ถ้างานยังค้างและคนเดิมออกกะ งานควรเป็นของใคร
+
+Recommended decision:
+
+- งานต้องไม่หายจาก department queue
+- ถ้ามี handover แล้ว `currentAssigneeWorkerId` เปลี่ยนเป็นผู้รับกะใหม่
+- ถ้ายังไม่มีผู้รับกะ งานยังอยู่ใน department queue แต่แสดง badge `Need Handover`
+- Handover ต้องเลือกงานค้างได้หลายงาน
+- Handover ต้องสร้าง history action `shift_handover`
+
+### 5. Worker Login Vs Worker Selection
+
+Question:
+
+- Login เป็น account หน่วยงานแล้ว ยังต้องเลือก worker/Emp ID ทุก action หรือไม่
+
+Recommended decision:
+
+- ต้องเลือก worker/Emp ID ทุก action สำคัญ เช่น request, accept, repair, inspect, confirm, handover
+- Login account ใช้เพื่อสิทธิ์เข้าหน้า
+- Worker/Emp ID ใช้เพื่อระบุคนทำงานจริง
+- ถ้า user account ผูกกับ worker ได้ ให้ default worker อัตโนมัติ แต่ยังแก้ไขได้สำหรับ leader/admin
+
+### 6. Super Admin Visibility
+
+Question:
+
+- Super Admin ควรแก้ไขงาน active ได้หรือดูอย่างเดียว
+
+Recommended decision:
+
+- Super Admin ดูได้ทุกงานและแก้ master ได้ทุกหมวด
+- Super Admin สามารถ force cancel หรือ force reassign ได้ แต่ต้องใส่ reason
+- Super Admin ไม่ควรกด action แทนหน่วยงานปกติ ยกเว้น force action ที่มี audit ชัดเจน
+
+### 7. Production Admin Scope
+
+Question:
+
+- Production admin จัดการ master ได้เฉพาะ Production หรือจัด machine master ทั้งหมดด้วย
+
+Recommended decision:
+
+- Production admin จัดการ Production master และ Machine master ได้
+- Maintenance admin จัดการ Maintenance master ได้
+- QC admin จัดการ QC master ได้
+- Worker master เฉพาะ Super Admin หรือ Admin mode กลางเท่านั้น
+
+### 8. Required Attachments
+
+Question:
+
+- รูปภาพจำเป็นทุกขั้นตอนหรือไม่
+
+Recommended decision:
+
+- Production Request: optional แต่แนะนำ
+- Maintenance Repair Result: required อย่างน้อย 1 รูป ถ้าเลือกส่งต่อ QC หรือ Production
+- QC Inspection: required อย่างน้อย 1 รูป
+- Production Confirm: optional ถ้าผ่าน, required ถ้าไม่ผ่าน
+- Shift Handover: optional
+
+### 9. Notification Acknowledgement
+
+Question:
+
+- Popup แจ้งเตือนต้องกดรับทราบหรือหายเอง
+
+Recommended decision:
+
+- SweetAlert2 popup ต้องมีปุ่ม `View Job` และ `Dismiss`
+- เสียงแจ้งเตือนเล่น 1 รอบต่อ event
+- ถ้าไม่มีคนกดรับงานภายใน SLA warning time ให้ส่ง reminder ซ้ำไป department room
+- เก็บ notification log ใน `tb_job_request_notification`
+
+ตาราง `tb_job_request_notification`
+
+- id
+- requestId
+- eventCode
+- targetDepartment
+- targetWorkerId
+- isRead
+- readAt
+- createdAt
+
+### 10. Job Number Format
+
+Question:
+
+- Request No ควรออกเลขอย่างไร
+
+Recommended decision:
+
+- ใช้ format `JR-YYYYMMDD-####`
+- เลข running แยกตามวัน
+- ต้อง unique ใน database
+- สร้างจาก backend เท่านั้น ห้าม frontend สร้างเอง
+
+### 11. Machine Down Time Calculation
+
+Question:
+
+- Downtime เริ่มและจบเวลาไหน
+
+Recommended decision:
+
+- `downStartAt` เริ่มตอน Production submit request
+- `repairStartAt` เริ่มตอน Maintenance accept
+- `repairEndAt` ตอน Maintenance submit repair result
+- `downEndAt` ตอน job completed หรือ cancelled
+- Dashboard ควรแยก:
+  - total downtime
+  - maintenance repair time
+  - waiting time by department
+
+### 12. Searchable Dropdown Data Source
+
+Question:
+
+- Dropdown ควรโหลดทั้งหมดหรือค้นจาก server
+
+Recommended decision:
+
+- Master ขนาดเล็ก เช่น priority/result โหลดทั้งหมดได้
+- Master ที่อาจโต เช่น worker, machine no, problem ให้ค้นจาก server ด้วย query `q`
+- Dropdown ต้อง debounce 250 ms
+- Dropdown ต้องจำค่าล่าสุดใน localStorage เฉพาะ Area และ Machine Type ตามที่กำหนด
+
+### 13. Camera And Image Limit
+
+Question:
+
+- จำกัดจำนวนรูปและขนาดไฟล์อย่างไร
+
+Recommended decision:
+
+- จำกัดรูปไม่เกิน 5 รูปต่อ step
+- ขนาดไฟล์ไม่เกิน 5 MB ต่อรูป
+- รองรับ jpg, png, webp
+- Backend เก็บเป็น local image path ใน `backend/images/job-request/{step}`
+- Database เก็บเฉพาะ path และ metadata
+
+### 14. Histories Permission
+
+Question:
+
+- หน่วยงานดู history ข้ามหน่วยงานได้ไหม
+
+Recommended decision:
+
+- Production เห็น history เฉพาะงานที่เกี่ยวข้องกับ Production ของตัวเอง
+- Maintenance เห็น history เฉพาะงานที่เคยเข้าคิว Maintenance หรือกำลังอยู่ Maintenance
+- QC เห็น history เฉพาะงานที่เคยเข้าคิว QC หรือกำลังอยู่ QC
+- Super Admin เห็นทั้งหมด
+
+### 15. Dashboard Permission
+
+Question:
+
+- Dashboard แสดงข้อมูลทุกหน่วยงานหรือเฉพาะหน่วยงานที่ login
+
+Recommended decision:
+
+- Production/Maintenance/QC admin เห็น dashboard เฉพาะ scope ที่เกี่ยวข้องกับหน่วยงานตัวเอง
+- Super Admin เห็นทุก scope และมี filter department
+- User ทั่วไปไม่ควรเห็น dashboard ระดับรวม ถ้าไม่มีสิทธิ admin
+
+### 16. Master Data Delete Policy
+
+Question:
+
+- Master data ลบจริงหรือ inactive
+
+Recommended decision:
+
+- ห้าม hard delete master data ที่ถูกใช้งานแล้ว
+- ใช้ `status = inactive`
+- ถ้ายังไม่เคยถูกใช้งาน สามารถ delete ได้เฉพาะ Super Admin
+- CRUD page ต้องแสดง inactive filter
+
+### 17. Audit Fields
+
+Question:
+
+- ทุก table ต้องเก็บ created/updated โดยใครหรือไม่
+
+Recommended decision:
+
+- Master table ต้องมี `createdBy`, `createdAt`, `updatedBy`, `updatedAt`
+- Transaction table ต้องมี actor ชัดเจนผ่าน workerId/empId และ history
+- Admin force action ต้องมี reason เสมอ
+
+### 18. สิ่งที่ควรเพิ่มเข้า Phase Plan
+
+Recommended additions:
+
+- เพิ่ม Phase 0: Confirm Decisions And Data Contract
+- เพิ่ม Phase 1.5: Notification Foundation
+- เพิ่ม Phase 6.5: Rework Loop And SLA Hardening
+- เพิ่ม Phase 8.5: Dashboard Aggregation Endpoints
+
+Phase 0: Confirm Decisions And Data Contract
+
+- สรุป decision จากหัวข้อนี้
+- lock status enum
+- lock permission matrix
+- lock request lifecycle diagram
+- lock database naming
+
+Phase 1.5: Notification Foundation
+
+- สร้าง Socket.IO room ตาม department
+- สร้าง notification service
+- สร้าง frontend notification listener
+- เพิ่มเสียงแจ้งเตือน
+- เพิ่ม SweetAlert2 popup
+- unit test notification payload
+
+Phase 6.5: Rework Loop And SLA Hardening
+
+- เพิ่ม loopCount
+- เพิ่ม SLA calculation
+- เพิ่ม warning/overdue status
+- เพิ่ม reminder notification
+- unit test loop/SLA
+
+Phase 8.5: Dashboard Aggregation Endpoints
+
+- ทำ endpoint aggregate สำหรับ layer 1-4
+- ห้าม frontend โหลด raw records ทั้งหมดมาคำนวณ
+- unit test aggregation query/filter
