@@ -32,7 +32,7 @@ const systems = [
     href: "/mms-dashboard",
     code: "MS",
     theme: "mms",
-    description: "Open realtime dashboard without login."
+    description: "Machine Monitoring System."
   },
   {
     name: "Admin mode",
