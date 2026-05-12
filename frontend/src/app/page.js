@@ -23,18 +23,18 @@ const systems = [
     description: "Create, approve, and follow maintenance job requests."
   },
   {
-    name: "Admin mode",
-    href: "/admin/login",
-    code: "AD",
-    theme: "admin",
-    description: "Manage users, permissions, and system configuration."
-  },
-  {
     name: "MMS Dashboard",
     href: "/mms-dashboard",
     code: "MS",
     theme: "mms",
     description: "Open realtime dashboard without login."
+  },
+  {
+    name: "Admin mode",
+    href: "/admin/login",
+    code: "AD",
+    theme: "admin",
+    description: "Manage users, permissions, and system configuration."
   }
 ];
 
@@ -261,19 +261,19 @@ const gatewayStyles = `
 .gear-b { right: 80px; bottom: 4px; width: 48px; height: 48px; animation-direction: reverse; }
 .gateway-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
 }
 .gateway-card {
   position: relative;
   display: flex;
-  min-height: 330px;
+  min-height: 300px;
   flex-direction: column;
   overflow: hidden;
   border: 4px solid #0f172a;
   border-radius: 8px;
   background: white;
-  padding: 22px;
+  padding: 18px;
   color: #0f172a;
   text-decoration: none;
   box-shadow: 9px 11px 0 rgb(15 23 42 / .14);
@@ -302,15 +302,15 @@ const gatewayStyles = `
 .gateway-card-mms::before { background: #bfdbfe; }
 .gateway-card h2 {
   position: relative;
-  min-height: 66px;
+  min-height: 58px;
   margin: 0;
-  font-size: 25px;
+  font-size: 21px;
   font-weight: 950;
   line-height: 1.08;
 }
 .gateway-card p {
   position: relative;
-  margin: 18px 0 26px;
+  margin: 14px 0 22px;
   color: #475569;
   font-size: 14px;
   font-weight: 700;
@@ -319,16 +319,16 @@ const gatewayStyles = `
 .gateway-icon {
   position: relative;
   display: flex;
-  width: 68px;
-  height: 68px;
+  width: 60px;
+  height: 60px;
   align-items: center;
   justify-content: center;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   overflow: hidden;
   border: 4px solid #0f172a;
   border-radius: 14px;
   color: white;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 950;
   box-shadow: 6px 7px 0 rgb(15 23 42 / .16);
   animation: iconBob 2.6s ease-in-out infinite;
@@ -382,7 +382,7 @@ const gatewayStyles = `
 }
 @media (max-width: 1100px) {
   .gateway-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .gateway-hero {
     grid-template-columns: 1fr;
@@ -394,6 +394,11 @@ const gatewayStyles = `
   }
   .factory-mascot {
     justify-self: start;
+  }
+}
+@media (max-width: 860px) {
+  .gateway-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 640px) {
