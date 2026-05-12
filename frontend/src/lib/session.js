@@ -25,6 +25,8 @@ export const sessionConfigs = {
   }
 };
 
+export const protectedSessionTypes = ["admin", "pm", "store", "job"];
+
 export function getSessionConfig(type) {
   return sessionConfigs[type];
 }
@@ -58,4 +60,24 @@ export function clearSession(type) {
   if (config) {
     localStorage.removeItem(config.key);
   }
+}
+
+export function getFirstActiveSession() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  for (const type of protectedSessionTypes) {
+    const session = getStoredSession(type);
+
+    if (session) {
+      return {
+        type,
+        session,
+        config: getSessionConfig(type)
+      };
+    }
+  }
+
+  return null;
 }

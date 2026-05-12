@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import api from "@/lib/api";
-import { getSessionConfig, saveSession } from "@/lib/session";
+import { getSessionConfig, getStoredSession, saveSession } from "@/lib/session";
 
 const themes = {
   pm: {
@@ -132,6 +132,14 @@ export default function SystemLoginPage({ type }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const activeSession = getStoredSession(type);
+
+    if (activeSession) {
+      router.replace(sessionConfig.homePath);
+    }
+  }, [router, sessionConfig.homePath, type]);
 
   async function handleSubmit(event) {
     event.preventDefault();

@@ -1,4 +1,9 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { getFirstActiveSession } from "@/lib/session";
 
 const systems = [
   {
@@ -50,6 +55,16 @@ function GatewayIcon({ theme, code }) {
 }
 
 export default function Home() {
+  const router = useRouter();
+
+  useEffect(() => {
+    const activeSession = getFirstActiveSession();
+
+    if (activeSession) {
+      router.replace(activeSession.config.homePath);
+    }
+  }, [router]);
+
   return (
     <main className="gateway-page">
       <style>{gatewayStyles}</style>
