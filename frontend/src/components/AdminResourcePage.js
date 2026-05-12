@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import Swal from "sweetalert2";
-import api from "@/lib/api";
+import AppFooter from "@/components/AppFooter";
+import api, { getBackendAssetUrl } from "@/lib/api";
 import { adminResourceGroups, buildAdminQuery, getAdminFilterStorageKey, getAdminResource, getPageNumbers } from "@/lib/adminResources";
 import { clearSession, getSessionConfig, getStoredSession } from "@/lib/session";
 
@@ -42,6 +43,29 @@ function toLookupOptions(lookupKey, rows = [], includeAll = false) {
   return includeAll ? [{ value: "", label: "All" }, ...options] : options;
 }
 
+function buildFormPayload(resourceKey, form) {
+  if (resourceKey !== "employees") {
+    return { ...form };
+  }
+
+  const formData = new FormData();
+
+  Object.entries(form).forEach(([key, value]) => {
+    if (key === "image_file") {
+      if (value instanceof File) {
+        formData.append(key, value);
+      }
+      return;
+    }
+
+    if (value !== undefined && value !== null) {
+      formData.append(key, value);
+    }
+  });
+
+  return formData;
+}
+
 export default function AdminResourcePage({ resourceKey }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -56,6 +80,7 @@ export default function AdminResourcePage({ resourceKey }) {
   const [editingRow, setEditingRow] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [lookups, setLookups] = useState({ departments: [], areas: [], "machine-types": [] });
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const pageNumbers = useMemo(
     () => getPageNumbers(pagination.page, pagination.total, pagination.pageSize),
     [pagination.page, pagination.pageSize, pagination.total]
@@ -154,7 +179,7 @@ export default function AdminResourcePage({ resourceKey }) {
     event.preventDefault();
 
     try {
-      const payload = { ...form };
+      const payload = buildFormPayload(resourceKey, form);
       if (resourceKey === "users" && editingRow && !payload.password) {
         delete payload.password;
       }
@@ -206,36 +231,46 @@ export default function AdminResourcePage({ resourceKey }) {
   }
 
   return (
-    <main className="grid min-h-screen grid-cols-[288px_minmax(0,1fr)] bg-slate-100 text-slate-950 max-[900px]:grid-cols-1">
-      <aside className="sticky top-0 h-screen overflow-y-auto border-r border-slate-800 bg-slate-950 p-5 text-white max-[900px]:relative max-[900px]:h-auto">
-        <div className="mb-6 flex items-center gap-3">
+    <main className={`grid min-h-screen bg-slate-100 text-slate-950 max-[900px]:grid-cols-1 ${isSidebarCollapsed ? "grid-cols-[80px_minmax(0,1fr)]" : "grid-cols-[288px_minmax(0,1fr)]"}`}>
+      <aside className={`sticky top-0 h-screen overflow-x-hidden overflow-y-auto border-r border-slate-800 bg-slate-950 text-white transition-all max-[900px]:relative max-[900px]:h-auto ${isSidebarCollapsed ? "p-4" : "p-5"}`}>
+        <div className={`mb-6 flex items-center ${isSidebarCollapsed ? "justify-center" : "gap-3"}`}>
           <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-violet-600 text-sm font-black shadow-lg shadow-violet-600/25">AD</span>
-          <div>
+          <div className={isSidebarCollapsed ? "hidden" : ""}>
             <h1 className="m-0 text-lg font-black leading-tight">Admin Mode</h1>
             <p className="m-0 mt-1 text-sm font-bold text-slate-400">System Control</p>
           </div>
         </div>
 
+        <button
+          className="mb-5 h-11 w-full rounded-xl border border-white/10 bg-white/10 text-sm font-black text-white transition hover:bg-white/15"
+          type="button"
+          onClick={() => setIsSidebarCollapsed((current) => !current)}
+          aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {isSidebarCollapsed ? ">" : "Collapse"}
+        </button>
+
         <nav className="grid gap-3" aria-label="Admin navigation">
           {adminResourceGroups.map((group) => (
-            <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-2" key={group.label}>
-              <div className="rounded-xl px-3 py-2">
+            <section className={`rounded-2xl border border-white/10 bg-white/[0.04] ${isSidebarCollapsed ? "p-1" : "p-2"}`} key={group.label}>
+              <div className={`rounded-xl px-3 py-2 ${isSidebarCollapsed ? "hidden" : ""}`}>
                 <b className="block text-sm font-black text-slate-200">{group.label}</b>
                 <small className="text-xs font-bold text-slate-500">{group.items.length} menus</small>
               </div>
-              <div className="mt-2 grid gap-1.5">
+              <div className={`${isSidebarCollapsed ? "mt-0" : "mt-2"} grid gap-1.5`}>
                 {group.items.map((item) => (
                   <Link
-                    className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm font-black no-underline transition ${
+                    className={`flex w-full items-center rounded-xl border py-2.5 text-sm font-black no-underline transition ${isSidebarCollapsed ? "justify-center px-0" : "gap-3 px-3 text-left"} ${
                       pathname === item.href
                         ? "border-violet-400/50 bg-violet-600 text-white shadow-lg shadow-violet-600/20"
                         : "border-transparent text-slate-300 hover:bg-white/10"
                     }`}
                     href={item.href}
                     key={item.key}
+                    title={item.label}
                   >
                     <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-xs text-violet-300">{item.icon}</span>
-                    <span>{item.label}</span>
+                    <span className={isSidebarCollapsed ? "hidden" : ""}>{item.label}</span>
                   </Link>
                 ))}
               </div>
@@ -244,7 +279,7 @@ export default function AdminResourcePage({ resourceKey }) {
         </nav>
       </aside>
 
-      <section className="min-w-0 p-6 max-[760px]:p-4">
+      <section className="flex min-w-0 flex-col p-6 max-[760px]:p-4">
         <header className="mb-5 flex min-h-20 items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm max-[760px]:flex-col max-[760px]:items-start">
           <div>
             <p className="m-0 text-xs font-black uppercase tracking-[0.16em] text-violet-700">Administration</p>
@@ -287,7 +322,9 @@ export default function AdminResourcePage({ resourceKey }) {
                   <tr key={row.id}>
                     <td className="border-b border-slate-200 p-3 text-center font-bold">{(pagination.page - 1) * pagination.pageSize + index + 1}</td>
                     {config.columns.map((column) => (
-                      <td className="border-b border-slate-200 p-3 text-center font-bold" key={column.key}>{row[column.key] || "-"}</td>
+                      <td className="border-b border-slate-200 p-3 text-center font-bold" key={column.key}>
+                        <TableCell column={column} row={row} />
+                      </td>
                     ))}
                     <td className="border-b border-slate-200 p-3">
                       <div className="flex justify-center gap-2">
@@ -332,6 +369,7 @@ export default function AdminResourcePage({ resourceKey }) {
             </div>
           </div>
         </section>
+        <AppFooter label="Admin Mode" />
       </section>
 
       {isModalOpen ? (
@@ -354,6 +392,7 @@ export default function AdminResourcePage({ resourceKey }) {
                     lookups={lookups}
                     onChange={(value, option) => updateFormField(field, value, option)}
                     editingRow={editingRow}
+                    existingImagePath={form.image_path}
                   />
                 </label>
               ))}
@@ -417,7 +456,23 @@ function FilterInput({ filter, value, lookups, onChange }) {
   );
 }
 
-function FieldInput({ field, value, lookups, onChange, editingRow }) {
+function TableCell({ column, row }) {
+  if (column.type === "image") {
+    return row[column.key] ? (
+      <img
+        alt={`${row.emp_name || "Employee"} photo`}
+        className="mx-auto h-12 w-12 rounded-xl border border-slate-200 object-cover"
+        src={getBackendAssetUrl(row[column.key])}
+      />
+    ) : (
+      <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-xs font-black text-slate-400">NO</span>
+    );
+  }
+
+  return row[column.key] || "-";
+}
+
+function FieldInput({ field, value, lookups, onChange, editingRow, existingImagePath }) {
   if (field.type === "status") {
     return (
       <SearchableDropdown
@@ -462,6 +517,29 @@ function FieldInput({ field, value, lookups, onChange, editingRow }) {
         required={field.required}
         value={value}
       />
+    );
+  }
+
+  if (field.type === "image") {
+    const selectedFileName = value instanceof File ? value.name : "";
+
+    return (
+      <div className="grid gap-3">
+        {existingImagePath ? (
+          <img
+            alt="Current employee photo"
+            className="h-24 w-24 rounded-2xl border border-slate-200 object-cover"
+            src={getBackendAssetUrl(existingImagePath)}
+          />
+        ) : null}
+        <input
+          accept="image/png,image/jpeg,image/webp"
+          className="block h-11 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold file:mr-3 file:rounded-lg file:border-0 file:bg-violet-600 file:px-3 file:py-1.5 file:text-sm file:font-black file:text-white"
+          type="file"
+          onChange={(event) => onChange(event.target.files?.[0] || "")}
+        />
+        <span className="text-xs font-bold text-slate-500">{selectedFileName || "JPG, PNG, WEBP up to 5MB"}</span>
+      </div>
     );
   }
 

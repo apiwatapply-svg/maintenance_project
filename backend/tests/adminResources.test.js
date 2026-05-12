@@ -9,6 +9,7 @@ test("adminResources maps requested resources to tbm tables", () => {
   assert.equal(adminResources["machine-types"].table, "tbm_machine_type");
   assert.equal(adminResources["machine-nos"].table, "tbm_machine_no");
   assert.equal(adminResources.employees.table, "tbm_employee");
+  assert.ok(adminResources.employees.columns.includes("image_path"));
 });
 
 test("getAdminResource returns null for unknown resource", () => {

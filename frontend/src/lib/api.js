@@ -5,4 +5,16 @@ const api = axios.create({
   timeout: 10000
 });
 
+export function getBackendAssetUrl(path) {
+  if (!path) {
+    return "";
+  }
+
+  if (/^https?:\/\//.test(path)) {
+    return path;
+  }
+
+  return `${api.defaults.baseURL.replace(/\/api\/?$/, "")}${path}`;
+}
+
 export default api;

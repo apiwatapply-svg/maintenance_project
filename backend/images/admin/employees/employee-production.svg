@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="Production employee icon">
+  <rect width="160" height="160" rx="32" fill="#eff6ff"/>
+  <circle cx="80" cy="62" r="28" fill="#2563eb"/>
+  <path d="M34 136c5-31 25-48 46-48s41 17 46 48" fill="#1e3a8a"/>
+  <rect x="50" y="22" width="60" height="28" rx="14" fill="#f59e0b"/>
+  <path d="M40 112h80v16H40z" fill="#0f172a"/>
+  <path d="M52 116h16v8H52zm40 0h16v8H92z" fill="#f59e0b"/>
+</svg>

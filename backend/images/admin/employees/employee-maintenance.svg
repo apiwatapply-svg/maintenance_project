@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="Maintenance employee icon">
+  <rect width="160" height="160" rx="32" fill="#ecfdf5"/>
+  <circle cx="80" cy="62" r="28" fill="#10b981"/>
+  <path d="M34 136c5-31 25-48 46-48s41 17 46 48" fill="#065f46"/>
+  <path d="M48 40h64l-10-18H58z" fill="#f59e0b"/>
+  <rect x="44" y="38" width="72" height="16" rx="8" fill="#111827"/>
+  <path d="M108 102l20 20-10 10-20-20z" fill="#64748b"/>
+  <circle cx="94" cy="98" r="12" fill="#94a3b8"/>
+</svg>

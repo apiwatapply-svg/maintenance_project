@@ -134,6 +134,7 @@ export const adminResources = {
     title: "Employee Data",
     endpoint: "employees",
     columns: [
+      { key: "image_path", label: "Photo", type: "image" },
       { key: "emp_id", label: "Emp ID" },
       { key: "emp_name", label: "Name" },
       { key: "department_name", label: "Department" },
@@ -146,6 +147,7 @@ export const adminResources = {
       { key: "department_code", label: "Department", required: true, type: "lookup", lookup: "departments", fill: { department_name: "department_name" } },
       { key: "department_name", label: "Department Name", required: true, type: "readonly" },
       { key: "section", label: "Section", required: true },
+      { key: "image_file", label: "Employee Photo", type: "image" },
       { key: "status", label: "Status", type: "status" }
     ],
     filters: [

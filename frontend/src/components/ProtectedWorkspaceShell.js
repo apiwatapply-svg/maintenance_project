@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import AppFooter from "@/components/AppFooter";
 import { clearSession, getSessionConfig, getStoredSession } from "@/lib/session";
 
 const workspaceThemes = {
@@ -68,6 +69,7 @@ export default function ProtectedWorkspaceShell({ type }) {
   const colors = accentClasses[theme.accent];
   const [session, setSession] = useState(null);
   const [isChecking, setIsChecking] = useState(true);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     const storedSession = getStoredSession(type);
@@ -91,13 +93,13 @@ export default function ProtectedWorkspaceShell({ type }) {
   }
 
   return (
-    <main className="grid min-h-screen grid-cols-[280px_minmax(0,1fr)] bg-slate-100 text-slate-950 max-[900px]:grid-cols-1">
-      <aside className="sticky top-0 h-screen overflow-y-auto border-r border-slate-800 bg-slate-950 p-5 text-white max-[900px]:relative max-[900px]:h-auto">
-        <div className="mb-6 flex items-center gap-3">
+    <main className={`grid min-h-screen bg-slate-100 text-slate-950 max-[900px]:grid-cols-1 ${isSidebarCollapsed ? "grid-cols-[80px_minmax(0,1fr)]" : "grid-cols-[280px_minmax(0,1fr)]"}`}>
+      <aside className={`sticky top-0 h-screen overflow-x-hidden overflow-y-auto border-r border-slate-800 bg-slate-950 text-white transition-all max-[900px]:relative max-[900px]:h-auto ${isSidebarCollapsed ? "p-4" : "p-5"}`}>
+        <div className={`mb-6 flex items-center ${isSidebarCollapsed ? "justify-center" : "gap-3"}`}>
           <span className={`inline-flex h-12 w-12 items-center justify-center rounded-xl text-sm font-black shadow-lg ${colors.badge}`}>
             {theme.code}
           </span>
-          <div>
+          <div className={isSidebarCollapsed ? "hidden" : ""}>
             <h1 className="m-0 text-lg font-black leading-tight">{theme.title}</h1>
             <p className="m-0 mt-1 text-sm font-bold text-slate-400">{theme.subtitle}</p>
           </div>
@@ -106,32 +108,35 @@ export default function ProtectedWorkspaceShell({ type }) {
         <button
           className="mb-5 h-11 w-full rounded-xl border border-white/10 bg-white/10 text-sm font-black text-white transition hover:bg-white/15"
           type="button"
+          onClick={() => setIsSidebarCollapsed((current) => !current)}
+          aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          Collapse
+          {isSidebarCollapsed ? ">" : "Collapse"}
         </button>
 
         <nav className="grid gap-3" aria-label={`${theme.title} navigation`}>
-          <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-2">
-            <button className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-slate-200" type="button">
+          <section className={`rounded-2xl border border-white/10 bg-white/[0.04] ${isSidebarCollapsed ? "p-1" : "p-2"}`}>
+            <button className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-slate-200 ${isSidebarCollapsed ? "hidden" : ""}`} type="button">
               <span>
                 <b className="block text-sm font-black">Workspace</b>
                 <small className="text-xs font-bold text-slate-500">{theme.nav.length} menus</small>
               </span>
               <span className="text-xs font-black text-slate-500">v</span>
             </button>
-            <div className="mt-2 grid gap-1.5">
+            <div className={`${isSidebarCollapsed ? "mt-0" : "mt-2"} grid gap-1.5`}>
               {theme.nav.map((item) => (
                 <button
-                  className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm font-black transition ${
+                  className={`flex w-full items-center rounded-xl border py-2.5 text-sm font-black transition ${isSidebarCollapsed ? "justify-center px-0" : "gap-3 px-3 text-left"} ${
                     item.active ? colors.active : "border-transparent text-slate-300 hover:bg-white/10"
                   }`}
                   key={item.label}
                   type="button"
+                  title={item.label}
                 >
                   <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-xs text-slate-300">
                     {item.icon}
                   </span>
-                  <span>{item.label}</span>
+                  <span className={isSidebarCollapsed ? "hidden" : ""}>{item.label}</span>
                 </button>
               ))}
             </div>
@@ -139,7 +144,7 @@ export default function ProtectedWorkspaceShell({ type }) {
         </nav>
       </aside>
 
-      <section className="min-w-0 p-6 max-[760px]:p-4">
+      <section className="flex min-w-0 flex-col p-6 max-[760px]:p-4">
         <header className="mb-5 flex min-h-20 items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm max-[760px]:flex-col max-[760px]:items-start">
           <div>
             <p className={`m-0 text-xs font-black uppercase tracking-[0.16em] ${colors.text}`}>{theme.subtitle}</p>
@@ -165,6 +170,7 @@ export default function ProtectedWorkspaceShell({ type }) {
             </p>
           </article>
         </section>
+        <AppFooter label={theme.title} />
       </section>
     </main>
   );

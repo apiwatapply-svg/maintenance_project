@@ -12,6 +12,7 @@
     "cors": "latest",
     "dotenv": "latest",
     "express": "latest",
-    "mssql": "latest"
+    "mssql": "latest",
+    "multer": "^2.1.1"
   }
 }

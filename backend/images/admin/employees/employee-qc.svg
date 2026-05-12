@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="QC employee icon">
+  <rect width="160" height="160" rx="32" fill="#f0f9ff"/>
+  <circle cx="80" cy="62" r="28" fill="#0284c7"/>
+  <path d="M34 136c5-31 25-48 46-48s41 17 46 48" fill="#075985"/>
+  <path d="M48 40h64l-8-18H56z" fill="#f59e0b"/>
+  <circle cx="108" cy="104" r="18" fill="none" stroke="#0f172a" stroke-width="8"/>
+  <path d="M121 117l18 18" stroke="#0f172a" stroke-width="8" stroke-linecap="round"/>
+</svg>

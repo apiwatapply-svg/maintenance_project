@@ -19,6 +19,8 @@ test("adminResourceGroups keeps requested sidebar groups and pages", () => {
 test("getAdminResource resolves CRUD configs", () => {
   assert.equal(getAdminResource("users").endpoint, "users");
   assert.equal(getAdminResource("employees").title, "Employee Data");
+  assert.ok(getAdminResource("employees").columns.some((column) => column.key === "image_path" && column.type === "image"));
+  assert.ok(getAdminResource("employees").fields.some((field) => field.key === "image_file" && field.type === "image"));
   assert.equal(getAdminResource("missing"), null);
 });
 

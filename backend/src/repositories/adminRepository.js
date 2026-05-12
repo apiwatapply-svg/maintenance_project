@@ -35,6 +35,19 @@ function addFilters(request, resource, query) {
   return clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
 }
 
+async function ensureResourceColumns(pool, resource) {
+  if (resource.table !== "tbm_employee") {
+    return;
+  }
+
+  await pool.request().query(`
+    IF COL_LENGTH('dbo.tbm_employee', 'image_path') IS NULL
+    BEGIN
+      ALTER TABLE dbo.tbm_employee ADD image_path NVARCHAR(500) NULL;
+    END;
+  `);
+}
+
 async function listAdminResource(resourceKey, query = {}) {
   const resource = assertResource(resourceKey);
   const pagination = normalizePagination(query);
@@ -72,6 +85,8 @@ async function createAdminResource(resourceKey, payload = {}) {
   const pool = await getPool();
   const request = pool.request();
 
+  await ensureResourceColumns(pool, resource);
+
   columns.forEach((column) => {
     request.input(column, sql.NVarChar(sql.MAX), values[column]);
   });
@@ -93,6 +108,8 @@ async function updateAdminResource(resourceKey, id, payload = {}) {
   const columns = resource.columns.filter((column) => values[column] !== undefined);
   const pool = await getPool();
   const request = pool.request().input("id", sql.Int, id);
+
+  await ensureResourceColumns(pool, resource);
 
   if (!columns.length) {
     const error = new Error("No fields to update.");

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="Admin employee icon">
+  <rect width="160" height="160" rx="32" fill="#ede9fe"/>
+  <circle cx="80" cy="62" r="28" fill="#7c3aed"/>
+  <path d="M34 136c5-31 25-48 46-48s41 17 46 48" fill="#4c1d95"/>
+  <rect x="42" y="24" width="76" height="20" rx="10" fill="#111827"/>
+  <path d="M60 24h40l-8-12H68z" fill="#f59e0b"/>
+  <circle cx="80" cy="80" r="8" fill="#f8fafc"/>
+</svg>

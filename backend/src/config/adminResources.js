@@ -63,7 +63,7 @@ const adminResources = {
     idColumn: "id",
     searchable: ["emp_id", "emp_name", "department_code", "department_name", "section"],
     filters: ["status", "department_code", "section"],
-    columns: ["emp_id", "emp_name", "department_code", "department_name", "section", "status"],
+    columns: ["emp_id", "emp_name", "department_code", "department_name", "section", "image_path", "status"],
     defaults: { status: "active" },
     sort: "id"
   }

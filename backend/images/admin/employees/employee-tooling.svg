@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="Tooling employee icon">
+  <rect width="160" height="160" rx="32" fill="#fffbeb"/>
+  <circle cx="80" cy="62" r="28" fill="#f59e0b"/>
+  <path d="M34 136c5-31 25-48 46-48s41 17 46 48" fill="#92400e"/>
+  <rect x="46" y="24" width="68" height="22" rx="11" fill="#111827"/>
+  <path d="M104 98h28v16h-28z" fill="#64748b"/>
+  <path d="M96 90h16v32H96z" fill="#0f172a"/>
+  <circle cx="66" cy="108" r="10" fill="#f8fafc"/>
+</svg>
