@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import AppFooter from "@/components/AppFooter";
 import { clearSession, getSessionConfig, getStoredSession } from "@/lib/session";
+import { buildConfirmAlert } from "@/lib/swalHelpers";
 
 const workspaceThemes = {
   pm: {
@@ -83,7 +84,14 @@ export default function ProtectedWorkspaceShell({ type }) {
     setIsChecking(false);
   }, [config.loginPath, router, type]);
 
-  function handleLogout() {
+  async function handleLogout() {
+    const Swal = (await import("sweetalert2")).default;
+    const confirm = await Swal.fire(buildConfirmAlert("Logout?", "You will return to the main page.", { confirmButtonText: "Logout" }));
+
+    if (!confirm.isConfirmed) {
+      return;
+    }
+
     clearSession(type);
     router.replace("/");
   }

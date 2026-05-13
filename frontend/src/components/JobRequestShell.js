@@ -7,7 +7,7 @@ import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveCo
 import AppFooter from "@/components/AppFooter";
 import api from "@/lib/api";
 import { createJobRequestSocket } from "@/lib/jobRequestRealtime";
-import { buildSuccessAlert } from "@/lib/swalHelpers";
+import { buildConfirmAlert, buildSuccessAlert } from "@/lib/swalHelpers";
 import {
   getJobRequestSection,
   getJobRequestSectionsForScope,
@@ -187,7 +187,14 @@ export default function JobRequestShell({ sectionKey = "production" }) {
     };
   }, [isChecking, lastRealtimeEvent, reloadToken]);
 
-  function handleLogout() {
+  async function handleLogout() {
+    const Swal = (await import("sweetalert2")).default;
+    const confirm = await Swal.fire(buildConfirmAlert("Logout?", "You will return to the main page.", { confirmButtonText: "Logout" }));
+
+    if (!confirm.isConfirmed) {
+      return;
+    }
+
     clearSession("job");
     router.replace("/");
   }
@@ -1121,17 +1128,35 @@ async function submitJobAction(job, payload, onClose, onActionComplete) {
     return;
   }
 
+  const Swal = (await import("sweetalert2")).default;
+  const confirm = await Swal.fire(buildConfirmAlert(
+    `${getConfirmVerb(payload.actionName)}?`,
+    `Job ${job.jobNo} will move to ${payload.toStatus || "the next step"}.`,
+    { confirmButtonText: getConfirmVerb(payload.actionName) }
+  ));
+
+  if (!confirm.isConfirmed) {
+    return;
+  }
+
   try {
     await api.post(`/job-requests/${job.jobNo}/actions`, payload);
-    const Swal = (await import("sweetalert2")).default;
     await Swal.fire(buildSuccessAlert("Saved", "Job request has been updated."));
     onActionComplete?.();
   } catch {
-    const Swal = (await import("sweetalert2")).default;
     await Swal.fire({ icon: "error", title: "Save failed", text: "Unable to update job request." });
   } finally {
     onClose?.();
   }
+}
+
+function getConfirmVerb(actionName = "SAVE") {
+  if (actionName.includes("REJECT")) return "Reject";
+  if (actionName.includes("ACCEPT")) return "Accept";
+  if (actionName.includes("COMPLETE") || actionName.includes("CONFIRM")) return "Confirm";
+  if (actionName.includes("HANDOVER")) return "Send handover";
+  if (actionName.includes("SEND")) return "Send";
+  return "Save";
 }
 
 function ActionModal({ job, jobs = [], onActionComplete, onClose, options, section }) {
@@ -1189,6 +1214,17 @@ function ProductionCreateModal({ onActionComplete, onClose, options, section }) 
   const [description, setDescription] = useState("");
 
   async function handleCreate() {
+    const Swal = (await import("sweetalert2")).default;
+    const confirm = await Swal.fire(buildConfirmAlert(
+      "Submit job request?",
+      "This will send the request to Maintenance.",
+      { confirmButtonText: "Submit" }
+    ));
+
+    if (!confirm.isConfirmed) {
+      return;
+    }
+
     try {
       await api.post("/job-requests", {
         area,
@@ -1199,12 +1235,10 @@ function ProductionCreateModal({ onActionComplete, onClose, options, section }) 
         problems,
         requestBy: empId
       });
-      const Swal = (await import("sweetalert2")).default;
       await Swal.fire(buildSuccessAlert("Created", "Job request has been sent to Maintenance."));
       onActionComplete?.();
       onClose?.();
     } catch {
-      const Swal = (await import("sweetalert2")).default;
       await Swal.fire({ icon: "error", title: "Create failed", text: "Unable to create job request." });
     }
   }

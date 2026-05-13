@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Maintenance Project",
+  title: "Smart Factory Operations Platform",
   description: "Maintenance management application"
 };
 
