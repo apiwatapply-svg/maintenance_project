@@ -22,6 +22,15 @@ test("job request schema uses required tb_ tables and history table", () => {
   assert.match(schema, /tb_job_request_handover/);
 });
 
+test("job request history attachment migration is idempotent", () => {
+  const schema = getSchemaStatements().join("\n");
+
+  assert.match(schema, /attachment_urls NVARCHAR\(MAX\) NULL/);
+  assert.match(schema, /NOT EXISTS \(/);
+  assert.match(schema, /sys\.columns/);
+  assert.match(schema, /EXEC\(N'ALTER TABLE dbo\.tb_job_request_history ADD attachment_urls/);
+});
+
 test("job request statuses include the separated QC inspection process", () => {
   assert.ok(allowedStatuses.includes("WAIT_QC"));
   assert.ok(allowedStatuses.includes("QC_INSPECTION"));

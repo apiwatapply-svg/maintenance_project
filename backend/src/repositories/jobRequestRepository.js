@@ -62,8 +62,21 @@ function getSchemaStatements() {
       from_status NVARCHAR(40) NULL,
       to_status NVARCHAR(40) NULL,
       action_by NVARCHAR(150) NOT NULL,
-      remark NVARCHAR(MAX) NULL
+      remark NVARCHAR(MAX) NULL,
+      attachment_urls NVARCHAR(MAX) NULL
     );
+    `,
+    `
+    IF OBJECT_ID(N'dbo.tb_job_request_history', N'U') IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM sys.columns
+        WHERE object_id = OBJECT_ID(N'dbo.tb_job_request_history')
+          AND name = N'attachment_urls'
+      )
+    BEGIN
+      EXEC(N'ALTER TABLE dbo.tb_job_request_history ADD attachment_urls NVARCHAR(MAX) NULL');
+    END;
     `,
     `
     IF OBJECT_ID('dbo.tb_job_request_spare_part_usage', 'U') IS NULL
@@ -124,17 +137,17 @@ function getSeedStatements() {
     `,
     `
     IF NOT EXISTS (SELECT 1 FROM dbo.tb_job_request_history)
-    INSERT INTO dbo.tb_job_request_history (job_no, action_time, action_name, from_status, to_status, action_by, remark)
+    INSERT INTO dbo.tb_job_request_history (job_no, action_time, action_name, from_status, to_status, action_by, remark, attachment_urls)
     VALUES
-      ('JOB-20260512-001', '2026-05-12T01:00:00', 'CREATE_JOB', '-', 'WAIT_MM', 'Production', 'Abnormal noise, belt shaking'),
-      ('JOB-20260512-002', '2026-05-12T00:50:00', 'CREATE_JOB', '-', 'WAIT_MM', 'Production', 'Temperature unstable'),
-      ('JOB-20260512-002', '2026-05-12T01:10:00', 'ACCEPT_JOB', 'WAIT_MM', 'MM_REPAIR', 'Maintenance', 'MM-006 accepted job'),
-      ('JOB-20260512-002', '2026-05-12T02:05:00', 'SEND_TO_QC', 'MM_REPAIR', 'WAIT_QC', 'Maintenance', 'Repair detail recorded'),
-      ('JOB-20260512-002', '2026-05-12T02:30:00', 'QC_REJECT', 'WAIT_QC', 'MM_REPAIR', 'QC', 'Temperature still unstable'),
-      ('JOB-20260512-003', '2026-05-12T00:35:00', 'CREATE_JOB', '-', 'WAIT_MM', 'Production', 'Sensor false trigger'),
-      ('JOB-20260512-003', '2026-05-12T00:50:00', 'ACCEPT_JOB', 'WAIT_MM', 'MM_REPAIR', 'Maintenance', 'MM-011 accepted job'),
-      ('JOB-20260512-003', '2026-05-12T01:55:00', 'SEND_TO_QC', 'MM_REPAIR', 'WAIT_QC', 'Maintenance', 'Sensor bracket adjusted'),
-      ('JOB-20260512-003', '2026-05-12T02:02:00', 'QC_ACCEPT', 'WAIT_QC', 'QC_INSPECTION', 'QC', 'QC-003 starts inspection');
+      ('JOB-20260512-001', '2026-05-12T01:00:00', 'CREATE_JOB', '-', 'WAIT_MM', 'Production', 'Abnormal noise, belt shaking', NULL),
+      ('JOB-20260512-002', '2026-05-12T00:50:00', 'CREATE_JOB', '-', 'WAIT_MM', 'Production', 'Temperature unstable', NULL),
+      ('JOB-20260512-002', '2026-05-12T01:10:00', 'ACCEPT_JOB', 'WAIT_MM', 'MM_REPAIR', 'Maintenance', 'MM-006 accepted job', NULL),
+      ('JOB-20260512-002', '2026-05-12T02:05:00', 'SEND_TO_QC', 'MM_REPAIR', 'WAIT_QC', 'Maintenance', 'Repair detail recorded', NULL),
+      ('JOB-20260512-002', '2026-05-12T02:30:00', 'QC_REJECT', 'WAIT_QC', 'MM_REPAIR', 'QC', 'Temperature still unstable', NULL),
+      ('JOB-20260512-003', '2026-05-12T00:35:00', 'CREATE_JOB', '-', 'WAIT_MM', 'Production', 'Sensor false trigger', NULL),
+      ('JOB-20260512-003', '2026-05-12T00:50:00', 'ACCEPT_JOB', 'WAIT_MM', 'MM_REPAIR', 'Maintenance', 'MM-011 accepted job', NULL),
+      ('JOB-20260512-003', '2026-05-12T01:55:00', 'SEND_TO_QC', 'MM_REPAIR', 'WAIT_QC', 'Maintenance', 'Sensor bracket adjusted', NULL),
+      ('JOB-20260512-003', '2026-05-12T02:02:00', 'QC_ACCEPT', 'WAIT_QC', 'QC_INSPECTION', 'QC', 'QC-003 starts inspection', NULL);
     `,
     `
     IF NOT EXISTS (SELECT 1 FROM dbo.tbm_job_request_option)
@@ -235,6 +248,36 @@ function normalizeRequiredText(value, fallback = "") {
   return String(value || fallback).trim();
 }
 
+function normalizeAttachmentUrls(value) {
+  if (!value) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.filter(Boolean);
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) {
+      return parsed.filter(Boolean);
+    }
+  } catch {
+    // Existing rows may store comma-separated URLs instead of JSON.
+  }
+
+  return String(value)
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function stringifyAttachmentUrls(payload = {}) {
+  const attachments = payload.attachmentUrls || payload.attachments || payload.imageUrls || payload.imageUrl || payload.attachmentUrl;
+  const urls = normalizeAttachmentUrls(attachments);
+  return urls.length ? JSON.stringify(urls) : null;
+}
+
 async function getNextJobNo(pool) {
   const prefix = buildJobNoPrefix();
   const result = await pool.request()
@@ -306,9 +349,10 @@ async function createJobRequest(payload = {}) {
     .input("jobNo", sql.NVarChar(80), data.jobNo)
     .input("actionBy", sql.NVarChar(150), data.requestBy)
     .input("remark", sql.NVarChar(sql.MAX), data.remark)
+    .input("attachmentUrls", sql.NVarChar(sql.MAX), stringifyAttachmentUrls(payload))
     .query(`
-      INSERT INTO dbo.tb_job_request_history (job_no, action_name, from_status, to_status, action_by, remark)
-      VALUES (@jobNo, 'CREATE_JOB', '-', 'WAIT_MM', @actionBy, @remark);
+      INSERT INTO dbo.tb_job_request_history (job_no, action_name, from_status, to_status, action_by, remark, attachment_urls)
+      VALUES (@jobNo, 'CREATE_JOB', '-', 'WAIT_MM', @actionBy, @remark, @attachmentUrls);
     `);
 
   const created = await pool.request()
@@ -361,7 +405,8 @@ async function listJobRequestHistory(jobNo) {
     from: row.from_status || "-",
     to: row.to_status || "-",
     by: row.action_by,
-    remark: row.remark || ""
+    remark: row.remark || "",
+    attachments: normalizeAttachmentUrls(row.attachment_urls)
   }));
 }
 
@@ -641,9 +686,10 @@ async function transitionJob(jobNo, payload = {}) {
     .input("toStatus", sql.NVarChar(40), payload.toStatus)
     .input("actionBy", sql.NVarChar(150), payload.actionBy || "System")
     .input("remark", sql.NVarChar(sql.MAX), payload.remark || "")
+    .input("attachmentUrls", sql.NVarChar(sql.MAX), stringifyAttachmentUrls(payload))
     .query(`
-      INSERT INTO dbo.tb_job_request_history (job_no, action_name, from_status, to_status, action_by, remark)
-      VALUES (@jobNo, @actionName, @fromStatus, @toStatus, @actionBy, @remark);
+      INSERT INTO dbo.tb_job_request_history (job_no, action_name, from_status, to_status, action_by, remark, attachment_urls)
+      VALUES (@jobNo, @actionName, @fromStatus, @toStatus, @actionBy, @remark, @attachmentUrls);
     `);
 
   const updated = await pool.request()

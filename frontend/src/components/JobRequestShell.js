@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import AppFooter from "@/components/AppFooter";
 import api from "@/lib/api";
@@ -16,7 +16,8 @@ import {
   jobRequestHandoverColumns,
   jobRequestPerformanceStatusKeys,
   jobRequestSections,
-  jobRequestStatuses
+  jobRequestStatuses,
+  sortJobRequests
 } from "@/lib/jobRequestConfig";
 import { canAccessJobRequestSection, clearSession, getSessionConfig, getSessionHomePath, getStoredSession } from "@/lib/session";
 
@@ -58,6 +59,57 @@ const dashboardFilterOptions = {
   priority: ["All", "Urgent", "High", "Medium", "Low"]
 };
 
+const realtimeNotificationCopy = {
+  new_job_request: {
+    title: "New Production Request",
+    text: "Production sent a new repair request to Maintenance."
+  },
+  job_accepted: {
+    title: "Maintenance Accepted",
+    text: "Maintenance accepted the job and started repair."
+  },
+  job_wait_qc: {
+    title: "Waiting QC Inspection",
+    text: "Maintenance sent the job to QC for inspection."
+  },
+  job_qc_accepted: {
+    title: "QC Inspection Started",
+    text: "QC accepted the job and started inspection."
+  },
+  job_wait_confirming: {
+    title: "Waiting Production Confirm",
+    text: "The job was sent to Production for machine confirmation."
+  },
+  job_production_accepted: {
+    title: "Production Confirm Started",
+    text: "Production accepted the job and started machine confirmation."
+  },
+  job_rejected_by_qc: {
+    title: "QC Rejected",
+    text: "QC rejected the job back to Maintenance."
+  },
+  job_rejected_by_production: {
+    title: "Production Rejected",
+    text: "Production rejected the job for follow-up."
+  },
+  job_completed: {
+    title: "Job Completed",
+    text: "The job request has been completed."
+  },
+  job_handover_created: {
+    title: "Job Handover",
+    text: "A shift handover was created for this job."
+  },
+  job_request_updated: {
+    title: "Job Updated",
+    text: "The job request has been updated."
+  },
+  "job-updated": {
+    title: "Job Updated",
+    text: "The job request has been updated."
+  }
+};
+
 export default function JobRequestShell({ sectionKey = "production" }) {
   const router = useRouter();
   const config = getSessionConfig("job");
@@ -70,6 +122,8 @@ export default function JobRequestShell({ sectionKey = "production" }) {
   const [jobRequestOptions, setJobRequestOptions] = useState(emptyJobRequestOptions);
   const [reloadToken, setReloadToken] = useState(0);
   const [lastRealtimeEvent, setLastRealtimeEvent] = useState(null);
+  const lastNotificationRef = useRef({ key: "", time: 0 });
+  const pendingAlertRef = useRef({ key: "", time: 0 });
   const activeSection = getJobRequestSection(sectionKey);
   const allJobs = useMemo(() => jobRequests, [jobRequests]);
   const visibleJobs = useMemo(() => jobRequests, [jobRequests]);
@@ -144,7 +198,18 @@ export default function JobRequestShell({ sectionKey = "production" }) {
     }
 
     const sections = session.user.adminScope === "all" ? ["production", "maintenance", "qc"] : session.user.adminScope;
-    const socket = createJobRequestSocket(sections, setLastRealtimeEvent);
+    const socket = createJobRequestSocket(sections, async (event) => {
+      setLastRealtimeEvent(event);
+      if (sectionKey === "handover") {
+        return;
+      }
+
+      const result = await notifyJobRequestEvent(event, lastNotificationRef, sectionKey);
+      if (result?.action === "open" && result.job && sectionKey !== "dashboard") {
+        setActiveJob(sectionKey === "handover" ? { ...result.job, __viewOnly: true } : result.job);
+        setIsModalOpen(true);
+      }
+    });
 
     return () => {
       (Array.isArray(sections) ? sections : [sections]).forEach((section) => {
@@ -156,15 +221,41 @@ export default function JobRequestShell({ sectionKey = "production" }) {
     };
   }, [session?.user?.adminScope]);
 
+  useEffect(() => {
+    if (isChecking || isModalOpen || !jobRequests.length || sectionKey === "dashboard" || sectionKey === "handover") {
+      return;
+    }
+
+    const pendingJob = getPendingAlertJobForSection(sectionKey, jobRequests);
+
+    if (!pendingJob) {
+      return;
+    }
+
+    const notificationKey = `pending:${sectionKey}:${pendingJob.jobNo}:${pendingJob.status}:${pendingJob.updatedAt || ""}`;
+    if (pendingAlertRef.current.key === notificationKey) {
+      return;
+    }
+
+    pendingAlertRef.current = { key: notificationKey, time: Date.now() };
+
+    notifyPendingJobAlert(pendingJob, sectionKey).then((result) => {
+      if (result?.action === "open") {
+        setActiveJob(sectionKey === "handover" ? { ...pendingJob, __viewOnly: true } : pendingJob);
+        setIsModalOpen(true);
+      }
+    });
+  }, [isChecking, isModalOpen, jobRequests, sectionKey]);
+
   if (isChecking) {
     return null;
   }
 
   return (
-    <main className={`grid min-h-screen bg-slate-100 text-slate-950 max-[900px]:grid-cols-1 ${isSidebarCollapsed ? "grid-cols-[80px_minmax(0,1fr)]" : "grid-cols-[280px_minmax(0,1fr)]"}`}>
-      <aside className={`sticky top-0 h-screen overflow-x-hidden border-r border-slate-800 bg-slate-950 text-white transition-all max-[900px]:relative max-[900px]:h-auto ${isSidebarCollapsed ? "p-4" : "p-5"}`}>
+    <main className={`grid min-h-screen bg-slate-100 text-slate-950 max-[900px]:grid-cols-1 ${isSidebarCollapsed ? "grid-cols-[76px_minmax(0,1fr)]" : "grid-cols-[268px_minmax(0,1fr)]"}`}>
+      <aside className={`sticky top-0 h-screen overflow-x-hidden border-r border-slate-800 bg-slate-950 text-white transition-all max-[900px]:relative max-[900px]:h-auto ${isSidebarCollapsed ? "p-3" : "p-4"}`}>
         <div className={`mb-6 flex items-center ${isSidebarCollapsed ? "justify-center" : "gap-3"}`}>
-          <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-sky-600 text-sm font-black text-white shadow-lg shadow-sky-600/25">JR</span>
+          <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-sky-600 text-sm font-black text-white shadow-lg shadow-sky-600/25">JR</span>
           <div className={isSidebarCollapsed ? "hidden" : ""}>
             <h1 className="m-0 text-lg font-black leading-tight">Job Request</h1>
             <p className="m-0 mt-1 text-sm font-bold text-slate-400">Repair Control</p>
@@ -172,7 +263,7 @@ export default function JobRequestShell({ sectionKey = "production" }) {
         </div>
 
         <button
-          className="mb-5 h-11 w-full rounded-xl border border-white/10 bg-white/10 text-sm font-black text-white transition hover:bg-white/15"
+          className="mb-5 h-10 w-full rounded-xl border border-white/10 bg-white/10 text-sm font-black text-white transition hover:bg-white/15"
           type="button"
           onClick={() => setIsSidebarCollapsed((current) => !current)}
           aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -180,36 +271,36 @@ export default function JobRequestShell({ sectionKey = "production" }) {
           {isSidebarCollapsed ? ">" : "Collapse"}
         </button>
 
-        <nav className="grid gap-2" aria-label="Job Request navigation">
+        <nav className="grid gap-1.5" aria-label="Job Request navigation">
           {visibleSections.map((section) => (
             <Link
-              className={`flex items-center rounded-xl border py-2.5 text-sm font-black no-underline transition ${isSidebarCollapsed ? "justify-center px-0" : "gap-3 px-3"} ${section.key === sectionKey ? "border-sky-400/50 bg-sky-600 text-white" : "border-transparent text-slate-300 hover:bg-white/10"}`}
+              className={`flex items-center rounded-xl border py-2 text-sm font-black no-underline transition ${isSidebarCollapsed ? "justify-center px-0" : "gap-3 px-2.5"} ${section.key === sectionKey ? "border-sky-400/50 bg-sky-600 text-white shadow-lg shadow-sky-950/20" : "border-transparent text-slate-300 hover:bg-white/10"}`}
               href={section.href}
               key={section.key}
               title={section.shortTitle}
             >
-              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-xs text-sky-300">{section.icon}</span>
+              <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs ${section.key === sectionKey ? "bg-white/15 text-white" : "bg-slate-900 text-sky-300"}`}>{section.icon}</span>
               <span className={isSidebarCollapsed ? "hidden" : ""}>{section.shortTitle}</span>
             </Link>
           ))}
         </nav>
       </aside>
 
-      <section className="flex min-w-0 flex-col p-6 max-[760px]:p-4">
-        <header className="mb-4 flex min-h-20 items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm max-[760px]:flex-col max-[760px]:items-start">
+      <section className="flex min-w-0 flex-col p-5 max-[760px]:p-3">
+        <header className="mb-4 flex min-h-16 items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-3 shadow-sm max-[760px]:flex-col max-[760px]:items-start">
           <div>
-            <p className="m-0 text-xs font-black uppercase tracking-[0.16em] text-sky-700">Realtime Repair Control</p>
-            <h2 className="m-0 mt-1 text-3xl font-black tracking-tight">{title}</h2>
-            <span className="mt-1 block text-sm font-bold text-slate-500">{subtitle}</span>
+            <p className="m-0 text-[11px] font-black uppercase tracking-[0.14em] text-sky-700">Realtime Repair Control</p>
+            <h2 className="m-0 mt-0.5 text-2xl font-black tracking-tight text-slate-950">{title}</h2>
+            <span className="mt-0.5 block text-sm font-bold text-slate-500">{subtitle}</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {lastRealtimeEvent ? (
-              <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700">{lastRealtimeEvent.eventName}</span>
+              <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700 ring-1 ring-emerald-100">{lastRealtimeEvent.eventName}</span>
             ) : (
-              <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-600">Realtime Ready</span>
+              <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-600 ring-1 ring-slate-200">Realtime Ready</span>
             )}
-            <span className="rounded-full bg-sky-50 px-3 py-1.5 text-sm font-black text-sky-700">{session?.user?.empName || session?.user?.username}</span>
-            <button className="h-11 rounded-xl bg-slate-950 px-4 text-sm font-black text-white" type="button" onClick={handleLogout}>Logout</button>
+            <span className="rounded-full bg-sky-50 px-3 py-1.5 text-sm font-black text-sky-700 ring-1 ring-sky-100">{session?.user?.empName || session?.user?.username}</span>
+            <button className="h-10 rounded-xl bg-slate-950 px-4 text-sm font-black text-white transition hover:bg-slate-800" type="button" onClick={handleLogout}>Logout</button>
           </div>
         </header>
 
@@ -328,11 +419,14 @@ function DashboardWorkspace({ options }) {
       </div>
 
       <div className="grid grid-cols-4 gap-3 max-[1100px]:grid-cols-2 max-[620px]:grid-cols-1">
-        {(dashboardData?.signals || []).map((signal) => (
-          <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" key={signal.label}>
-            <p className="m-0 text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">{signal.label}</p>
-            <strong className="mt-2 block text-2xl font-black text-slate-950">{signal.value}</strong>
-            <span className="mt-1 block text-sm font-bold text-slate-500">{signal.detail}</span>
+        {(dashboardData?.signals || []).map((signal, index) => (
+          <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" key={signal.label}>
+            <div className={`h-1.5 ${["bg-sky-600", "bg-amber-500", "bg-violet-600", "bg-rose-500"][index % 4]}`} />
+            <div className="p-4">
+              <p className="m-0 text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">{signal.label}</p>
+              <strong className="mt-2 block truncate text-2xl font-black text-slate-950">{signal.value}</strong>
+              <span className="mt-1 block text-sm font-bold text-slate-500">{signal.detail}</span>
+            </div>
           </article>
         ))}
       </div>
@@ -362,7 +456,7 @@ function DashboardWorkspace({ options }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-[minmax(0,0.7fr)_minmax(280px,0.3fr)] gap-4 max-[1100px]:grid-cols-1">
+        <div className="grid grid-cols-[minmax(0,0.72fr)_minmax(280px,0.28fr)] gap-4 max-[1100px]:grid-cols-1">
           <div className="h-[380px] min-w-0 rounded-2xl border border-slate-200 bg-slate-50 p-3">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={layer.items} layout="vertical" margin={{ left: 28, right: 20, top: 12, bottom: 12 }}>
@@ -382,7 +476,7 @@ function DashboardWorkspace({ options }) {
             </ResponsiveContainer>
           </div>
 
-          <div className="grid gap-4">
+          <div className="grid content-start gap-4">
             <ProblemDonutChart colors={pieColors} data={layer.topProblems} />
             <TopProblemList problems={layer.topProblems} />
           </div>
@@ -423,19 +517,21 @@ function TopProblemList({ problems }) {
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
-      <h4 className="m-0 text-lg font-black">Problem Top 5</h4>
+      <h4 className="m-0 text-base font-black text-slate-950">Problem Top 5</h4>
       <div className="mt-3 grid gap-3">
-        {problems.map((problem, index) => (
+        {problems.length ? problems.map((problem, index) => (
           <div key={problem.name}>
             <div className="flex items-center justify-between gap-3">
-              <span className="text-sm font-black">{index + 1}. {problem.name}</span>
+              <span className="min-w-0 truncate text-sm font-black text-slate-800">{index + 1}. {problem.name}</span>
               <span className="text-sm font-black text-slate-500">{problem.count}</span>
             </div>
             <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
-              <div className={`h-full rounded-full bg-sky-600 ${getWidthClass(Math.round((problem.count / total) * 100))}`} />
+              <div className={`h-full rounded-full bg-sky-600 ${getWidthClass(total ? Math.round((problem.count / total) * 100) : 0)}`} />
             </div>
           </div>
-        ))}
+        )) : (
+          <p className="m-0 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-500">No problem data.</p>
+        )}
       </div>
     </div>
   );
@@ -456,7 +552,17 @@ function ProblemDonutChart({ colors, data }) {
     <div className="h-[220px] min-h-[220px] min-w-0 rounded-2xl border border-slate-200 bg-slate-50 p-3">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
-          <Pie data={data} dataKey="count" nameKey="name" innerRadius={52} outerRadius={78} paddingAngle={3}>
+          <Pie
+            cx="50%"
+            cy="50%"
+            data={data}
+            dataKey="count"
+            isAnimationActive={false}
+            nameKey="name"
+            innerRadius={52}
+            outerRadius={78}
+            paddingAngle={3}
+          >
             {data.map((item, index) => (
               <Cell fill={colors[index % colors.length]} key={item.name} />
             ))}
@@ -619,12 +725,12 @@ function StatusCards({ jobs = [] }) {
   };
 
   return (
-    <section className="mb-4 grid grid-cols-8 gap-3 max-[1500px]:grid-cols-4 max-[760px]:grid-cols-2">
+    <section className="mb-4 grid grid-cols-8 gap-2.5 max-[1500px]:grid-cols-4 max-[760px]:grid-cols-2">
       {jobRequestStatuses.map((status) => (
-        <article className={`overflow-hidden rounded-2xl border p-4 shadow-sm ${status.tone}`} key={status.key}>
-          <p className="m-0 text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">{status.label}</p>
-          <strong className="mt-3 block text-3xl font-black">{counts[status.key] ?? 0}</strong>
-          <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/80">
+        <article className={`overflow-hidden rounded-xl border p-3 shadow-sm ${status.tone}`} key={status.key}>
+          <p className="m-0 truncate text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">{status.label}</p>
+          <strong className="mt-2 block text-2xl font-black leading-none">{counts[status.key] ?? 0}</strong>
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/80">
             <div className={`h-full w-2/3 rounded-full ${status.bar}`} />
           </div>
         </article>
@@ -692,25 +798,25 @@ function JobTable({ jobs, onOpenModal, sectionKey }) {
   }, [sectionKey, pageSize]);
 
   return (
-    <article className="rounded-2xl border border-slate-300 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <h3 className="m-0 text-lg font-black">Job List</h3>
-        <span className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-sm font-black text-slate-700">{startIndex + 1}-{Math.min(startIndex + pageSize, jobs.length)} of {jobs.length}</span>
+    <article className="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <h3 className="m-0 text-lg font-black text-slate-950">Job List</h3>
+        <span className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-sm font-black text-slate-700">{jobs.length ? startIndex + 1 : 0}-{Math.min(startIndex + pageSize, jobs.length)} of {jobs.length}</span>
       </div>
-      <div className="overflow-auto rounded-xl border border-slate-300">
-        <table className="w-full min-w-[1120px] border-collapse">
+      <div className="mx-4 overflow-auto rounded-xl border border-slate-300">
+        <table className="w-full min-w-[1500px] border-collapse">
           <thead>
-            <tr className="bg-slate-100">
+            <tr className="sticky top-0 z-10 bg-slate-100">
               {columns.map((column) => (
-                <th className="border border-slate-300 px-3 py-3 text-center text-xs font-black uppercase tracking-[0.08em] text-slate-700" key={column.key}>{column.label}</th>
+                <th className={`border border-slate-300 px-3 py-3 text-center text-xs font-black uppercase tracking-[0.08em] text-slate-700 ${column.key === "action" ? "sticky right-0 z-20 bg-slate-100 shadow-[-8px_0_12px_-12px_rgba(15,23,42,0.45)]" : ""}`} key={column.key}>{column.label}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((job, rowIndex) => (
-              <tr key={job.jobNo}>
+              <tr className="odd:bg-white even:bg-slate-50/70 hover:bg-sky-50/60" key={job.jobNo}>
                 {columns.map((column) => (
-                  <td className="border border-slate-300 bg-white px-2 py-3 text-center text-xs font-bold text-slate-900" key={`${job.jobNo}-${column.key}`}>
+                  <td className={`border border-slate-300 px-2 py-3 text-xs font-bold text-slate-900 ${["machineName", "machineCode", "productionLine", "requestBy"].includes(column.key) ? "text-left" : "text-center"} ${column.key === "action" ? "sticky right-0 z-10 bg-white shadow-[-8px_0_12px_-12px_rgba(15,23,42,0.45)]" : ""}`} key={`${job.jobNo}-${column.key}`}>
                     <JobTableCell columnKey={column.key} job={job} no={startIndex + rowIndex + 1} onOpenModal={onOpenModal} sectionKey={sectionKey} />
                   </td>
                 ))}
@@ -724,7 +830,7 @@ function JobTable({ jobs, onOpenModal, sectionKey }) {
           </tbody>
         </table>
       </div>
-      <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3 max-[760px]:grid-cols-1">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 p-4 max-[760px]:grid-cols-1">
         <span className="text-sm font-bold text-slate-500">Page {safePage} of {totalPages}</span>
         <div className="flex flex-wrap justify-center gap-2">
           {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
@@ -761,7 +867,7 @@ function JobTableCell({ columnKey, job, no, onOpenModal, sectionKey }) {
   }
 
   if (columnKey === "status") {
-    return <span className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${statusTone[job.status]}`}>{job.status}</span>;
+    return <span className={`inline-flex max-w-full justify-center truncate whitespace-nowrap rounded-full px-3 py-1 text-xs font-black ${statusTone[job.status]}`}>{formatStatusLabel(job.status)}</span>;
   }
 
   if (columnKey === "priority") {
@@ -774,10 +880,14 @@ function JobTableCell({ columnKey, job, no, onOpenModal, sectionKey }) {
   }
 
   if (columnKey === "action") {
-    return <button className="min-h-10 rounded-xl bg-slate-950 px-4 py-2 text-sm font-black text-white" type="button" onClick={() => onOpenModal?.(job)}>{getAvailableJobAction(sectionKey, job.status)}</button>;
+    return <button className="min-h-9 min-w-24 rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white transition hover:bg-slate-800" type="button" onClick={() => onOpenModal?.(job)}>{getAvailableJobAction(sectionKey, job.status)}</button>;
   }
 
-  return job[columnKey] || "-";
+  return <span className="block max-w-44 truncate" title={job[columnKey] || "-"}>{job[columnKey] || "-"}</span>;
+}
+
+function formatStatusLabel(status) {
+  return String(status || "-").replaceAll("_", " ");
 }
 
 function ProgressBadge({ value }) {
@@ -792,7 +902,7 @@ function ProgressBadge({ value }) {
     return "bg-slate-100 text-slate-700";
   })();
 
-  return <span className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${tone}`}>{value}</span>;
+  return <span className={`inline-flex max-w-full justify-center truncate whitespace-nowrap rounded-full px-3 py-1 text-xs font-black ${tone}`}>{formatStatusLabel(value)}</span>;
 }
 
 function HandoverWorkspace({ jobs, onOpenModal, options }) {
@@ -840,34 +950,39 @@ function HandoverWorkspace({ jobs, onOpenModal, options }) {
 
 function HandoverTable({ onOpenModal, rows }) {
   return (
-    <article className="rounded-2xl border border-slate-300 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <h3 className="m-0 text-lg font-black">Handover List</h3>
-        <span className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-sm font-black text-slate-700">1-{rows.length} of {rows.length}</span>
+    <article className="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <h3 className="m-0 text-lg font-black text-slate-950">Handover List</h3>
+        <span className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-sm font-black text-slate-700">{rows.length ? 1 : 0}-{rows.length} of {rows.length}</span>
       </div>
-      <div className="overflow-auto rounded-xl border border-slate-300">
-        <table className="w-full min-w-[1180px] border-collapse">
+      <div className="mx-4 overflow-auto rounded-xl border border-slate-300">
+        <table className="w-full min-w-[1400px] border-collapse">
           <thead>
-            <tr className="bg-slate-100">
+            <tr className="sticky top-0 z-10 bg-slate-100">
               {jobRequestHandoverColumns.map((column) => (
-                <th className="border border-slate-300 px-3 py-3 text-center text-xs font-black uppercase tracking-[0.08em] text-slate-700" key={column.key}>{column.label}</th>
+                <th className={`border border-slate-300 px-3 py-3 text-center text-xs font-black uppercase tracking-[0.08em] text-slate-700 ${column.key === "action" ? "sticky right-0 z-20 bg-slate-100 shadow-[-8px_0_12px_-12px_rgba(15,23,42,0.45)]" : ""}`} key={column.key}>{column.label}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((row, index) => (
-              <tr key={row.id}>
+              <tr className="odd:bg-white even:bg-slate-50/70 hover:bg-teal-50/60" key={row.id}>
                 {jobRequestHandoverColumns.map((column) => (
-                  <td className="border border-slate-300 bg-white px-3 py-3 text-center text-sm font-bold text-slate-900" key={`${row.id}-${column.key}`}>
+                  <td className={`border border-slate-300 px-3 py-3 text-sm font-bold text-slate-900 ${["reason", "currentOwner", "handoverFrom", "handoverTo"].includes(column.key) ? "text-left" : "text-center"} ${column.key === "action" ? "sticky right-0 z-10 bg-white shadow-[-8px_0_12px_-12px_rgba(15,23,42,0.45)]" : ""}`} key={`${row.id}-${column.key}`}>
                     <HandoverTableCell columnKey={column.key} no={index + 1} onOpenModal={onOpenModal} row={row} />
                   </td>
                 ))}
               </tr>
             ))}
+            {!rows.length ? (
+              <tr>
+                <td className="border border-slate-300 px-3 py-8 text-center text-sm font-black text-slate-500" colSpan={jobRequestHandoverColumns.length}>No records found.</td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>
-      <div className="mt-4 flex justify-center">
+      <div className="flex justify-center p-4">
         <button className="h-10 min-w-10 rounded-xl border border-slate-950 bg-slate-950 px-3 text-sm font-black text-white" type="button">1</button>
       </div>
     </article>
@@ -880,14 +995,14 @@ function HandoverTableCell({ columnKey, no, onOpenModal, row }) {
   }
 
   if (columnKey === "status") {
-    return <span className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${statusTone[row.status]}`}>{row.status}</span>;
+    return <span className={`inline-flex max-w-full justify-center truncate whitespace-nowrap rounded-full px-3 py-1 text-xs font-black ${statusTone[row.status]}`}>{formatStatusLabel(row.status)}</span>;
   }
 
   if (columnKey === "action") {
-    return <button className="min-h-10 rounded-xl bg-teal-700 px-4 py-2 text-sm font-black text-white" type="button" onClick={() => onOpenModal?.(row)}>Handover</button>;
+    return <button className="min-h-9 rounded-xl bg-teal-700 px-4 py-2 text-xs font-black text-white transition hover:bg-teal-800" type="button" onClick={() => onOpenModal?.(row)}>Handover</button>;
   }
 
-  return row[columnKey] || "-";
+  return <span className="block max-w-56 truncate" title={row[columnKey] || "-"}>{row[columnKey] || "-"}</span>;
 }
 
 function SearchField({ label, onChange, options, value: controlledValue }) {
@@ -900,8 +1015,8 @@ function SearchField({ label, onChange, options, value: controlledValue }) {
   }
 
   return (
-    <label className="grid gap-1">
-      <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{label}</span>
+    <label className="grid min-w-0 gap-1">
+      <span className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">{label}</span>
       <SearchableDropdown options={options} value={value} onChange={handleChange} />
     </label>
   );
@@ -910,21 +1025,23 @@ function SearchField({ label, onChange, options, value: controlledValue }) {
 function SearchableDropdown({ options, value, onChange }) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const visibleOptions = options.filter((option) => option.toLowerCase().includes(query.toLowerCase()));
+  const safeOptions = options.length ? options : ["No options"];
+  const visibleOptions = safeOptions.filter((option) => option.toLowerCase().includes(query.toLowerCase()));
 
   return (
-    <div className="relative">
-      <div className="flex h-10 items-center rounded-xl border border-slate-200 bg-white focus-within:border-sky-400">
-        <input className="min-w-0 flex-1 rounded-l-xl bg-transparent px-3 font-bold outline-none" value={isOpen ? query : value} onBlur={() => setTimeout(() => setIsOpen(false), 120)} onChange={(event) => { setQuery(event.target.value); setIsOpen(true); }} onFocus={() => { setQuery(""); setIsOpen(true); }} />
-        <button className="h-full w-11 rounded-r-xl border-l border-slate-200 text-sm font-black text-slate-600" type="button" onClick={() => setIsOpen((current) => !current)}>v</button>
+    <div className="relative min-w-0">
+      <div className="flex h-10 items-center rounded-xl border border-slate-300 bg-white shadow-sm transition focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-100">
+        <input className="w-0 min-w-0 flex-1 rounded-l-xl bg-transparent px-3 text-sm font-bold text-slate-900 outline-none placeholder:text-slate-400" value={isOpen ? query : value} onBlur={() => setTimeout(() => setIsOpen(false), 120)} onChange={(event) => { setQuery(event.target.value); setIsOpen(true); }} onFocus={() => { setQuery(""); setIsOpen(true); }} />
+        <button className="h-full w-10 shrink-0 rounded-r-xl border-l border-slate-200 text-xs font-black text-slate-500 transition hover:bg-slate-50" type="button" onClick={() => setIsOpen((current) => !current)}>v</button>
       </div>
       {isOpen ? (
-        <div className="absolute left-0 right-0 top-12 z-30 max-h-56 overflow-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl">
+        <div className="absolute left-0 right-0 top-11 z-30 max-h-56 overflow-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl">
           {visibleOptions.map((option) => (
-            <button className={`block w-full rounded-lg px-3 py-2 text-left text-sm font-bold hover:bg-sky-50 ${option === value ? "bg-sky-100 text-sky-900" : "text-slate-800"}`} key={option} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange(option); setQuery(""); setIsOpen(false); }}>
+            <button className={`block w-full truncate rounded-lg px-3 py-2 text-left text-sm font-bold transition hover:bg-sky-50 ${option === value ? "bg-sky-100 text-sky-900" : "text-slate-800"}`} key={option} type="button" title={option} onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange(option); setQuery(""); setIsOpen(false); }}>
               {option}
             </button>
           ))}
+          {!visibleOptions.length ? <div className="px-3 py-2 text-sm font-bold text-slate-500">No matching options</div> : null}
         </div>
       ) : null}
     </div>
@@ -951,12 +1068,12 @@ function MultiSearchField({ description = "", label, onChange, optional = false,
   const needsOther = selectedItems.some((item) => item.toLowerCase().includes("other"));
 
   return (
-    <div className="grid gap-2">
+    <div className="grid min-w-0 gap-2">
       <div>
-        <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{label}</span>
+        <span className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">{label}</span>
         {description ? <p className="m-0 mt-1 text-xs font-bold text-slate-500">{description}</p> : null}
       </div>
-      <div className="rounded-xl border border-slate-200 bg-white p-2">
+      <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-2">
         <div className="mb-2">
           <SearchableDropdown
             options={options}
@@ -972,8 +1089,9 @@ function MultiSearchField({ description = "", label, onChange, optional = false,
           <div className="flex flex-wrap gap-2">
             {options.map((option) => (
             <button
-              className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${selectedItems.includes(option) ? "border-sky-500 bg-sky-50 text-sky-700" : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300"}`}
+              className={`max-w-full truncate rounded-full border px-3 py-1.5 text-xs font-black transition ${selectedItems.includes(option) ? "border-sky-500 bg-sky-50 text-sky-700" : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300"}`}
               key={option}
+              title={option}
               type="button"
               onClick={() => toggleItem(option)}
             >
@@ -1017,6 +1135,10 @@ async function submitJobAction(job, payload, onClose, onActionComplete) {
 }
 
 function ActionModal({ job, jobs = [], onActionComplete, onClose, options, section }) {
+  if (job?.__viewOnly) {
+    return <ViewJobModal job={job} onClose={onClose} section={section} />;
+  }
+
   if (section.key === "handover") {
     return <HandoverModal job={job} jobs={jobs} onActionComplete={onActionComplete} onClose={onClose} options={options} section={section} />;
   }
@@ -1033,6 +1155,12 @@ function ActionModal({ job, jobs = [], onActionComplete, onClose, options, secti
     return <QcModal job={job} onActionComplete={onActionComplete} onClose={onClose} options={options} section={section} />;
   }
   return <ProductionModal job={job} onActionComplete={onActionComplete} onClose={onClose} options={options} section={section} />;
+}
+
+function withOtherOption(options = [], label = "Other") {
+  const safeOptions = Array.isArray(options) ? options.filter(Boolean) : [];
+  const hasOther = safeOptions.some((option) => option.toLowerCase().includes("other"));
+  return hasOther ? safeOptions : [...safeOptions, label];
 }
 
 function ProductionModal({ job, onActionComplete, onClose, options, section }) {
@@ -1083,37 +1211,34 @@ function ProductionCreateModal({ onActionComplete, onClose, options, section }) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-5">
-      <form className="max-h-[96vh] w-[min(960px,100%)] overflow-auto rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+      <form className="max-h-[94vh] w-[min(960px,100%)] overflow-x-hidden overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-3">
           <div>
-            <p className="m-0 text-xs font-black uppercase tracking-[0.14em] text-sky-700">{section.shortTitle}</p>
-            <h3 className="m-0 mt-1 text-2xl font-black">Create Job Request</h3>
+            <p className="m-0 text-[11px] font-black uppercase tracking-[0.12em] text-sky-700">{section.shortTitle}</p>
+            <h3 className="m-0 mt-0.5 text-2xl font-black text-slate-950">Create Job Request</h3>
           </div>
-          <button className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-black" type="button" onClick={onClose}>Close</button>
+          <button className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50" type="button" onClick={onClose}>Close</button>
         </div>
-        <div className="grid grid-cols-2 items-start gap-3 p-4 max-[760px]:grid-cols-1">
-          <ReadOnlyInput label="Job No" value="Auto generated" />
-          <SearchField label="Emp ID" options={options.empId} value={empId} onChange={setEmpId} />
-          <SearchField label="Area" options={options.area} value={area} onChange={setArea} />
-          <SearchField label="Machine Type" options={options.machineType} value={machineType} onChange={setMachineType} />
-          <SearchField label="Machine No" options={options.machineNo} value={machineNo} onChange={setMachineNo} />
-          <SearchField label="Priority" options={options.priority} value={priority} onChange={setPriority} />
-          <ReadOnlyInput label="Status" value="WAIT_MM" />
-          <div className="col-span-2 max-[760px]:col-span-1">
-            <MultiSearchField label="Problems" options={options.problem.concat(options.problemOther)} onChange={setProblems} />
+        <div className="grid grid-cols-12 items-start gap-3 p-5">
+          <div className="col-span-3 max-[900px]:col-span-6 max-[640px]:col-span-12"><ReadOnlyInput label="Job No" value="Auto generated" /></div>
+          <div className="col-span-5 max-[900px]:col-span-6 max-[640px]:col-span-12"><SearchField label="Emp ID" options={options.empId} value={empId} onChange={setEmpId} /></div>
+          <div className="col-span-2 max-[900px]:col-span-6 max-[640px]:col-span-12"><SearchField label="Priority" options={options.priority} value={priority} onChange={setPriority} /></div>
+          <div className="col-span-2 max-[900px]:col-span-6 max-[640px]:col-span-12"><ReadOnlyInput label="Status" value="WAIT_MM" /></div>
+          <div className="col-span-4 max-[900px]:col-span-6 max-[640px]:col-span-12"><SearchField label="Area" options={options.area} value={area} onChange={setArea} /></div>
+          <div className="col-span-4 max-[900px]:col-span-6 max-[640px]:col-span-12"><SearchField label="Machine Type" options={options.machineType} value={machineType} onChange={setMachineType} /></div>
+          <div className="col-span-4 max-[900px]:col-span-12"><SearchField label="Machine No" options={options.machineNo} value={machineNo} onChange={setMachineNo} /></div>
+          <div className="col-span-12">
+            <MultiSearchField label="Problems" options={withOtherOption(options.problem.concat(options.problemOther), "Other problem")} onChange={setProblems} />
           </div>
-          <label className="col-span-2 grid gap-1 max-[760px]:col-span-1">
-            <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Description</span>
-            <textarea className="min-h-16 rounded-xl border border-slate-200 bg-white px-3 py-2 font-bold outline-none focus:border-sky-400" placeholder="Short problem detail" value={description} onChange={(event) => setDescription(event.target.value)} />
+          <label className="col-span-7 grid gap-1 max-[900px]:col-span-12">
+            <span className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">Description</span>
+            <textarea className="min-h-20 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-900 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100" placeholder="Short problem detail" value={description} onChange={(event) => setDescription(event.target.value)} />
           </label>
-          <label className="col-span-2 grid gap-1 max-[760px]:col-span-1">
-            <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Attach Image / Camera</span>
-            <div className="flex h-12 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-sm font-black text-slate-500">Choose file or open camera</div>
-          </label>
+          <div className="col-span-5 max-[900px]:col-span-12"><UploadBox /></div>
         </div>
-        <div className="flex justify-end gap-3 border-t border-slate-200 px-4 py-3">
-          <button className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-black" type="button" onClick={onClose}>Cancel</button>
-          <button className={`h-10 rounded-xl px-4 text-sm font-black text-white ${section.accent}`} type="button" onClick={handleCreate}>Save</button>
+        <div className="sticky bottom-0 z-20 flex justify-end gap-3 border-t border-slate-200 bg-white px-5 py-3">
+          <button className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50" type="button" onClick={onClose}>Cancel</button>
+          <button className={`h-10 rounded-xl px-5 text-sm font-black text-white shadow-sm ${section.accent}`} type="button" onClick={handleCreate}>Save</button>
         </div>
       </form>
     </div>
@@ -1134,16 +1259,16 @@ function ProductionAcceptModal({ job, onActionComplete, onClose, options, sectio
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-5">
-      <form className="max-h-[96vh] w-[min(760px,100%)] overflow-auto rounded-2xl bg-white shadow-2xl">
+      <form className="max-h-[94vh] w-[min(760px,100%)] overflow-x-hidden overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <ModalHeader section={section} title="Accept Production Confirm" onClose={onClose} />
-        <div className="grid grid-cols-2 items-start gap-3 p-4 max-[760px]:grid-cols-1">
-          <ReadOnlyInput label="Job No" value={job?.jobNo || "-"} />
-          <ReadOnlyInput label="Current Status" value={job?.status || "-"} />
-          <ReadOnlyInput label="Machine" value={job ? `${job.machineName} / ${job.machineNo}` : "-"} />
-          <SearchField label="Production PIC" options={options.empId} />
-          <label className="col-span-2 grid gap-1 max-[760px]:col-span-1">
-            <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Accept Note</span>
-            <textarea className="min-h-16 rounded-xl border border-slate-200 bg-white px-3 py-2 font-bold outline-none focus:border-sky-400" placeholder="Production accepts this job and will confirm machine condition." />
+        <div className="grid grid-cols-12 items-start gap-3 p-5">
+          <div className="col-span-4 max-[760px]:col-span-12"><ReadOnlyInput label="Job No" value={job?.jobNo || "-"} /></div>
+          <div className="col-span-4 max-[760px]:col-span-12"><ReadOnlyInput label="Current Status" value={job?.status || "-"} /></div>
+          <div className="col-span-4 max-[760px]:col-span-12"><SearchField label="Production PIC" options={options.empId} /></div>
+          <div className="col-span-12"><ReadOnlyInput label="Machine" value={job ? `${job.machineName} / ${job.machineNo}` : "-"} /></div>
+          <label className="col-span-12 grid gap-1">
+            <span className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">Accept Note</span>
+            <textarea className="min-h-20 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-900 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100" placeholder="Production accepts this job and will confirm machine condition." />
           </label>
           <HistoryTimeline jobNo={job?.jobNo} />
         </div>
@@ -1167,21 +1292,21 @@ function ProductionConfirmModal({ job, onActionComplete, onClose, options, secti
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-5">
-      <form className="max-h-[96vh] w-[min(920px,100%)] overflow-auto rounded-2xl bg-white shadow-2xl">
+      <form className="max-h-[94vh] w-[min(920px,100%)] overflow-x-hidden overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <ModalHeader section={section} title="Production Confirm" onClose={onClose} />
-        <div className="grid grid-cols-12 items-start gap-3 p-4">
+        <div className="grid grid-cols-12 items-start gap-3 p-5">
           <div className="col-span-3 max-[760px]:col-span-12"><ReadOnlyInput label="Job No" value={job?.jobNo || "-"} /></div>
           <div className="col-span-3 max-[760px]:col-span-12"><ReadOnlyInput label="Current Status" value={job?.status || "-"} /></div>
           <div className="col-span-6 max-[760px]:col-span-12"><ReadOnlyInput label="Machine" value={job ? `${job.machineName} / ${job.machineNo}` : "-"} /></div>
           <div className="col-span-4 max-[760px]:col-span-12"><SearchField label="Confirm Result" options={options.confirmResult} value={confirmResult} onChange={setConfirmResult} /></div>
           <div className="col-span-8 max-[760px]:col-span-12">
-            {isRejecting ? <MultiSearchField label="Reject Reasons" options={options.productionRejectReason} /> : <MultiSearchField label="Confirm Checks" options={options.confirmCheck} />}
+            {isRejecting ? <MultiSearchField label="Reject Reasons" options={withOtherOption(options.productionRejectReason, "Other production reject reason")} /> : <MultiSearchField label="Confirm Checks" options={withOtherOption(options.confirmCheck, "Other confirm check")} />}
           </div>
           <label className="col-span-12 grid gap-1">
-            <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{isRejecting ? "Reject Detail" : "Confirm Detail"}</span>
-            <textarea className="min-h-16 rounded-xl border border-slate-200 bg-white px-3 py-2 font-bold outline-none focus:border-sky-400" placeholder="Record machine check result." />
+            <span className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">{isRejecting ? "Reject Detail" : "Confirm Detail"}</span>
+            <textarea className="min-h-20 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-900 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100" placeholder="Record machine check result." />
           </label>
-          <UploadBox />
+          <div className="col-span-5 max-[760px]:col-span-12"><UploadBox /></div>
           <HistoryTimeline jobNo={job?.jobNo} />
         </div>
         <ModalFooter onSubmit={handleSubmit} section={section} onClose={onClose} submitLabel="Save Confirm" />
@@ -1193,19 +1318,19 @@ function ProductionConfirmModal({ job, onActionComplete, onClose, options, secti
 function ViewJobModal({ job, onClose, section }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-5">
-      <div className="max-h-[96vh] w-[min(820px,100%)] overflow-auto rounded-2xl bg-white shadow-2xl">
+      <div className="max-h-[94vh] w-[min(820px,100%)] overflow-x-hidden overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <ModalHeader section={section} title="Job Detail" onClose={onClose} />
-        <div className="grid grid-cols-2 items-start gap-3 p-4 max-[760px]:grid-cols-1">
-          <ReadOnlyInput label="Job No" value={job?.jobNo || "-"} />
-          <ReadOnlyInput label="Status" value={job?.status || "-"} />
-          <ReadOnlyInput label="Machine" value={job ? `${job.machineName} / ${job.machineNo}` : "-"} />
-          <ReadOnlyInput label="Priority" value={job?.priority || "-"} />
-          <ReadOnlyInput label="Problem Description" value={job?.problem || "-"} />
-          <ReadOnlyInput label="Repair Detail" value={job?.repairDetail || "-"} />
+        <div className="grid grid-cols-12 items-start gap-3 p-5">
+          <div className="col-span-3 max-[760px]:col-span-12"><ReadOnlyInput label="Job No" value={job?.jobNo || "-"} /></div>
+          <div className="col-span-3 max-[760px]:col-span-12"><ReadOnlyInput label="Status" value={job?.status || "-"} /></div>
+          <div className="col-span-4 max-[760px]:col-span-12"><ReadOnlyInput label="Machine" value={job ? `${job.machineName} / ${job.machineNo}` : "-"} /></div>
+          <div className="col-span-2 max-[760px]:col-span-12"><ReadOnlyInput label="Priority" value={job?.priority || "-"} /></div>
+          <div className="col-span-6 max-[760px]:col-span-12"><ReadOnlyInput label="Problem Description" value={job?.problem || "-"} /></div>
+          <div className="col-span-6 max-[760px]:col-span-12"><ReadOnlyInput label="Repair Detail" value={job?.repairDetail || "-"} /></div>
           <HistoryTimeline jobNo={job?.jobNo} />
         </div>
-        <div className="flex justify-end border-t border-slate-200 px-4 py-3">
-          <button className="h-10 rounded-xl bg-slate-950 px-4 text-sm font-black text-white" type="button" onClick={onClose}>Close</button>
+        <div className="sticky bottom-0 z-20 flex justify-end border-t border-slate-200 bg-white px-5 py-3">
+          <button className="h-10 rounded-xl bg-slate-950 px-5 text-sm font-black text-white transition hover:bg-slate-800" type="button" onClick={onClose}>Close</button>
         </div>
       </div>
     </div>
@@ -1230,23 +1355,23 @@ function HandoverModal({ job, jobs = [], onActionComplete, onClose, options, sec
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-5">
-      <form className="max-h-[96vh] w-[min(820px,100%)] overflow-auto rounded-2xl bg-white shadow-2xl">
+      <form className="max-h-[94vh] w-[min(820px,100%)] overflow-x-hidden overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <ModalHeader section={section} title="Handover Job" onClose={onClose} />
-        <div className="grid grid-cols-2 items-start gap-3 p-4 max-[760px]:grid-cols-1">
+        <div className="grid grid-cols-12 items-start gap-3 p-5">
           {job?.jobNo ? (
-            <ReadOnlyInput label="Job No" value={job.jobNo} />
+            <div className="col-span-4 max-[760px]:col-span-12"><ReadOnlyInput label="Job No" value={job.jobNo} /></div>
           ) : (
-            <SearchField label="Job No" options={jobOptions.length ? jobOptions : ["-"]} value={selectedJobNo || "-"} onChange={setSelectedJobNo} />
+            <div className="col-span-4 max-[760px]:col-span-12"><SearchField label="Job No" options={jobOptions.length ? jobOptions : ["-"]} value={selectedJobNo || "-"} onChange={setSelectedJobNo} /></div>
           )}
-          <ReadOnlyInput label="Current Status" value={selectedJob?.status || "-"} />
-          <ReadOnlyInput label="Current Owner" value={selectedJob?.currentOwner || selectedJob?.owner || "-"} />
-          <SearchField label="Handover To" options={[...options.maintenancePic, ...options.empId]} />
-          <SearchField label="Shift" options={["Day Shift", "Night Shift"]} />
-          <SearchField label="Reason" options={["End of shift, repair not finished", "Production confirm continues next shift", "QC inspection continues next shift"]} />
-          <MultiSearchField label="Pending Items" options={options.handoverPendingItem} />
-          <label className="col-span-2 grid gap-1 max-[760px]:col-span-1">
-            <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Handover Note</span>
-            <textarea className="min-h-16 rounded-xl border border-slate-200 bg-white px-3 py-2 font-bold outline-none focus:border-sky-400" placeholder="What has been done and what the next person must continue." />
+          <div className="col-span-4 max-[760px]:col-span-12"><ReadOnlyInput label="Current Status" value={selectedJob?.status || "-"} /></div>
+          <div className="col-span-4 max-[760px]:col-span-12"><ReadOnlyInput label="Current Owner" value={selectedJob?.currentOwner || selectedJob?.owner || "-"} /></div>
+          <div className="col-span-4 max-[760px]:col-span-12"><SearchField label="Handover To" options={[...options.maintenancePic, ...options.empId]} /></div>
+          <div className="col-span-4 max-[760px]:col-span-12"><SearchField label="Shift" options={["Day Shift", "Night Shift"]} /></div>
+          <div className="col-span-4 max-[760px]:col-span-12"><SearchField label="Reason" options={withOtherOption(["End of shift, repair not finished", "Production confirm continues next shift", "QC inspection continues next shift"], "Other handover reason")} /></div>
+          <div className="col-span-12"><MultiSearchField label="Pending Items" options={withOtherOption(options.handoverPendingItem, "Other pending item")} /></div>
+          <label className="col-span-7 grid gap-1 max-[900px]:col-span-12">
+            <span className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">Handover Note</span>
+            <textarea className="min-h-20 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-900 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100" placeholder="What has been done and what the next person must continue." />
           </label>
           <HistoryTimeline jobNo={selectedJob?.jobNo} />
         </div>
@@ -1311,26 +1436,28 @@ function MaintenanceModal({ job, onActionComplete, onClose, options, section }) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-5">
-      <form className="max-h-[96vh] w-[min(960px,100%)] overflow-auto rounded-2xl bg-white shadow-2xl">
+      <form className="max-h-[94vh] w-[min(960px,100%)] overflow-x-hidden overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <ModalHeader section={section} title="Repair Result" onClose={onClose} />
-        <div className="grid grid-cols-2 items-start gap-3 p-4 max-[760px]:grid-cols-1">
-          <ReadOnlyInput label="Job No" value={job?.jobNo || "-"} />
-          <ReadOnlyInput label="Current Status" value={job?.status || "-"} />
-          <SearchField label="Maintenance PIC" options={options.maintenancePic} />
-          <MultiSearchField label="Causes of Problem" options={options.repairCause} />
-          <MultiSearchField label="Corrective Actions" options={options.repairAction} />
-          <MultiSearchField
-            description="Optional. Select only spare parts already issued from Tooling Store for this job."
-            label="Issued Spare Parts Used"
-            optional
-            options={issuedSparePartOptions}
-          />
-          <SearchField label="Next Step" options={["Send to QC", "Send to Production Confirm", "Complete Job"]} value={nextStep} onChange={setNextStep} />
-          <label className="col-span-2 grid gap-1 max-[760px]:col-span-1">
-            <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Repair Detail</span>
-            <textarea className="min-h-16 rounded-xl border border-slate-200 bg-white px-3 py-2 font-bold outline-none focus:border-sky-400" defaultValue={job?.repairDetail || ""} />
+        <div className="grid grid-cols-12 items-start gap-3 p-5">
+          <div className="col-span-3 max-[760px]:col-span-12"><ReadOnlyInput label="Job No" value={job?.jobNo || "-"} /></div>
+          <div className="col-span-3 max-[760px]:col-span-12"><ReadOnlyInput label="Current Status" value={job?.status || "-"} /></div>
+          <div className="col-span-3 max-[760px]:col-span-12"><SearchField label="Maintenance PIC" options={options.maintenancePic} /></div>
+          <div className="col-span-3 max-[760px]:col-span-12"><SearchField label="Next Step" options={["Send to QC", "Send to Production Confirm", "Complete Job"]} value={nextStep} onChange={setNextStep} /></div>
+          <div className="col-span-6 max-[900px]:col-span-12"><MultiSearchField label="Causes of Problem" options={withOtherOption(options.repairCause, "Other cause")} /></div>
+          <div className="col-span-6 max-[900px]:col-span-12"><MultiSearchField label="Corrective Actions" options={withOtherOption(options.repairAction, "Other corrective action")} /></div>
+          <div className="col-span-12">
+            <MultiSearchField
+              description="Optional. Select only spare parts already issued from Tooling Store for this job."
+              label="Issued Spare Parts Used"
+              optional
+              options={issuedSparePartOptions}
+            />
+          </div>
+          <label className="col-span-7 grid gap-1 max-[900px]:col-span-12">
+            <span className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">Repair Detail</span>
+            <textarea className="min-h-20 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-900 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100" defaultValue={job?.repairDetail || ""} />
           </label>
-          <UploadBox />
+          <div className="col-span-5 max-[900px]:col-span-12"><UploadBox /></div>
           <HistoryTimeline jobNo={job?.jobNo} />
         </div>
         <ModalFooter onSubmit={handleSubmit} section={section} onClose={onClose} submitLabel="Save Repair" />
@@ -1353,15 +1480,15 @@ function MaintenanceAcceptModal({ job, onActionComplete, onClose, options, secti
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-5">
-      <form className="max-h-[96vh] w-[min(760px,100%)] overflow-auto rounded-2xl bg-white shadow-2xl">
+      <form className="max-h-[94vh] w-[min(760px,100%)] overflow-x-hidden overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <ModalHeader section={section} title="Accept Job" onClose={onClose} />
-        <div className="grid grid-cols-2 items-start gap-3 p-4 max-[760px]:grid-cols-1">
-          <ReadOnlyInput label="Job No" value={job?.jobNo || "-"} />
-          <ReadOnlyInput label="Current Status" value={job?.status || "-"} />
-          <ReadOnlyInput label="Machine" value={job ? `${job.machineName} / ${job.machineNo}` : "-"} />
-          <SearchField label="Maintenance PIC" options={options.maintenancePic} />
-          <ReadOnlyInput label="Accept By" value="Current login user" />
-          <ReadOnlyInput label="Accept At" value="Auto timestamp" />
+        <div className="grid grid-cols-12 items-start gap-3 p-5">
+          <div className="col-span-4 max-[760px]:col-span-12"><ReadOnlyInput label="Job No" value={job?.jobNo || "-"} /></div>
+          <div className="col-span-4 max-[760px]:col-span-12"><ReadOnlyInput label="Current Status" value={job?.status || "-"} /></div>
+          <div className="col-span-4 max-[760px]:col-span-12"><SearchField label="Maintenance PIC" options={options.maintenancePic} /></div>
+          <div className="col-span-12"><ReadOnlyInput label="Machine" value={job ? `${job.machineName} / ${job.machineNo}` : "-"} /></div>
+          <div className="col-span-6 max-[760px]:col-span-12"><ReadOnlyInput label="Accept By" value="Current login user" /></div>
+          <div className="col-span-6 max-[760px]:col-span-12"><ReadOnlyInput label="Accept At" value="Auto timestamp" /></div>
           <HistoryTimeline jobNo={job?.jobNo} />
         </div>
         <ModalFooter onSubmit={handleSubmit} section={section} onClose={onClose} submitLabel="Accept Job" />
@@ -1388,21 +1515,21 @@ function QcModal({ job, onActionComplete, onClose, options, section }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-5">
-      <form className="max-h-[96vh] w-[min(960px,100%)] overflow-auto rounded-2xl bg-white shadow-2xl">
+      <form className="max-h-[94vh] w-[min(960px,100%)] overflow-x-hidden overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <ModalHeader section={section} title="QC Inspection" onClose={onClose} />
-        <div className="grid grid-cols-12 items-start gap-3 p-4">
+        <div className="grid grid-cols-12 items-start gap-3 p-5">
           <div className="col-span-3 max-[760px]:col-span-12"><ReadOnlyInput label="Job No" value={job?.jobNo || "-"} /></div>
           <div className="col-span-5 max-[760px]:col-span-12"><ReadOnlyInput label="Machine" value={job ? `${job.machineNo} / ${job.machineType}` : "-"} /></div>
           <div className="col-span-4 max-[760px]:col-span-12"><SearchField label="Inspector" options={options.empId.filter((item) => item.startsWith("QC-"))} /></div>
           <div className="col-span-4 max-[760px]:col-span-12"><SearchField label="QC Result" options={options.qcResult} value={qcResult} onChange={setQcResult} /></div>
           <div className="col-span-8 max-[760px]:col-span-12">
-            {isRejecting ? <MultiSearchField label="Reject Reasons" options={options.qcRejectReason} /> : <MultiSearchField label="QC Findings" options={options.qcFinding} />}
+            {isRejecting ? <MultiSearchField label="Reject Reasons" options={withOtherOption(options.qcRejectReason, "Other QC reject reason")} /> : <MultiSearchField label="QC Findings" options={withOtherOption(options.qcFinding, "Other finding")} />}
           </div>
           <label className="col-span-12 grid gap-1">
-            <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{isRejecting ? "Reject Detail" : "Inspection Detail"}</span>
-            <textarea className="min-h-16 rounded-xl border border-slate-200 bg-white px-3 py-2 font-bold outline-none focus:border-sky-400" placeholder="Record inspection result" />
+            <span className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">{isRejecting ? "Reject Detail" : "Inspection Detail"}</span>
+            <textarea className="min-h-20 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-900 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100" placeholder="Record inspection result" />
           </label>
-          <UploadBox />
+          <div className="col-span-5 max-[760px]:col-span-12"><UploadBox /></div>
           <HistoryTimeline jobNo={job?.jobNo} />
         </div>
         <ModalFooter onSubmit={handleSubmit} section={section} onClose={onClose} submitLabel="Save Inspection" />
@@ -1425,9 +1552,9 @@ function QcAcceptModal({ job, onActionComplete, onClose, options, section }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-5">
-      <form className="max-h-[96vh] w-[min(760px,100%)] overflow-auto rounded-2xl bg-white shadow-2xl">
+      <form className="max-h-[94vh] w-[min(760px,100%)] overflow-x-hidden overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <ModalHeader section={section} title="Accept QC Inspection" onClose={onClose} />
-        <div className="grid grid-cols-12 items-start gap-3 p-4">
+        <div className="grid grid-cols-12 items-start gap-3 p-5">
           <div className="col-span-4 max-[760px]:col-span-12"><ReadOnlyInput label="Job No" value={job?.jobNo || "-"} /></div>
           <div className="col-span-4 max-[760px]:col-span-12"><ReadOnlyInput label="Current Status" value={job?.status || "-"} /></div>
           <div className="col-span-4 max-[760px]:col-span-12"><SearchField label="Inspector" options={options.empId.filter((item) => item.startsWith("QC-"))} /></div>
@@ -1442,6 +1569,7 @@ function QcAcceptModal({ job, onActionComplete, onClose, options, section }) {
 
 function HistoryTimeline({ jobNo }) {
   const [histories, setHistories] = useState([]);
+  const [previewImage, setPreviewImage] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -1470,26 +1598,317 @@ function HistoryTimeline({ jobNo }) {
 
   return (
     <section className="col-span-full rounded-2xl border border-slate-200 bg-slate-50 p-4">
-      <h4 className="m-0 text-lg font-black">Request / Repair History</h4>
-      <div className="mt-4 grid gap-3">
+      <h4 className="m-0 text-base font-black text-slate-950">Request / Repair History</h4>
+      <div className="mt-3 grid max-h-72 gap-3 overflow-auto pr-1">
         {histories.length ? histories.map((history) => (
-          <article className="grid grid-cols-[72px_minmax(0,1fr)] gap-3" key={`${history.jobNo}-${history.time}-${history.action}`}>
-            <span className="pt-2 text-sm font-black text-slate-500">{formatHistoryTime(history.time)}</span>
-            <div className="rounded-xl border border-slate-200 bg-white p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <strong className="text-sm font-black text-slate-950">{history.action}</strong>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-600">{history.by}</span>
-              </div>
-              <p className="m-0 mt-1 text-sm font-bold text-slate-600">{history.from} to {history.to}</p>
-              <p className="m-0 mt-2 text-sm font-bold text-slate-800">{history.remark}</p>
-            </div>
-          </article>
+          <HistoryTimelineItem history={history} key={`${history.jobNo}-${history.time}-${history.action}`} onPreviewImage={setPreviewImage} />
         )) : (
           <p className="m-0 rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm font-bold text-slate-500">No history recorded yet.</p>
         )}
       </div>
+      {previewImage ? (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/80 p-5" onClick={() => setPreviewImage(null)}>
+          <div className="grid max-h-[92vh] w-[min(920px,100%)] overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+              <div>
+                <p className="m-0 text-[11px] font-black uppercase tracking-[0.12em] text-sky-700">History Attachment</p>
+                <h5 className="m-0 mt-0.5 text-lg font-black text-slate-950">{previewImage.label}</h5>
+              </div>
+              <button className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50" type="button" onClick={() => setPreviewImage(null)}>Close</button>
+            </div>
+            <div className="grid max-h-[76vh] place-items-center overflow-auto bg-slate-950 p-3">
+              <img alt={previewImage.label} className="max-h-[72vh] max-w-full rounded-xl object-contain" src={previewImage.url} />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
+}
+
+function HistoryTimelineItem({ history, onPreviewImage }) {
+  const attachments = getHistoryAttachments(history);
+
+  return (
+    <article className="grid grid-cols-[72px_minmax(0,1fr)] gap-3">
+      <span className="pt-2 text-sm font-black text-slate-500">{formatHistoryTime(history.time)}</span>
+      <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <strong className="text-sm font-black text-slate-950">{formatStatusLabel(history.action)}</strong>
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-600">{history.by}</span>
+        </div>
+        <p className="m-0 mt-1 text-sm font-bold text-slate-600">{formatStatusLabel(history.from)} to {formatStatusLabel(history.to)}</p>
+        <p className="m-0 mt-2 text-sm font-bold text-slate-800">{history.remark}</p>
+        {attachments.length ? (
+          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-2">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">Images sent in this step</span>
+              <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-black text-slate-500 ring-1 ring-slate-200">{attachments.length} file{attachments.length > 1 ? "s" : ""}</span>
+            </div>
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
+              {attachments.map((url, index) => {
+                const label = `${formatStatusLabel(history.action)} image ${index + 1}`;
+                return (
+                  <button
+                    className="group grid min-w-0 gap-1 rounded-xl border border-slate-200 bg-white p-1.5 text-left text-xs font-black text-slate-700 transition hover:border-sky-300 hover:bg-sky-50"
+                    key={`${url}-${index}`}
+                    type="button"
+                    onClick={() => onPreviewImage({ label, url })}
+                  >
+                    <span className="grid h-20 w-full place-items-center overflow-hidden rounded-lg bg-slate-100 ring-1 ring-slate-200">
+                      <img alt={label} className="h-full w-full object-cover transition group-hover:scale-105" src={url} />
+                    </span>
+                    <span className="truncate px-1">Step image {index + 1}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+function getHistoryAttachments(history = {}) {
+  const value = history.attachments || history.attachmentUrls || history.imageUrls || history.imageUrl || history.attachmentUrl;
+
+  if (!value) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.filter(Boolean);
+  }
+
+  return String(value)
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function getPendingAlertJobForSection(sectionKey, jobs = []) {
+  if (!["production", "maintenance", "qc"].includes(sectionKey)) {
+    return null;
+  }
+
+  const actionableJobs = jobs.filter((job) => {
+    if (sectionKey === "production") {
+      return job.status === "WAIT_PROD_CONFIRM";
+    }
+
+    if (sectionKey === "maintenance") {
+      return job.status === "WAIT_MM" || (job.status === "MM_REPAIR" && String(job.qcProgress || job.prodProgress || "").toLowerCase().includes("reject"));
+    }
+
+    if (sectionKey === "qc") {
+      return job.status === "WAIT_QC";
+    }
+
+    return false;
+  });
+
+  return sortJobRequests(actionableJobs)[0] || null;
+}
+
+async function notifyPendingJobAlert(job, sectionKey) {
+  const stopSound = startJobRequestAlertSound(sectionKey);
+
+  const actionText = sectionKey === "handover" ? "View Job" : getAvailableJobAction(sectionKey, job.status);
+  const Swal = (await import("sweetalert2")).default;
+  const result = await Swal.fire({
+    icon: String(job.qcProgress || job.prodProgress || "").toLowerCase().includes("reject") ? "warning" : "info",
+    title: getPendingAlertTitle(sectionKey, job),
+    html: `
+      <div class="grid gap-1 text-left text-sm text-slate-700">
+        <strong class="text-base text-slate-950">${job.jobNo}</strong>
+        <span>Status: ${formatStatusLabel(job.status)}</span>
+        <span>Machine: ${job.machineName || "-"} / ${job.machineNo || "-"}</span>
+        <span>Priority: ${job.priority || "-"}</span>
+      </div>
+    `,
+    showCancelButton: true,
+    confirmButtonText: actionText,
+    cancelButtonText: "Close",
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    willClose: stopSound
+  });
+
+  return result.isConfirmed ? { action: "open", job } : { action: "close" };
+}
+
+function getPendingAlertTitle(sectionKey, job) {
+  if (sectionKey === "maintenance" && job.status === "WAIT_MM") {
+    return "Maintenance has a new request";
+  }
+
+  if (sectionKey === "maintenance") {
+    return "Maintenance has a returned job";
+  }
+
+  if (sectionKey === "qc") {
+    return "QC has a job waiting";
+  }
+
+  if (sectionKey === "production") {
+    return "Production confirmation required";
+  }
+
+  return "Job needs attention";
+}
+
+async function notifyJobRequestEvent(event, lastNotificationRef, sectionKey) {
+  const eventName = event?.eventName || "job_request_updated";
+  const payload = event?.payload || {};
+  const job = payload.job || {};
+  const jobNo = payload.jobNo || job.jobNo || "-";
+  const status = payload.status || job.status || "-";
+  const notificationKey = `${eventName}:${jobNo}:${status}`;
+  const now = Date.now();
+
+  if (lastNotificationRef?.current?.key === notificationKey && now - lastNotificationRef.current.time < 1800) {
+    return;
+  }
+
+  if (lastNotificationRef?.current) {
+    lastNotificationRef.current = { key: notificationKey, time: now };
+  }
+
+  const stopSound = startJobRequestAlertSound(sectionKey || getSectionFromStatus(status));
+
+  const copy = realtimeNotificationCopy[eventName] || realtimeNotificationCopy.job_request_updated;
+  const Swal = (await import("sweetalert2")).default;
+  const actionText = sectionKey === "handover" ? "View Job" : sectionKey && sectionKey !== "dashboard" ? getAvailableJobAction(sectionKey, status) : "View";
+  const result = await Swal.fire({
+    icon: eventName.includes("reject") ? "warning" : "info",
+    title: copy.title,
+    html: `
+      <div class="grid gap-1 text-left text-sm text-slate-700">
+        <strong class="text-base text-slate-950">${jobNo}</strong>
+        <span>Status: ${formatStatusLabel(status)}</span>
+        <span>${copy.text}</span>
+      </div>
+    `,
+    showConfirmButton: true,
+    showCancelButton: true,
+    confirmButtonText: actionText,
+    cancelButtonText: "Close",
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    willClose: stopSound
+  });
+
+  return result.isConfirmed ? { action: "open", job } : { action: "close" };
+}
+
+function getSectionFromStatus(status) {
+  if (status === "WAIT_MM" || status === "MM_REPAIR") {
+    return "maintenance";
+  }
+
+  if (status === "WAIT_QC" || status === "QC_INSPECTION") {
+    return "qc";
+  }
+
+  if (status === "WAIT_PROD_CONFIRM" || status === "PROD_CONFIRMING") {
+    return "production";
+  }
+
+  return "production";
+}
+
+function getAlertSoundPattern(sectionKey) {
+  const patterns = {
+    production: [
+      { frequency: 660, start: 0, duration: 0.16 },
+      { frequency: 880, start: 0.2, duration: 0.16 },
+      { frequency: 660, start: 0.4, duration: 0.16 }
+    ],
+    maintenance: [
+      { frequency: 880, start: 0, duration: 0.12 },
+      { frequency: 1175, start: 0.16, duration: 0.12 },
+      { frequency: 1480, start: 0.32, duration: 0.18 }
+    ],
+    qc: [
+      { frequency: 523, start: 0, duration: 0.2 },
+      { frequency: 392, start: 0.25, duration: 0.2 },
+      { frequency: 523, start: 0.5, duration: 0.2 }
+    ],
+    handover: [
+      { frequency: 740, start: 0, duration: 0.14 },
+      { frequency: 740, start: 0.18, duration: 0.14 },
+      { frequency: 988, start: 0.42, duration: 0.2 }
+    ]
+  };
+
+  return patterns[sectionKey] || patterns.production;
+}
+
+function startJobRequestAlertSound(sectionKey) {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+
+  let isStopped = false;
+  let timeoutId = null;
+  let activeContext = null;
+  const pattern = getAlertSoundPattern(sectionKey);
+
+  function stop() {
+    isStopped = true;
+
+    if (timeoutId) {
+      window.clearTimeout(timeoutId);
+    }
+
+    if (activeContext) {
+      activeContext.close().catch(() => {});
+    }
+  }
+
+  function playOnce() {
+    if (isStopped) {
+      return;
+    }
+
+    activeContext = playJobRequestAlertSoundPattern(pattern);
+    timeoutId = window.setTimeout(playOnce, 1450);
+  }
+
+  playOnce();
+  return stop;
+}
+
+function playJobRequestAlertSoundPattern(pattern) {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) {
+      return null;
+    }
+
+    const context = new AudioContext();
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.18, context.currentTime + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.95);
+    gain.connect(context.destination);
+
+    pattern.forEach((note) => {
+      const oscillator = context.createOscillator();
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(note.frequency, context.currentTime + note.start);
+      oscillator.connect(gain);
+      oscillator.start(context.currentTime + note.start);
+      oscillator.stop(context.currentTime + note.start + note.duration);
+    });
+
+    window.setTimeout(() => context.close().catch(() => {}), 1100);
+    return context;
+  } catch {
+    // Browser audio can be blocked until the first user interaction.
+    return null;
+  }
 }
 
 function formatHistoryTime(value) {
@@ -1504,39 +1923,40 @@ function formatHistoryTime(value) {
 
 function ModalHeader({ onClose, section, title }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+    <div className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-3">
       <div>
-        <p className="m-0 text-xs font-black uppercase tracking-[0.14em] text-sky-700">{section.shortTitle}</p>
-        <h3 className="m-0 mt-1 text-2xl font-black">{title}</h3>
+        <p className="m-0 text-[11px] font-black uppercase tracking-[0.12em] text-sky-700">{section.shortTitle}</p>
+        <h3 className="m-0 mt-0.5 text-2xl font-black text-slate-950">{title}</h3>
       </div>
-      <button className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-black" type="button" onClick={onClose}>Close</button>
+      <button className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50" type="button" onClick={onClose}>Close</button>
     </div>
   );
 }
 
 function ModalFooter({ onClose, onSubmit, section, submitLabel }) {
   return (
-    <div className="flex justify-end gap-3 border-t border-slate-200 px-4 py-3">
-      <button className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-black" type="button" onClick={onClose}>Cancel</button>
-      <button className={`h-10 rounded-xl px-4 text-sm font-black text-white ${section.accent}`} type="button" onClick={onSubmit || onClose}>{submitLabel}</button>
+    <div className="sticky bottom-0 z-20 flex justify-end gap-3 border-t border-slate-200 bg-white px-5 py-3">
+      <button className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50" type="button" onClick={onClose}>Cancel</button>
+      <button className={`h-10 rounded-xl px-5 text-sm font-black text-white shadow-sm ${section.accent}`} type="button" onClick={onSubmit || onClose}>{submitLabel}</button>
     </div>
   );
 }
 
 function UploadBox() {
   return (
-    <label className="col-span-full grid gap-1">
-      <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Attach Image / Camera</span>
-      <div className="flex h-12 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-sm font-black text-slate-500">Choose file or open camera</div>
+    <label className="col-span-full grid min-w-0 gap-1">
+      <span className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">Attach Image / Camera</span>
+      <div className="flex h-12 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-sm font-black text-slate-500 transition hover:bg-slate-100">Choose file or open camera</div>
     </label>
   );
 }
 
 function ReadOnlyInput({ label, value }) {
   return (
-    <label className="grid gap-1">
-      <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{label}</span>
-      <input className="h-10 rounded-xl border border-slate-200 bg-slate-100 px-3 font-bold text-slate-500 outline-none" readOnly value={value} />
+    <label className="grid min-w-0 gap-1">
+      <span className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">{label}</span>
+      <input className="h-10 w-full min-w-0 truncate rounded-xl border border-slate-200 bg-slate-100 px-3 text-sm font-bold text-slate-600 outline-none" readOnly title={formatStatusLabel(value)} value={formatStatusLabel(value)} />
     </label>
   );
 }
+
