@@ -61,7 +61,7 @@ export default function Home() {
     const activeSession = getFirstActiveSession();
 
     if (activeSession) {
-      router.replace(activeSession.config.homePath);
+      router.replace(activeSession.homePath);
     }
   }, [router]);
 

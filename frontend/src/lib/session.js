@@ -27,6 +27,13 @@ export const sessionConfigs = {
 
 export const protectedSessionTypes = ["admin", "pm", "store", "job"];
 
+export const jobRequestScopeHomePaths = {
+  production: "/job-request/production",
+  maintenance: "/job-request/maintenance",
+  qc: "/job-request/qc",
+  all: "/job-request/production"
+};
+
 export function getSessionConfig(type) {
   return sessionConfigs[type];
 }
@@ -54,6 +61,34 @@ export function saveSession(type, session) {
   }
 }
 
+export function getSessionHomePath(type, session) {
+  const config = getSessionConfig(type);
+
+  if (!config) {
+    return "/";
+  }
+
+  if (type === "job") {
+    return jobRequestScopeHomePaths[session?.user?.adminScope] || config.homePath;
+  }
+
+  return config.homePath;
+}
+
+export function canAccessJobRequestSection(session, sectionKey) {
+  const scope = session?.user?.adminScope;
+
+  if (["dashboard", "handover"].includes(sectionKey)) {
+    return Boolean(scope);
+  }
+
+  if (scope === "all") {
+    return true;
+  }
+
+  return scope === sectionKey;
+}
+
 export function clearSession(type) {
   const config = getSessionConfig(type);
 
@@ -74,7 +109,8 @@ export function getFirstActiveSession() {
       return {
         type,
         session,
-        config: getSessionConfig(type)
+        config: getSessionConfig(type),
+        homePath: getSessionHomePath(type, session)
       };
     }
   }

@@ -1,5 +1,5 @@
-import ProtectedWorkspaceShell from "@/components/ProtectedWorkspaceShell";
+import { redirect } from "next/navigation";
 
 export default function JobRequestPage() {
-  return <ProtectedWorkspaceShell type="job" />;
+  redirect("/job-request/dashboard");
 }

@@ -17,6 +17,7 @@
     "react": "latest",
     "react-dom": "latest",
     "recharts": "^3.8.1",
+    "socket.io-client": "^4.8.3",
     "sweetalert2": "^11.26.24",
     "tailwindcss": "latest"
   },
