@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
-import { getSessionConfig, getStoredSession, saveSession } from "@/lib/session";
+import { getSessionConfig, getSessionHomePath, getStoredSession, saveSession } from "@/lib/session";
 
 const themes = {
   pm: {
@@ -137,9 +137,9 @@ export default function SystemLoginPage({ type }) {
     const activeSession = getStoredSession(type);
 
     if (activeSession) {
-      router.replace(sessionConfig.homePath);
+      router.replace(getSessionHomePath(type, activeSession));
     }
-  }, [router, sessionConfig.homePath, type]);
+  }, [router, type]);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -154,7 +154,7 @@ export default function SystemLoginPage({ type }) {
       });
 
       saveSession(type, response.data);
-      router.replace(sessionConfig.homePath);
+      router.replace(getSessionHomePath(type, response.data));
     } catch (loginError) {
       setError(loginError?.response?.data?.message || "Login failed.");
     } finally {
