@@ -1,5 +1,5 @@
-import ProtectedWorkspaceShell from "@/components/ProtectedWorkspaceShell";
+import PreventiveMaintenanceShell from "@/components/PreventiveMaintenanceShell";
 
 export default function PreventiveMaintenancePage() {
-  return <ProtectedWorkspaceShell type="pm" />;
+  return <PreventiveMaintenanceShell pageKey="dashboard" />;
 }

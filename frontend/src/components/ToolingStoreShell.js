@@ -8,7 +8,7 @@ import Swal from "sweetalert2";
 import AppFooter from "@/components/AppFooter";
 import api from "@/lib/api";
 import { clearSession, getSessionConfig, getStoredSession } from "@/lib/session";
-import { buildSuccessAlert } from "@/lib/swalHelpers";
+import { buildConfirmAlert, buildSuccessAlert } from "@/lib/swalHelpers";
 import {
   buildToolingQuery,
   buildToolingMovementRows,
@@ -267,6 +267,17 @@ export default function ToolingStoreShell({ pageKey = "dashboard" }) {
     event.preventDefault();
 
     try {
+      const actionLabel = modalMode === "calibration" ? "Update calibration" : editingRow ? "Save changes" : getToolingActionLabel(activePage.key) || "Create record";
+      const confirm = await Swal.fire(buildConfirmAlert(
+        `${actionLabel}?`,
+        "Please confirm before updating store records.",
+        { confirmButtonText: actionLabel }
+      ));
+
+      if (!confirm.isConfirmed) {
+        return;
+      }
+
       if (editingRow) {
         await api.put(`/tooling/${activePage.endpoint}/${editingRow.id}`, form);
       } else {
@@ -282,14 +293,7 @@ export default function ToolingStoreShell({ pageKey = "dashboard" }) {
   }
 
   async function deleteRow(row) {
-    const confirm = await Swal.fire({
-      title: "Delete record?",
-      text: "This action cannot be undone.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "Delete",
-      cancelButtonText: "Cancel"
-    });
+    const confirm = await Swal.fire(buildConfirmAlert("Delete record?", "This action cannot be undone.", { icon: "warning", confirmButtonText: "Delete" }));
 
     if (!confirm.isConfirmed) {
       return;
@@ -304,7 +308,13 @@ export default function ToolingStoreShell({ pageKey = "dashboard" }) {
     }
   }
 
-  function handleLogout() {
+  async function handleLogout() {
+    const confirm = await Swal.fire(buildConfirmAlert("Logout?", "You will return to the main page.", { confirmButtonText: "Logout" }));
+
+    if (!confirm.isConfirmed) {
+      return;
+    }
+
     clearSession("store");
     router.replace("/");
   }

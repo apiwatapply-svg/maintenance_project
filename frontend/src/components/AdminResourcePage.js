@@ -8,7 +8,7 @@ import AppFooter from "@/components/AppFooter";
 import api, { getBackendAssetUrl } from "@/lib/api";
 import { adminResourceGroups, buildAdminQuery, getAdminFilterStorageKey, getAdminResource, getPageNumbers } from "@/lib/adminResources";
 import { clearSession, getSessionConfig, getStoredSession } from "@/lib/session";
-import { buildSuccessAlert } from "@/lib/swalHelpers";
+import { buildConfirmAlert, buildSuccessAlert } from "@/lib/swalHelpers";
 
 function defaultForm(config) {
   return Object.fromEntries(config.fields.map((field) => [field.key, field.type === "status" ? "active" : field.options?.[0] || ""]));
@@ -185,6 +185,16 @@ export default function AdminResourcePage({ resourceKey }) {
         delete payload.password;
       }
 
+      const confirm = await Swal.fire(buildConfirmAlert(
+        editingRow ? "Save changes?" : "Create record?",
+        editingRow ? "This will update the selected record." : "This will create a new record.",
+        { confirmButtonText: editingRow ? "Save" : "Create" }
+      ));
+
+      if (!confirm.isConfirmed) {
+        return;
+      }
+
       if (editingRow) {
         await api.put(`/admin/${config.endpoint}/${editingRow.id}`, payload);
       } else {
@@ -200,14 +210,7 @@ export default function AdminResourcePage({ resourceKey }) {
   }
 
   async function deleteRow(row) {
-    const confirm = await Swal.fire({
-      title: "Delete record?",
-      text: "This action cannot be undone.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "Delete",
-      cancelButtonText: "Cancel"
-    });
+    const confirm = await Swal.fire(buildConfirmAlert("Delete record?", "This action cannot be undone.", { icon: "warning", confirmButtonText: "Delete" }));
 
     if (!confirm.isConfirmed) {
       return;
@@ -222,7 +225,13 @@ export default function AdminResourcePage({ resourceKey }) {
     }
   }
 
-  function handleLogout() {
+  async function handleLogout() {
+    const confirm = await Swal.fire(buildConfirmAlert("Logout?", "You will return to the main page.", { confirmButtonText: "Logout" }));
+
+    if (!confirm.isConfirmed) {
+      return;
+    }
+
     clearSession("admin");
     router.replace("/");
   }

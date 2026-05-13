@@ -81,7 +81,7 @@ export default function Home() {
             <span className="factory-gear gear-b" />
           </div>
           <div className="gateway-copy">
-            <p>Maintenance System</p>
+            <p>Smart Factory Operations Platform</p>
             <h1>Select your workspace</h1>
             <span>Choose a system to continue to its dedicated login screen.</span>
           </div>
@@ -189,8 +189,7 @@ const gatewayStyles = `
   color: #0f766e;
   font-size: 14px;
   font-weight: 950;
-  letter-spacing: .2em;
-  text-transform: uppercase;
+  letter-spacing: .08em;
 }
 .gateway-copy h1 {
   max-width: 680px;
