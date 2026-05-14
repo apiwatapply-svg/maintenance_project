@@ -464,7 +464,7 @@ function DashboardPage({ onOpenModal }) {
             <DropdownInput defaultValue="2026-05" options={["2026-05", "2026-04"]} />
           </div>
           <div className="h-72">
-            <ResponsiveContainer height="100%" width="100%">
+            <ResponsiveContainer height="100%" width="100%" minWidth={0}>
               <BarChart data={dashboardTrend}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="day" />
@@ -484,7 +484,7 @@ function DashboardPage({ onOpenModal }) {
           <p className="m-0 text-xs font-black uppercase tracking-[0.14em] text-emerald-700">Machine Status Summary</p>
           <h3 className="m-0 mt-1 text-xl font-black">PM health mix</h3>
           <div className="h-64">
-            <ResponsiveContainer height="100%" width="100%">
+            <ResponsiveContainer height="100%" width="100%" minWidth={0}>
               <PieChart>
                 <Pie data={statusPie} dataKey="value" innerRadius={56} outerRadius={92} paddingAngle={3}>
                   {statusPie.map((item) => <Cell fill={item.color} key={item.name} />)}

@@ -12,3 +12,12 @@ pnpm-debug.log*
 .npm-cache/
 screenshots/
 .qa/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+/output/
+/frontend/test-results/

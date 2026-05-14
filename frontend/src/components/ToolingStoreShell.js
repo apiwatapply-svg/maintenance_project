@@ -648,7 +648,7 @@ function MovementChart({ movementMonth, rows, setMovementMonth }) {
         </div>
       </div>
       <div className="h-80 rounded-2xl border border-slate-200 bg-white p-3">
-        <ResponsiveContainer height="100%" width="100%">
+        <ResponsiveContainer height="100%" width="100%" minWidth={0}>
           <BarChart data={rows} margin={{ top: 18, right: 24, left: 4, bottom: 8 }}>
             <CartesianGrid stroke="#e2e8f0" strokeDasharray="4 4" vertical={false} />
             <XAxis dataKey="day" tick={{ fill: "#475569", fontSize: 12, fontWeight: 800 }} tickLine={false} />
@@ -672,7 +672,7 @@ function ToolStatusChart({ rows }) {
       <p className="m-0 text-xs font-black uppercase tracking-[0.14em] text-amber-700">Tool Status</p>
       <h3 className="m-0 mt-1 text-2xl font-black">Availability mix</h3>
       <div className="relative mt-4 h-56">
-        <ResponsiveContainer height="100%" width="100%">
+        <ResponsiveContainer height="100%" width="100%" minWidth={0}>
           <PieChart>
             <Tooltip content={<ChartTooltip />} />
             <Pie data={rows.filter((row) => row.value > 0)} dataKey="value" innerRadius={58} nameKey="label" outerRadius={88} paddingAngle={2}>

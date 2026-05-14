@@ -465,7 +465,7 @@ function DashboardWorkspace({ options }) {
 
         <div className="grid grid-cols-[minmax(0,0.72fr)_minmax(280px,0.28fr)] gap-4 max-[1100px]:grid-cols-1">
           <div className="h-[380px] min-w-0 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <BarChart data={layer.items} layout="vertical" margin={{ left: 28, right: 20, top: 12, bottom: 12 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#dbe3ee" />
                 <XAxis type="number" domain={[0, Math.ceil(maxRequest / 5) * 5]} />
@@ -557,7 +557,7 @@ function ProblemDonutChart({ colors, data }) {
 
   return (
     <div className="h-[220px] min-h-[220px] min-w-0 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0}>
         <PieChart>
           <Pie
             cx="50%"
@@ -658,7 +658,7 @@ function PerformanceAnalyze({ performance }) {
       </div>
       <div className="grid grid-cols-[minmax(0,0.7fr)_minmax(320px,0.3fr)] gap-4 max-[1100px]:grid-cols-1">
         <div className="h-[360px] min-w-0 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <BarChart data={layer.items} layout="vertical" margin={{ left: 34, right: 24, top: 12, bottom: 12 }}>
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#dbe3ee" />
               <XAxis type="number" domain={[0, Math.ceil(maxValue / 5) * 5]} />
