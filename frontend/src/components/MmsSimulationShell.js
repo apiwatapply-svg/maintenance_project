@@ -5,7 +5,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import AppFooter from "@/components/AppFooter";
 import SearchableDropdown from "@/components/SearchableDropdown";
 import api from "@/lib/api";
-import styles from "./MmsSimulationShell.module.css";
 import {
   buildMmsPayload,
   canMmsMachineProduce,
@@ -22,6 +21,22 @@ import { createMmsSocket } from "@/lib/mmsRealtime";
 function classNames(...classes) {
   return classes.filter(Boolean).join(" ");
 }
+
+const styles = {
+  factoryMap: "grid grid-cols-2 gap-2 max-[1200px]:grid-cols-1",
+  factoryScreen: "min-h-screen bg-slate-100 bg-[linear-gradient(rgba(15,23,42,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.045)_1px,transparent_1px)] bg-[length:28px_28px]",
+  machineNoPrefix: "block max-w-full truncate text-[11px] font-black leading-[11px] tracking-tight",
+  machineNoSuffix: "block text-sm font-black leading-4",
+  machineTile: "h-[66px] w-full min-w-0",
+  machineTileBody: "grid h-[61px] content-between gap-1 p-1.5",
+  machineTileGrid: "grid grid-cols-[repeat(auto-fill,minmax(76px,1fr))] gap-1.5",
+  machineTypeColumn: "min-w-0",
+  machineTypeMap: "grid grid-cols-4 gap-2 p-2 max-[1500px]:grid-cols-3 max-[1000px]:grid-cols-2 max-[560px]:grid-cols-1",
+  miniMetric: "block h-5 max-w-full truncate rounded-md border border-slate-200 bg-white/80 px-1 text-center text-[9px] font-black leading-5",
+  miniMetricValue: "block truncate",
+  pageShell: "grid gap-2 p-3",
+  zonePanel: "overflow-hidden rounded-xl border shadow-sm"
+};
 
 const statusTone = {
   RUN: "border-emerald-200 bg-emerald-50 text-emerald-700",

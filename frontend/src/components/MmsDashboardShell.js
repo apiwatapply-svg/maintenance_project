@@ -15,7 +15,6 @@ import {
   YAxis
 } from "recharts";
 import { selectOverallMmsMachines } from "@/lib/mmsSimulation";
-import styles from "./MmsDashboardShell.module.css";
 
 const navGroups = [
   {
@@ -200,39 +199,167 @@ function classNames(...classes) {
   return classes.filter(Boolean).join(" ");
 }
 
+function statusBadgeStyle(status) {
+  const color = statusColors[status] || statusColors.STOP;
+  return {
+    backgroundColor: `${color}18`,
+    borderColor: `${color}55`,
+    color
+  };
+}
+
+function statusFillStyle(status) {
+  return { backgroundColor: statusColors[status] || statusColors.STOP };
+}
+
+const styles = {
+  active: "border-cyan-400/50 bg-cyan-600 text-white shadow-lg shadow-cyan-950/20",
+  backButton: "inline-flex h-10 items-center justify-center rounded-xl bg-white px-5 text-sm font-black text-slate-950 shadow-sm transition hover:bg-slate-100",
+  brand: "mb-6 flex items-center gap-3",
+  brandText: "[&_h1]:m-0 [&_h1]:text-lg [&_h1]:font-black [&_h1]:leading-tight [&_p]:m-0 [&_p]:mt-1 [&_p]:text-sm [&_p]:font-bold [&_p]:text-slate-400",
+  chartBox: "min-h-[290px] min-w-0",
+  chartBoxCompact: "min-h-[205px]",
+  chartBoxOverall: "h-full min-h-0 min-w-0",
+  chartBoxTall: "min-h-[330px]",
+  chartTabButton: "inline-flex h-8 items-center justify-center rounded-lg border border-blue-600 bg-white px-5 text-xs font-black text-blue-700 shadow-sm transition hover:bg-blue-50",
+  chartTabButtonActive: "inline-flex h-8 items-center justify-center rounded-lg border border-blue-700 bg-blue-700 px-5 text-xs font-black text-white shadow-sm transition hover:bg-blue-700",
+  collapseButton: "mb-5 h-11 w-full rounded-xl border border-white/10 bg-white/10 text-sm font-black text-white transition hover:bg-white/15",
+  collapsed: "",
+  content: "grid gap-3",
+  eyebrow: "m-0 text-xs font-black uppercase tracking-[0.22em] text-cyan-100",
+  eyebrowDark: "m-0 text-xs font-black uppercase tracking-[0.18em] text-cyan-700",
+  factoryArea: "rounded-2xl border border-slate-200 bg-white/90 p-3 shadow-sm data-[area='0']:bg-cyan-50 data-[area='1']:bg-emerald-50 data-[area='2']:bg-amber-50 data-[area='3']:bg-indigo-50",
+  factoryAreaTitle: "mb-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-black text-white",
+  factoryLayoutGrid: "grid grid-cols-2 gap-3 max-[900px]:grid-cols-1",
+  field: "grid gap-1.5 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border [&_input]:border-slate-300 [&_input]:bg-white [&_input]:px-3 [&_input]:text-sm [&_input]:font-bold [&_input]:text-slate-950 [&_input]:outline-none [&_input]:transition [&_input]:focus:border-cyan-500 [&_input]:focus:ring-4 [&_input]:focus:ring-cyan-100 [&_label]:text-[11px] [&_label]:font-black [&_label]:uppercase [&_label]:tracking-[0.14em] [&_label]:text-slate-500 [&_select]:h-11 [&_select]:rounded-xl [&_select]:border [&_select]:border-slate-300 [&_select]:bg-white [&_select]:px-3 [&_select]:text-sm [&_select]:font-bold [&_select]:text-slate-950 [&_select]:outline-none [&_select]:transition [&_select]:focus:border-cyan-500 [&_select]:focus:ring-4 [&_select]:focus:ring-cyan-100",
+  footer: "mt-3 border-t border-slate-200 py-3 text-center text-xs font-bold text-slate-500",
+  grid2: "grid grid-cols-2 gap-3 max-[1000px]:grid-cols-1",
+  grid3: "grid grid-cols-3 gap-3 max-[1100px]:grid-cols-1",
+  kpi: "rounded-2xl border border-t-4 border-slate-200 bg-white p-4 shadow-sm [&_small]:block [&_small]:text-xs [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.14em] [&_small]:text-slate-500 [&_strong]:mt-2 [&_strong]:block [&_strong]:text-2xl [&_strong]:font-black [&_strong]:text-slate-950",
+  kpiGrid: "grid grid-cols-6 gap-3 max-[1200px]:grid-cols-3 max-[700px]:grid-cols-2",
+  layout: "grid min-h-screen max-[900px]:grid-cols-1",
+  layoutCollapsed: "grid-cols-[80px_minmax(0,1fr)]",
+  layoutExpanded: "grid-cols-[280px_minmax(0,1fr)]",
+  logo: "inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-cyan-600 text-xs font-black text-white shadow-lg shadow-cyan-600/25",
+  machineCheck: "flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 [&_input]:h-4 [&_input]:w-4",
+  machineDropdown: "relative [&_button]:flex [&_button]:h-11 [&_button]:w-full [&_button]:items-center [&_button]:justify-between [&_button]:rounded-xl [&_button]:border [&_button]:border-slate-300 [&_button]:bg-white [&_button]:px-3 [&_button]:text-left [&_button]:text-sm [&_button]:font-bold [&_button]:text-slate-950",
+  machineDropdownMenu: "absolute z-30 mt-2 max-h-72 w-full overflow-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl",
+  machineMap: "grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-2",
+  machineStatusTimeline: "grid gap-2",
+  machineSummaryTable: "grid overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 text-slate-950 shadow-sm grid-cols-[240px_repeat(6,minmax(120px,1fr))_190px] max-[1200px]:grid-cols-2",
+  machineSummaryTableCompact: "grid grid-cols-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 text-[10px] text-slate-950 shadow-sm [&_.operator-avatar]:h-9 [&_.operator-avatar]:w-9 [&_.summary-cell]:min-h-12 [&_.summary-cell]:p-1.5 [&_.summary-cell_b]:text-[8px] [&_.summary-cell_small]:text-[8px] [&_.summary-cell_strong]:text-sm max-[900px]:grid-cols-2",
+  machineTile: "rounded-xl border border-l-4 border-slate-200 bg-white p-3 text-sm shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
+  machineWorkingChartGrid: "grid grid-cols-2 gap-3 max-[1000px]:grid-cols-1",
+  main: "min-w-0 bg-slate-100 bg-[linear-gradient(rgba(15,23,42,0.026)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.026)_1px,transparent_1px)] bg-[length:32px_32px] p-4",
+  nav: "grid gap-3",
+  navGroup: "grid gap-1 rounded-2xl border border-white/10 bg-white/[0.04] p-2",
+  navGroupCollapsed: "p-1",
+  navIcon: "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-xs font-black text-cyan-300",
+  navLink: "flex min-h-11 w-full items-center rounded-xl border border-transparent py-2.5 text-sm font-black text-slate-300 no-underline transition hover:bg-white/10",
+  navLinkCollapsed: "justify-center px-0",
+  navLinkExpanded: "gap-3 px-3 text-left",
+  navText: "truncate",
+  navTitle: "px-2 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400",
+  ngText: "text-red-600",
+  oeeHeader: "flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm [&_h3]:m-0 [&_h3]:text-xl [&_h3]:font-black [&_span]:rounded-full [&_span]:bg-emerald-50 [&_span]:px-3 [&_span]:py-1 [&_span]:text-xs [&_span]:font-black [&_span]:text-emerald-700",
+  oeeSummaryCell: "items-center justify-center text-center [&_strong]:text-3xl [&_strong]:text-emerald-700",
+  okText: "text-emerald-700",
+  operatorCell: "flex items-center gap-3 bg-slate-100 [&_img]:h-14 [&_img]:w-14 [&_img]:rounded-xl [&_img]:ring-2 [&_img]:ring-sky-200 [&_span]:grid [&_span]:min-w-0 [&_span]:gap-0.5 [&_span_b]:truncate [&_span_strong]:truncate",
+  overallCard: "flex h-[320px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm",
+  overallChartCell: "grid min-h-0 grid-rows-[minmax(0,1fr)_22px]",
+  overallChartLegend: "flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 overflow-hidden px-1 text-[8px] font-bold leading-none text-slate-600 [&_i]:inline-block [&_i]:h-2 [&_i]:w-2 [&_i]:rounded-sm [&_span]:inline-flex [&_span]:items-center [&_span]:gap-1",
+  overallChartRow: "grid flex-1 grid-cols-2 gap-2 p-2 max-[800px]:grid-cols-1",
+  overallEmpty: "rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm font-black text-slate-500",
+  overallFilterPanel: "grid grid-cols-[1fr_1fr_1.35fr_180px_auto] items-end gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm max-[1200px]:grid-cols-2 max-[700px]:grid-cols-1",
+  overallMachineGrid: "grid grid-cols-3 gap-3 max-[1500px]:grid-cols-2 max-[900px]:grid-cols-1",
+  overallMiniHeader: "grid h-[88px] overflow-hidden border-b border-slate-200 bg-slate-50 text-slate-950 grid-cols-[108px_minmax(0,1fr)_74px] max-[900px]:h-auto max-[900px]:grid-cols-1",
+  overallMiniCenter: "grid min-w-0 grid-rows-[42px_1fr] border-x border-slate-200 bg-white max-[900px]:border-x-0 max-[900px]:border-y",
+  overallMiniKpi: "grid min-w-0 content-center border-r border-slate-200 px-1.5 py-1 last:border-r-0 [&_small]:truncate [&_small]:text-[7px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.06em] [&_small]:text-slate-500 [&_strong]:truncate [&_strong]:text-[10px] [&_strong]:font-black",
+  overallMiniKpiGrid: "grid min-w-0 grid-cols-[1fr_1fr_1fr_.85fr] border-t border-slate-200",
+  overallMiniMeta: "flex min-w-0 flex-wrap items-center gap-1.5 text-[8px] font-bold text-slate-600 [&_b]:font-black [&_b]:text-slate-900 [&_span]:inline-flex [&_span]:items-center [&_span]:gap-1",
+  overallMiniMachineBlock: "grid min-w-0 gap-0.5 [&_small]:text-[7px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.08em] [&_small]:text-slate-500 [&_strong]:truncate [&_strong]:text-sm [&_strong]:font-black",
+  overallMiniOperator: "flex min-w-0 items-center gap-1.5 bg-slate-100 px-2 py-1.5 [&_img]:h-9 [&_img]:w-9 [&_img]:rounded-lg [&_img]:ring-2 [&_img]:ring-sky-200 [&_span]:grid [&_span]:min-w-0 [&_small]:text-[7px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.08em] [&_small]:text-slate-500 [&_strong]:truncate [&_strong]:text-xs [&_strong]:font-black [&_b]:truncate [&_b]:text-[8px] [&_b]:font-bold [&_b]:text-slate-600",
+  overallMiniOee: "grid content-center justify-items-center bg-white px-2 py-1 text-center [&_small]:text-[7px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.08em] [&_small]:text-slate-500 [&_strong]:text-base [&_strong]:font-black [&_strong]:text-emerald-700 [&_b]:text-[7px] [&_b]:font-bold [&_b]:text-slate-600",
+  overallMiniStatusPill: "inline-flex h-5 items-center rounded-full border border-emerald-300 bg-emerald-50 px-2 text-[10px] font-black text-emerald-700",
+  overallMiniTopLine: "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-2 py-1",
+  overallStatusBlock: "grid flex-1 grid-rows-[82px_minmax(0,1fr)] gap-2 p-2",
+  overallTabSwitch: "flex h-11 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1",
+  panel: "rounded-2xl border border-slate-200 bg-white p-3 shadow-sm",
+  panelHeader: "mb-3 flex items-center justify-between gap-3 [&_h3]:m-0 [&_h3]:text-lg [&_h3]:font-black [&_span]:text-xs [&_span]:font-black [&_span]:text-slate-500",
+  reportCards: "grid grid-cols-[1.2fr_.8fr] gap-3 max-[1100px]:grid-cols-1",
+  screen: "min-h-screen text-slate-950",
+  shiftScale: "grid grid-cols-7 px-2 text-center text-[9px] font-black text-slate-500",
+  sidebar: "sticky top-0 h-screen overflow-x-hidden overflow-y-auto border-r border-slate-800 bg-slate-950 p-5 text-white transition-all max-[900px]:relative max-[900px]:h-auto",
+  sidebarCollapsed: "p-4",
+  statusBadge: "inline-flex min-h-6 items-center justify-center rounded-full border px-2.5 text-[11px] font-black uppercase tracking-[0.04em]",
+  statusBreakdownPanel: "rounded-xl border border-slate-200 bg-white p-3 [&_h4]:mb-2 [&_h4]:text-sm [&_h4]:font-black",
+  statusLegend: "flex flex-wrap justify-center gap-1 text-[9px] font-black text-slate-600 [&_i]:inline-block [&_i]:h-2 [&_i]:w-2 [&_i]:rounded-full [&_span]:inline-flex [&_span]:items-center [&_span]:gap-1 [&_span]:rounded-full [&_span]:border [&_span]:border-slate-200 [&_span]:bg-white [&_span]:px-1.5 [&_span]:py-0.5",
+  statusMonitorGrid: "grid gap-2",
+  statusSegment: "h-6 min-w-3 border-r border-white/70 transition hover:brightness-105",
+  statusTimelinePanel: "rounded-xl border border-slate-200 bg-white p-2",
+  statusTooltip: "pointer-events-none absolute top-14 z-10 grid -translate-x-1/2 gap-1 rounded-lg bg-slate-950 px-3 py-2 text-xs font-bold text-white shadow-xl",
+  statusTrack: "relative flex overflow-visible rounded-xl border border-slate-200 bg-white p-0.5",
+  summaryCell: "summary-cell grid min-h-16 content-center border-b border-r border-slate-200 p-2 [&_b]:text-[11px] [&_b]:font-bold [&_b]:text-slate-500 [&_small]:text-[10px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.12em] [&_small]:text-slate-500 [&_strong]:text-base [&_strong]:font-black",
+  summaryMetric: "summary-cell grid min-h-16 content-center border-b border-r border-slate-200 p-2 [&_b]:text-[11px] [&_b]:font-bold [&_b]:text-slate-500 [&_small]:text-[10px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.12em] [&_small]:text-slate-500 [&_strong]:text-lg [&_strong]:font-black",
+  summaryTallCell: "row-span-2",
+  table: "w-full border-collapse text-sm [&_td]:border-b [&_td]:border-slate-200 [&_td]:px-3 [&_td]:py-2 [&_td]:font-bold [&_td]:text-slate-700 [&_th]:border-b [&_th]:border-slate-200 [&_th]:bg-slate-50 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:text-[11px] [&_th]:font-black [&_th]:uppercase [&_th]:tracking-[0.12em] [&_th]:text-slate-500",
+  tableWrap: "overflow-auto rounded-xl border border-slate-200",
+  timeline: "grid gap-2",
+  timelineBar: "h-2 rounded-full",
+  timelineRow: "grid grid-cols-[56px_1fr_56px] items-center gap-3 text-sm font-bold",
+  toolbar: "grid grid-cols-4 gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm max-[900px]:grid-cols-2 max-[600px]:grid-cols-1",
+  topbar: "mb-3 flex items-center justify-between gap-4 rounded-2xl border border-cyan-700/30 bg-gradient-to-r from-slate-950 via-slate-900 to-cyan-800 p-4 text-white shadow-sm [&_h2]:m-0 [&_h2]:text-2xl [&_h2]:font-black [&_p:last-child]:m-0 [&_p:last-child]:text-sm [&_p:last-child]:font-bold [&_p:last-child]:text-cyan-50 max-[700px]:flex-col max-[700px]:items-start",
+  typeButton: "mb-3 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-950 px-4 py-3 text-base font-black text-white no-underline shadow-sm transition hover:bg-slate-800 [&_span]:text-xs [&_span]:font-bold [&_span]:text-cyan-100",
+  typeSection: "rounded-2xl border border-slate-200 bg-white p-3 shadow-sm",
+  typeStack: "grid gap-3"
+};
+
 export default function MmsDashboardShell({ view = "dashboard" }) {
   const [collapsed, setCollapsed] = useState(false);
   const title = getTitle(view);
   const backHref = view === "dashboard" ? "/" : "/mms-dashboard";
 
+  useEffect(() => {
+    const saved = localStorage.getItem("mms:sidebar:collapsed");
+    if (saved === "1") setCollapsed(true);
+  }, []);
+
+  function toggleSidebar() {
+    setCollapsed((current) => {
+      const next = !current;
+      localStorage.setItem("mms:sidebar:collapsed", next ? "1" : "0");
+      return next;
+    });
+  }
+
   return (
     <main className={styles.screen}>
-      <div className={classNames(styles.layout, collapsed ? styles.layoutCollapsed : "")}>
-        <aside className={classNames(styles.sidebar, collapsed ? styles.collapsed : "")}>
-          <div className={styles.brand}>
+      <div className={classNames(styles.layout, collapsed ? styles.layoutCollapsed : styles.layoutExpanded)}>
+        <aside className={classNames(styles.sidebar, collapsed ? styles.sidebarCollapsed : "")}>
+          <div className={classNames(styles.brand, collapsed ? "justify-center" : "")}>
             <span className={styles.logo}>MMS</span>
-            <div className={styles.brandText}>
+            <div className={classNames(styles.brandText, collapsed ? "hidden" : "")}>
               <h1>MMS Dashboard</h1>
               <p>Machine Monitoring System</p>
             </div>
           </div>
-          <button className={styles.collapseButton} type="button" onClick={() => setCollapsed((current) => !current)}>
+          <button className={styles.collapseButton} type="button" onClick={toggleSidebar} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
             {collapsed ? ">" : "Collapse"}
           </button>
-          <nav>
+          <nav className={styles.nav} aria-label="MMS Dashboard navigation">
             {navGroups.map((group) => (
-              <section className={styles.navGroup} key={group.title}>
-                <div className={styles.navTitle}>{group.title}</div>
+              <section className={classNames(styles.navGroup, collapsed ? styles.navGroupCollapsed : "")} key={group.title}>
+                <div className={classNames(styles.navTitle, collapsed ? "sr-only" : "")}>{group.title}</div>
                 {group.items.map((item) => (
                   <Link
-                    className={classNames(styles.navLink, view === item.key ? styles.active : "")}
+                    className={classNames(styles.navLink, collapsed ? styles.navLinkCollapsed : styles.navLinkExpanded, view === item.key ? styles.active : "")}
                     href={item.href}
                     key={item.key}
                     target={item.target}
                     title={item.label}
                   >
                     <span className={styles.navIcon}>{item.icon}</span>
-                    <span className={styles.navText}>{item.label}</span>
+                    <span className={classNames(styles.navText, collapsed ? "hidden" : "")}>{item.label}</span>
                   </Link>
                 ))}
               </section>
@@ -376,7 +503,7 @@ function Kpis() {
   return (
     <section className={styles.kpiGrid}>
       {cards.map(([label, value, color]) => (
-        <article className={styles.kpi} key={label} style={{ "--tone": color }}>
+        <article className={styles.kpi} key={label} style={{ borderTopColor: color }}>
           <small>{label}</small>
           <strong>{value}</strong>
         </article>
@@ -479,8 +606,9 @@ function OverallMachineWorkingView() {
         ...saved,
         machineNos: Array.isArray(saved.machineNos) ? saved.machineNos : defaultFilters.machineNos
       });
+      const requestedTab = new URLSearchParams(window.location.search).get("tab");
       const savedTab = localStorage.getItem("mms:overall-machine-working:tab");
-      if (savedTab === "status") setActiveTab("status");
+      if (requestedTab === "status" || savedTab === "status") setActiveTab("status");
     } catch {
       setFilters(defaultFilters);
     } finally {
@@ -611,35 +739,51 @@ function OverallMachineCard({ activeTab, date, machine }) {
 
   return (
     <article className={styles.overallCard}>
-      <MachineWorkingHeader compact date={date} machine={machine} />
+      <OverallMachineHeader date={date} machine={machine} />
       {activeTab === "output" ? (
         <div className={styles.overallChartRow}>
-          <ChartBox overall>
-            <ComposedChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="hour" interval={3} tick={{ fontSize: 10 }} />
-              <YAxis yAxisId="qty" width={34} tick={{ fontSize: 10 }} />
-              <YAxis yAxisId="accum" orientation="right" width={42} tick={{ fontSize: 10 }} />
-              <Tooltip />
-              <Bar yAxisId="qty" dataKey="output" name="Output Actual" fill="#00b050" isAnimationActive={false} />
-              <Line yAxisId="qty" dataKey="target" name="Output Target" stroke="#385723" strokeWidth={3} strokeDasharray="5 5" dot={false} isAnimationActive={false} />
-              <Line yAxisId="accum" dataKey="accum" name="Output Accum" stroke="#c00000" strokeWidth={2} isAnimationActive={false} />
-              <Line yAxisId="accum" dataKey="targetAccum" name="Output Target Accum" stroke="#f062b0" strokeWidth={3} strokeDasharray="5 5" dot={false} isAnimationActive={false} />
-            </ComposedChart>
-          </ChartBox>
-          <ChartBox overall>
-            <ComposedChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="hour" interval={3} tick={{ fontSize: 10 }} />
-              <YAxis yAxisId="ct" width={32} tick={{ fontSize: 10 }} />
-              <YAxis yAxisId="percent" orientation="right" width={34} domain={[0, 120]} tick={{ fontSize: 10 }} />
-              <Tooltip />
-              <Bar yAxisId="ct" dataKey="ct" name="Cycle Time Actual" fill="#5b9bd5" isAnimationActive={false} />
-              <Line yAxisId="ct" dataKey="ctTarget" name="Cycle Time Target" stroke="#203864" strokeWidth={3} strokeDasharray="5 5" dot={false} isAnimationActive={false} />
-              <Line yAxisId="percent" dataKey="availability" name="Availability Actual" stroke="#02630f" strokeWidth={2} isAnimationActive={false} />
-              <Line yAxisId="percent" dataKey="availabilityTarget" name="Availability Target" stroke="#ff6600" strokeWidth={3} strokeDasharray="5 5" dot={false} isAnimationActive={false} />
-            </ComposedChart>
-          </ChartBox>
+          <div className={styles.overallChartCell}>
+            <ChartBox overall>
+              <ComposedChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="hour" interval={3} tick={{ fontSize: 10 }} />
+                <YAxis yAxisId="qty" width={34} tick={{ fontSize: 10 }} />
+                <YAxis yAxisId="accum" orientation="right" width={42} tick={{ fontSize: 10 }} />
+                <Tooltip />
+                <Bar yAxisId="qty" dataKey="output" name="Output Actual" fill="#00b050" isAnimationActive={false} />
+                <Line yAxisId="qty" dataKey="target" name="Output Target" stroke="#385723" strokeWidth={3} strokeDasharray="5 5" dot={false} isAnimationActive={false} />
+                <Line yAxisId="accum" dataKey="accum" name="Output Accum" stroke="#c00000" strokeWidth={2} isAnimationActive={false} />
+                <Line yAxisId="accum" dataKey="targetAccum" name="Output Target Accum" stroke="#f062b0" strokeWidth={3} strokeDasharray="5 5" dot={false} isAnimationActive={false} />
+              </ComposedChart>
+            </ChartBox>
+            <ChartLegend items={[
+              ["Output Actual", "#00b050"],
+              ["Output Target", "#385723"],
+              ["Output Accum", "#c00000"],
+              ["Target Accum", "#f062b0"]
+            ]} />
+          </div>
+          <div className={styles.overallChartCell}>
+            <ChartBox overall>
+              <ComposedChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="hour" interval={3} tick={{ fontSize: 10 }} />
+                <YAxis yAxisId="ct" width={32} tick={{ fontSize: 10 }} />
+                <YAxis yAxisId="percent" orientation="right" width={34} domain={[0, 120]} tick={{ fontSize: 10 }} />
+                <Tooltip />
+                <Bar yAxisId="ct" dataKey="ct" name="Cycle Time Actual" fill="#5b9bd5" isAnimationActive={false} />
+                <Line yAxisId="ct" dataKey="ctTarget" name="Cycle Time Target" stroke="#203864" strokeWidth={3} strokeDasharray="5 5" dot={false} isAnimationActive={false} />
+                <Line yAxisId="percent" dataKey="availability" name="Availability Actual" stroke="#02630f" strokeWidth={2} isAnimationActive={false} />
+                <Line yAxisId="percent" dataKey="availabilityTarget" name="Availability Target" stroke="#ff6600" strokeWidth={3} strokeDasharray="5 5" dot={false} isAnimationActive={false} />
+              </ComposedChart>
+            </ChartBox>
+            <ChartLegend items={[
+              ["CT Actual", "#5b9bd5"],
+              ["CT Target", "#203864"],
+              ["Avail Actual", "#02630f"],
+              ["Avail Target", "#ff6600"]
+            ]} />
+          </div>
         </div>
       ) : (
         <div className={styles.overallStatusBlock}>
@@ -648,7 +792,7 @@ function OverallMachineCard({ activeTab, date, machine }) {
             <BarChart data={downtimeBreakdown}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="status" tick={{ fontSize: 10 }} />
-              <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} width={30} tick={{ fontSize: 10 }} />
+              <YAxis width={30} tick={{ fontSize: 10 }} />
               <Tooltip />
               <Bar dataKey="percent" name="Downtime %" fill="#64748b" isAnimationActive={false}>
                 {downtimeBreakdown.map((entry) => <Cell key={entry.status} fill={entry.fill} />)}
@@ -751,9 +895,26 @@ function MachineWorkingView() {
 
 function TabButton({ active, children, onClick }) {
   return (
-    <button className={classNames(styles.chartTabButton, active && styles.chartTabButtonActive)} onClick={onClick} type="button">
+    <button
+      className={active ? styles.chartTabButtonActive : styles.chartTabButton}
+      onClick={onClick}
+      type="button"
+    >
       {children}
     </button>
+  );
+}
+
+function ChartLegend({ items }) {
+  return (
+    <div className={styles.overallChartLegend}>
+      {items.map(([label, color]) => (
+        <span key={label}>
+          <i style={{ backgroundColor: color }} />
+          {label}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -776,7 +937,7 @@ function MachineStatusTimeline() {
               key={`${segment.start}-${segment.label}`}
               onMouseEnter={() => setHovered({ ...segment, left })}
               onMouseLeave={() => setHovered(null)}
-              style={{ "--status": statusColors[segment.status], flexGrow: segment.percent }}
+              style={{ ...statusFillStyle(segment.status), flexGrow: segment.percent }}
               title={`${segment.label} ${segment.start} - ${segment.end}`}
             >
               <span aria-hidden="true" />
@@ -793,7 +954,7 @@ function MachineStatusTimeline() {
       </div>
       <div className={styles.statusLegend}>
         {mmsStatusLegend.map((item) => (
-          <span key={item.status}><i style={{ "--status": statusColors[item.status] }} />{item.label}</span>
+          <span key={item.status}><i style={statusFillStyle(item.status)} />{item.label}</span>
         ))}
       </div>
     </div>
@@ -826,6 +987,64 @@ function getMachineWorkingMetrics(machine) {
   };
 }
 
+function OverallMachineHeader({ date = "2026-05-13", machine }) {
+  const metrics = getMachineWorkingMetrics(machine);
+  const kpis = [
+    ["Date", formatCardDate(date), ""],
+    ["Output", `${metrics.totalOutput}/${metrics.target}`, ""],
+    ["OK / NG", `${metrics.okQty}/${metrics.ngQty}`, ""],
+    ["Cycle Time", `${metrics.cycleTime}s`, ""]
+  ];
+
+  return (
+    <div className={styles.overallMiniHeader}>
+      <div className={styles.overallMiniOperator}>
+        <img alt="Operator OP-014" src={operatorAvatar} />
+        <span>
+          <small>Operator</small>
+          <strong>OP-014</strong>
+          <b>Somchai W.</b>
+        </span>
+      </div>
+      <div className={styles.overallMiniCenter}>
+        <div className={styles.overallMiniTopLine}>
+          <span className={styles.overallMiniMachineBlock}>
+            <small>Machine</small>
+            <strong>{machine.name || machine.machineNo}</strong>
+          </span>
+          <div className={styles.overallMiniMeta}>
+            <span>Status <b className={styles.overallMiniStatusPill}>{metrics.mmsStatus}</b></span>
+          </div>
+        </div>
+        <div className={styles.overallMiniKpiGrid}>
+          {kpis.map(([label, value, detail]) => (
+            <MiniKpi detail={detail} key={label} label={label} value={value} />
+          ))}
+        </div>
+      </div>
+      <div className={styles.overallMiniOee}>
+        <small>OEE</small>
+        <strong>{metrics.oee}%</strong>
+        <b>{metrics.availability}/{metrics.performance}/{metrics.quality}</b>
+      </div>
+    </div>
+  );
+}
+
+function MiniKpi({ detail, label, value }) {
+  return (
+    <div className={styles.overallMiniKpi}>
+      <small>{label}</small>
+      <strong>{detail ? `${value} ${detail}` : value}</strong>
+    </div>
+  );
+}
+
+function formatCardDate(value) {
+  const [year, month, day] = String(value || "").split("-");
+  return month && day ? `${month}/${day}` : value;
+}
+
 function getMachineHourlyData(machine) {
   const ratio = Math.max(0.55, Math.min(1.35, (machine.output || 720) / 766));
   return hourly.map((row, index, rows) => {
@@ -853,9 +1072,9 @@ function MachineWorkingHeader({ compact = false, date = "2026-05-13", machine })
   const metrics = getMachineWorkingMetrics(machine);
 
   return (
-      <div className={classNames(styles.machineSummaryTable, compact && styles.machineSummaryTableCompact)}>
+      <div className={compact ? styles.machineSummaryTableCompact : styles.machineSummaryTable}>
         <div className={classNames(styles.summaryCell, styles.operatorCell, styles.summaryTallCell)}>
-          <img alt="Operator OP-014" src={operatorAvatar} />
+          <img alt="Operator OP-014" className="operator-avatar" src={operatorAvatar} />
           <span>
             <small>Operator</small>
             <strong>OP-014</strong>
@@ -938,17 +1157,17 @@ function MonthlyReportView() {
 
 function MachineTile({ machine }) {
   return (
-    <article className={styles.machineTile} style={{ "--status": statusColors[machine.status] || statusColors.STOP }}>
+    <article className={styles.machineTile} style={{ borderLeftColor: statusColors[machine.status] || statusColors.STOP }}>
       <strong>{machine.name}</strong>
       <small>{machine.area}</small>
-      <span className={styles.statusBadge} style={{ "--status": statusColors[machine.status] || statusColors.STOP }}>{machine.status}</span>
+      <span className={styles.statusBadge} style={statusBadgeStyle(machine.status)}>{machine.status}</span>
     </article>
   );
 }
 
 function StatusBadge({ status }) {
   return (
-    <span className={styles.statusBadge} style={{ "--status": statusColors[status] || statusColors.STOP }}>
+    <span className={styles.statusBadge} style={statusBadgeStyle(status)}>
       {status}
     </span>
   );
@@ -963,7 +1182,7 @@ function MachineTable({ rows }) {
           <tbody>
             {rows.map((row, index) => (
               <tr key={row.name}>
-                <td>{index + 1}</td><td>{row.name}</td><td>{row.area}</td><td><span className={styles.statusBadge} style={{ "--status": statusColors[row.status] }}>{row.status}</span></td><td>{row.output}</td><td>{row.ng}</td><td>{row.ct}s</td><td>{row.oee}%</td>
+                <td>{index + 1}</td><td>{row.name}</td><td>{row.area}</td><td><span className={styles.statusBadge} style={statusBadgeStyle(row.status)}>{row.status}</span></td><td>{row.output}</td><td>{row.ng}</td><td>{row.ct}s</td><td>{row.oee}%</td>
               </tr>
             ))}
           </tbody>
@@ -995,7 +1214,7 @@ function Timeline() {
     ["13:15", "JOB", "00:35"],
     ["13:50", "RUN", "02:10"]
   ];
-  return <div className={styles.timeline}>{rows.map(([time, status, duration]) => <div className={styles.timelineRow} key={`${time}-${status}`}><b>{time}</b><div className={styles.timelineBar} style={{ "--status": statusColors[status] }} /><span>{duration}</span></div>)}</div>;
+  return <div className={styles.timeline}>{rows.map(([time, status, duration]) => <div className={styles.timelineRow} key={`${time}-${status}`}><b>{time}</b><div className={styles.timelineBar} style={statusFillStyle(status)} /><span>{duration}</span></div>)}</div>;
 }
 
 function Panel({ title, meta, children }) {
@@ -1028,7 +1247,7 @@ function ChartBox({ children, compact = false, overall = false, tall = false }) 
   }, []);
 
   return (
-    <div className={classNames(styles.chartBox, compact && styles.chartBoxCompact, overall && styles.chartBoxOverall, tall && styles.chartBoxTall)} ref={chartRef}>
+    <div className={classNames(overall ? styles.chartBoxOverall : styles.chartBox, compact && styles.chartBoxCompact, tall && styles.chartBoxTall)} ref={chartRef}>
       {size ? cloneElement(children, { height: size.height, width: size.width }) : null}
     </div>
   );
