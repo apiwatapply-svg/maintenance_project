@@ -1,4 +1,5 @@
 const { Server } = require("socket.io");
+const { mmsSocketEvents } = require("./config/mmsSimulationConfig");
 
 const sectionRooms = {
   production: "production_room",
@@ -41,6 +42,23 @@ function createSocketServer(httpServer) {
 
     socket.on("realtime:leave", ({ feature, scope } = {}) => {
       socket.leave(getFeatureRoom(feature, scope));
+    });
+
+    Object.values(mmsSocketEvents).forEach((eventName) => {
+      socket.on(eventName, (payload = {}) => {
+        const machineNo = payload.machineNo || payload.machine_no || "unknown";
+        const areaScope = payload.area || "all";
+        const enrichedPayload = {
+          ...payload,
+          feature: "mms",
+          machineNo,
+          timestampUtc: payload.timestampUtc || new Date().toISOString()
+        };
+
+        io.to(getFeatureRoom("mms", "all")).emit(eventName, enrichedPayload);
+        io.to(getFeatureRoom("mms", machineNo)).emit(eventName, enrichedPayload);
+        io.to(getFeatureRoom("mms", areaScope)).emit(eventName, enrichedPayload);
+      });
     });
   });
 

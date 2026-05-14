@@ -21,7 +21,10 @@ let poolPromise;
 
 function getPool() {
   if (!poolPromise) {
-    poolPromise = sql.connect(dbConfig);
+    poolPromise = sql.connect(dbConfig).catch((error) => {
+      poolPromise = null;
+      throw error;
+    });
   }
 
   return poolPromise;

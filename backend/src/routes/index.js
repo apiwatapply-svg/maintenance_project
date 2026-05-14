@@ -3,6 +3,7 @@ const adminRoutes = require("./adminRoutes");
 const authRoutes = require("./authRoutes");
 const healthRoutes = require("./healthRoutes");
 const jobRequestRoutes = require("./jobRequestRoutes");
+const mmsRoutes = require("./mmsRoutes");
 const preventiveRoutes = require("./preventiveRoutes");
 const toolingRoutes = require("./toolingRoutes");
 
@@ -12,6 +13,7 @@ router.use("/admin", adminRoutes);
 router.use("/auth", authRoutes);
 router.use("/health", healthRoutes);
 router.use("/job-requests", jobRequestRoutes);
+router.use("/mms", mmsRoutes);
 router.use("/preventive", preventiveRoutes);
 router.use("/tooling", toolingRoutes);
 
