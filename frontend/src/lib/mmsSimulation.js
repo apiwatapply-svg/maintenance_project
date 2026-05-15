@@ -116,6 +116,100 @@ export function buildMmsPayload(machine, now = new Date()) {
   };
 }
 
+function hasPayloadField(payload = {}, key) {
+  return Object.prototype.hasOwnProperty.call(payload, key);
+}
+
+function getPayloadValue(payload = {}, ...keys) {
+  const key = keys.find((candidate) => hasPayloadField(payload, candidate));
+  return key ? payload[key] : undefined;
+}
+
+function getPayloadNumber(payload = {}, fallback, ...keys) {
+  const value = getPayloadValue(payload, ...keys);
+  if (value === undefined || value === null || value === "") return fallback;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function getPayloadBoolean(value) {
+  if (typeof value === "string") {
+    return ["1", "true", "yes", "on"].includes(value.toLowerCase());
+  }
+
+  return Boolean(value);
+}
+
+export function applyMmsRealtimePayloadToMachine(machine = {}, payload = {}) {
+  const payloadMachineNo = payload.machineNo || payload.machine_no || payload.name;
+  const currentMachineNo = machine.machineNo || machine.machine_no || machine.name;
+
+  if (!payloadMachineNo || payloadMachineNo !== currentMachineNo) {
+    return machine;
+  }
+
+  const next = { ...machine };
+  const plcStatus = getPayloadValue(payload, "plcStatus", "plc_status");
+  const effectiveStatus = getPayloadValue(payload, "effectiveStatus", "effective_status", "status");
+  const simMachineAlarm = getPayloadValue(payload, "simMachineAlarm", "sim_machine_alarm");
+
+  if (plcStatus !== undefined) {
+    next.plcStatus = normalizeMmsStatus(plcStatus);
+  } else if (effectiveStatus !== undefined && effectiveStatus !== "ALARM") {
+    next.plcStatus = normalizeMmsStatus(effectiveStatus);
+  }
+
+  if (simMachineAlarm !== undefined) {
+    next.simMachineAlarm = getPayloadBoolean(simMachineAlarm);
+  }
+
+  if (effectiveStatus !== undefined || simMachineAlarm !== undefined || plcStatus !== undefined) {
+    next.status = next.simMachineAlarm ? "ALARM" : normalizeMmsStatus(effectiveStatus || next.plcStatus);
+  }
+
+  next.outputOk = getPayloadNumber(payload, Number(next.outputOk ?? next.output ?? 0), "outputOk", "output_ok");
+  next.outputNg = getPayloadNumber(payload, Number(next.outputNg ?? next.ng ?? 0), "outputNg", "output_ng", "ng");
+  next.output = getPayloadNumber(payload, next.outputOk + next.outputNg, "output");
+  next.ng = next.outputNg;
+  next.cycleTime = getPayloadNumber(payload, Number(next.cycleTime ?? next.ct ?? 0), "cycleTime", "cycle_time_sec", "ct");
+  next.ct = next.cycleTime;
+
+  const model = getPayloadValue(payload, "model", "modelName", "model_name");
+  if (model !== undefined) next.model = model || next.model;
+
+  const alarmName = getPayloadValue(payload, "alarmName", "alarm_name");
+  if (alarmName !== undefined) next.alarmName = alarmName || "";
+
+  const canProduceOutputValue = getPayloadValue(payload, "canProduceOutput", "can_produce_output");
+  if (canProduceOutputValue !== undefined) {
+    next.canProduceOutput = getPayloadBoolean(canProduceOutputValue);
+  }
+
+  const jobRequestActive = getPayloadValue(payload, "jobRequestActive", "job_request_active");
+  if (jobRequestActive !== undefined) next.jobRequestActive = getPayloadBoolean(jobRequestActive);
+
+  const activeJobNo = getPayloadValue(payload, "activeJobNo", "active_job_no", "jobNo", "job_no");
+  if (activeJobNo !== undefined) {
+    next.activeJobNo = activeJobNo || null;
+    next.jobNo = activeJobNo || null;
+  }
+
+  const activeJobStatus = getPayloadValue(payload, "activeJobStatus", "active_job_status", "jobStatus", "job_status");
+  if (activeJobStatus !== undefined) next.activeJobStatus = activeJobStatus || null;
+
+  const eventStatus = getPayloadValue(payload, "eventStatus", "event_status");
+  if (eventStatus !== undefined) next.eventStatus = eventStatus || "NONE";
+
+  const timestampUtc = getPayloadValue(payload, "timestampUtc", "timestamp_utc");
+  if (timestampUtc !== undefined) next.lastRealtimeAt = timestampUtc;
+
+  return next;
+}
+
+export function applyMmsRealtimePayloadToMachines(machines = [], payload = {}) {
+  return machines.map((machine) => applyMmsRealtimePayloadToMachine(machine, payload));
+}
+
 export function hydrateMmsMachine(machine, index = 0) {
   return {
     ...machine,

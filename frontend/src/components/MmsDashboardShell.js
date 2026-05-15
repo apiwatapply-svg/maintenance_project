@@ -16,6 +16,7 @@ import {
   YAxis
 } from "recharts";
 import {
+  applyMmsRealtimePayloadToMachines,
   buildMmsGraphReportSeries,
   buildMmsLayoutMachineState,
   buildMmsMachineTypeSummary,
@@ -157,7 +158,9 @@ function normalizeBackendMmsMachine(machine = {}, index = 0) {
   const outputNg = Number(machine.outputNg ?? machine.output_ng ?? machine.ng ?? 0);
   const output = Number(machine.output ?? outputOk + outputNg);
   const machineType = machine.machineType || machine.machine_type || machine.type || machine.machineTypeCode || machine.machine_type_code || machineNo.split("-")[0] || "Unknown";
-  const plcStatus = machine.plcStatus || machine.plc_status || machine.status || "RUN";
+  const simMachineAlarm = Boolean(machine.simMachineAlarm ?? machine.sim_machine_alarm);
+  const plcStatus = machine.plcStatus || machine.plc_status || machine.latest_status || machine.status || "RUN";
+  const effectiveStatus = machine.effectiveStatus || machine.effective_status || (simMachineAlarm ? "ALARM" : plcStatus);
 
   return {
     ...machine,
@@ -166,8 +169,9 @@ function normalizeBackendMmsMachine(machine = {}, index = 0) {
     area: machine.area || machine.areaName || "Unassigned",
     machineType,
     type: machine.type || machineType,
-    status: machine.simMachineAlarm ? "ALARM" : plcStatus === "WAIT_PART" ? "WAIT" : plcStatus,
+    status: simMachineAlarm ? "ALARM" : effectiveStatus === "WAIT_PART" ? "WAIT" : effectiveStatus,
     plcStatus,
+    effectiveStatus,
     output,
     outputOk,
     outputNg,
@@ -180,7 +184,10 @@ function normalizeBackendMmsMachine(machine = {}, index = 0) {
     responsible: machine.responsible || machine.activeJobNo || (machine.jobRequestActive ? "Job Request" : "Machine master"),
     jobNo: machine.jobNo || machine.activeJobNo || null,
     jobRequestActive: Boolean(machine.jobRequestActive || machine.activeJobNo || machine.activeJobStatus),
-    model: machine.model || "MODEL-A"
+    model: machine.model || "MODEL-A",
+    simMachineAlarm,
+    alarmName: machine.alarmName || machine.alarm_name || "",
+    canProduceOutput: machine.canProduceOutput ?? machine.can_produce_output
   };
 }
 
@@ -518,6 +525,7 @@ export default function MmsDashboardShell({ view = "overview" }) {
   const [collapsed, setCollapsed] = useState(false);
   const [backendMachines, setBackendMachines] = useState([]);
   const [realtimeRefreshKey, setRealtimeRefreshKey] = useState(0);
+  const reportRefreshTimerRef = useRef(null);
   const activeView = getMmsDashboardViewKey(view);
   const title = getTitle(activeView);
   const backHref = activeView === "overview" ? "/" : "/mms-dashboard";
@@ -550,12 +558,30 @@ export default function MmsDashboardShell({ view = "overview" }) {
   }, []);
 
   useEffect(() => {
-    const socket = createMmsSocket(() => {
+    function scheduleReportRefresh() {
+      if (reportRefreshTimerRef.current) return;
+      reportRefreshTimerRef.current = window.setTimeout(() => {
+        setRealtimeRefreshKey((current) => current + 1);
+        reportRefreshTimerRef.current = null;
+      }, 750);
+    }
+
+    const socket = createMmsSocket(({ payload, source } = {}) => {
+      if (source === "mms") {
+        setBackendMachines((current) => applyMmsRealtimePayloadToMachines(current, payload).map(normalizeBackendMmsMachine));
+        scheduleReportRefresh();
+        return;
+      }
+
       loadDashboardMachines();
-      setRealtimeRefreshKey((current) => current + 1);
+      scheduleReportRefresh();
     });
 
     return () => {
+      if (reportRefreshTimerRef.current) {
+        window.clearTimeout(reportRefreshTimerRef.current);
+        reportRefreshTimerRef.current = null;
+      }
       socket.emit("realtime:leave", { feature: "mms", scope: "all" });
       socket.emit("realtime:leave", { feature: "job-request", scope: "all" });
       socket.disconnect();

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  applyMmsRealtimePayloadToMachine,
+  applyMmsRealtimePayloadToMachines,
   buildMmsPayload,
   buildMmsLayoutMachineState,
   buildMmsGraphReportSeries,
@@ -30,7 +32,7 @@ import {
   mmsAlarmNames,
   summarizeMmsAreas
 } from "../src/lib/mmsSimulation.js";
-import { mmsRealtimeJobRequestEvents } from "../src/lib/mmsRealtime.js";
+import { isMmsRealtimeEvent, mmsRealtimeJobRequestEvents } from "../src/lib/mmsRealtime.js";
 
 test("mms simulation separates base status buttons from panel status buttons", () => {
   assert.deepEqual(mmsBaseControlStatuses, ["RUN", "WAIT_PART", "BRAKE_TIME", "PLAN_STOP", "WARM_UP", "STOP"]);
@@ -115,6 +117,67 @@ test("mms realtime listens to job request events that change active machine over
   assert.ok(mmsRealtimeJobRequestEvents.includes("job_handover_created"));
   assert.ok(mmsRealtimeJobRequestEvents.includes("job_completed"));
   assert.ok(mmsRealtimeJobRequestEvents.includes("job_request_updated"));
+});
+
+test("mms realtime identifies native MMS telemetry events", () => {
+  assert.equal(isMmsRealtimeEvent("mms:machine-output-changed"), true);
+  assert.equal(isMmsRealtimeEvent("job_request_updated"), false);
+});
+
+test("mms realtime payload merge updates all telemetry values for the matching machine only", () => {
+  const machines = [
+    { machineNo: "PNL-A-001", plcStatus: "RUN", outputOk: 10, outputNg: 1, cycleTime: 3, model: "MODEL-A" },
+    { machineNo: "PNL-A-002", plcStatus: "RUN", outputOk: 20, outputNg: 2, cycleTime: 4, model: "MODEL-B" }
+  ];
+  const updated = applyMmsRealtimePayloadToMachines(machines, {
+    activeJobNo: "JOB-20260516-001",
+    activeJobStatus: "WAIT_MM",
+    alarmName: "Servo alarm",
+    canProduceOutput: "false",
+    cycleTime: 5.5,
+    eventStatus: "WAIT_MM",
+    machineNo: "PNL-A-001",
+    model: "MODEL-D",
+    outputNg: 7,
+    outputOk: 123,
+    plcStatus: "MM_REPAIR",
+    simMachineAlarm: true,
+    timestampUtc: "2026-05-16T01:00:00.000Z"
+  });
+
+  assert.equal(updated[0].outputOk, 123);
+  assert.equal(updated[0].outputNg, 7);
+  assert.equal(updated[0].cycleTime, 5.5);
+  assert.equal(updated[0].model, "MODEL-D");
+  assert.equal(updated[0].plcStatus, "MM_REPAIR");
+  assert.equal(updated[0].status, "ALARM");
+  assert.equal(updated[0].simMachineAlarm, true);
+  assert.equal(updated[0].canProduceOutput, false);
+  assert.equal(updated[0].activeJobNo, "JOB-20260516-001");
+  assert.equal(updated[0].activeJobStatus, "WAIT_MM");
+  assert.equal(updated[0].eventStatus, "WAIT_MM");
+  assert.equal(updated[0].lastRealtimeAt, "2026-05-16T01:00:00.000Z");
+  assert.equal(updated[1], machines[1]);
+});
+
+test("mms realtime payload merge leaves existing values when partial status payload arrives", () => {
+  const machine = applyMmsRealtimePayloadToMachine({
+    machineNo: "PNL-A-001",
+    outputOk: 10,
+    outputNg: 1,
+    cycleTime: 3,
+    model: "MODEL-A",
+    plcStatus: "RUN"
+  }, {
+    machineNo: "PNL-A-001",
+    plcStatus: "STOP"
+  });
+
+  assert.equal(machine.outputOk, 10);
+  assert.equal(machine.outputNg, 1);
+  assert.equal(machine.cycleTime, 3);
+  assert.equal(machine.model, "MODEL-A");
+  assert.equal(machine.plcStatus, "STOP");
 });
 
 test("mms hydrate defaults from backend MSSQL rows without frontend machine mocks", () => {

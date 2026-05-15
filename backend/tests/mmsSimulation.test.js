@@ -14,6 +14,7 @@ const {
   normalizeMachineStatus
 } = require("../src/config/mmsSimulationConfig");
 const { getCurrentMmsWorkDate, getMmsHourSort, getMmsWorkSlot, mapMachine, mapMmsRealtimePayloadToHourlyRow } = require("../src/repositories/mmsRepository");
+const { createMmsHourlyBuffer, flushClosedMmsHourlyBuffers, getMmsHourlyBufferKey, queueMmsHourlyPayload } = require("../src/socket");
 
 test("mms simulation statuses include production and stop states", () => {
   assert.deepEqual(mmsMachineStatuses, [
@@ -91,6 +92,73 @@ test("mms repository maps realtime socket payload into current local working slo
   assert.equal(row.target_output, 900);
   assert.equal(row.status, "RUN");
   assert.equal(row.work_date, "2026-05-15");
+});
+
+test("mms socket buffers live telemetry and flushes the closed hour to MSSQL writer", async () => {
+  const buffer = createMmsHourlyBuffer();
+  const flushed = [];
+  const flushFn = async (payload, _now, slot) => {
+    flushed.push({ payload, slot });
+    return { payload, slot };
+  };
+
+  await queueMmsHourlyPayload(
+    { machineNo: "PNL-A-001", outputOk: 10, outputNg: 1, plcStatus: "RUN" },
+    new Date("2026-05-16T00:30:00.000Z"),
+    { buffer, flushFn }
+  );
+  await queueMmsHourlyPayload(
+    { machineNo: "PNL-A-001", outputOk: 15, outputNg: 2, plcStatus: "RUN", model: "MODEL-D" },
+    new Date("2026-05-16T00:45:00.000Z"),
+    { buffer, flushFn }
+  );
+
+  assert.equal(flushed.length, 0);
+  assert.equal(buffer.size, 1);
+
+  await queueMmsHourlyPayload(
+    { machineNo: "PNL-A-001", outputOk: 20, outputNg: 3, plcStatus: "RUN" },
+    new Date("2026-05-16T01:00:00.000Z"),
+    { buffer, flushFn }
+  );
+
+  assert.equal(flushed.length, 1);
+  assert.deepEqual(flushed[0].slot, { hourLabel: "07:00", shiftCode: "A", workDate: "2026-05-16" });
+  assert.equal(flushed[0].payload.outputOk, 15);
+  assert.equal(flushed[0].payload.outputNg, 2);
+  assert.equal(flushed[0].payload.model, "MODEL-D");
+  assert.equal(buffer.size, 1);
+});
+
+test("mms socket periodic flush writes only closed hourly buffers", async () => {
+  const buffer = createMmsHourlyBuffer();
+  const flushed = [];
+  const flushFn = async (payload, _now, slot) => {
+    flushed.push({ payload, slot });
+    return { payload, slot };
+  };
+  const activeSlot = getMmsWorkSlot(new Date("2026-05-16T01:05:00.000Z"));
+  const closedSlot = getMmsWorkSlot(new Date("2026-05-16T00:55:00.000Z"));
+
+  buffer.set(getMmsHourlyBufferKey("PNL-A-001", closedSlot), {
+    machineNo: "PNL-A-001",
+    payload: { machineNo: "PNL-A-001", outputOk: 50 },
+    slot: closedSlot,
+    updatedAt: new Date("2026-05-16T00:55:00.000Z")
+  });
+  buffer.set(getMmsHourlyBufferKey("PNL-A-002", activeSlot), {
+    machineNo: "PNL-A-002",
+    payload: { machineNo: "PNL-A-002", outputOk: 80 },
+    slot: activeSlot,
+    updatedAt: new Date("2026-05-16T01:05:00.000Z")
+  });
+
+  await flushClosedMmsHourlyBuffers(new Date("2026-05-16T01:05:00.000Z"), { buffer, flushFn });
+
+  assert.equal(flushed.length, 1);
+  assert.equal(flushed[0].payload.machineNo, "PNL-A-001");
+  assert.equal(buffer.size, 1);
+  assert.equal(buffer.values().next().value.machineNo, "PNL-A-002");
 });
 
 test("mms simulation list uses the 07:00 working day before local morning rollover", () => {

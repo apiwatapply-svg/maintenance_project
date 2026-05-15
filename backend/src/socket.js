@@ -1,6 +1,6 @@
 const { Server } = require("socket.io");
 const { mmsSocketEvents } = require("./config/mmsSimulationConfig");
-const { upsertMmsRealtimePayload } = require("./repositories/mmsRepository");
+const { getMmsWorkSlot, upsertMmsRealtimePayload } = require("./repositories/mmsRepository");
 
 const sectionRooms = {
   production: "production_room",
@@ -10,6 +10,69 @@ const sectionRooms = {
 
 function getFeatureRoom(feature, scope = "all") {
   return `${String(feature || "system").toLowerCase()}:${String(scope || "all").toLowerCase()}`;
+}
+
+const defaultMmsHourlyBuffer = new Map();
+
+function createMmsHourlyBuffer() {
+  return new Map();
+}
+
+function getMmsHourlyBufferKey(machineNo, slot = {}) {
+  return `${slot.workDate || ""}|${slot.hourLabel || ""}|${machineNo || ""}`;
+}
+
+async function flushMmsHourlyEntry(entry, flushFn = upsertMmsRealtimePayload) {
+  if (!entry?.payload || !entry?.slot) return null;
+  return flushFn(entry.payload, entry.updatedAt || new Date(), entry.slot);
+}
+
+async function queueMmsHourlyPayload(payload = {}, now = new Date(), options = {}) {
+  const machineNo = payload.machineNo || payload.machine_no;
+  if (!machineNo) return [];
+
+  const buffer = options.buffer || defaultMmsHourlyBuffer;
+  const flushFn = options.flushFn || upsertMmsRealtimePayload;
+  const slot = getMmsWorkSlot(now);
+  const activeKey = getMmsHourlyBufferKey(machineNo, slot);
+  const entriesToFlush = [];
+
+  for (const [key, entry] of buffer.entries()) {
+    if (entry.machineNo === machineNo && key !== activeKey) {
+      entriesToFlush.push(entry);
+      buffer.delete(key);
+    }
+  }
+
+  const existing = buffer.get(activeKey);
+  buffer.set(activeKey, {
+    firstSeenAt: existing?.firstSeenAt || now,
+    machineNo,
+    payload: {
+      ...(existing?.payload || {}),
+      ...payload
+    },
+    slot,
+    updatedAt: now
+  });
+
+  return Promise.all(entriesToFlush.map((entry) => flushMmsHourlyEntry(entry, flushFn)));
+}
+
+async function flushClosedMmsHourlyBuffers(now = new Date(), options = {}) {
+  const buffer = options.buffer || defaultMmsHourlyBuffer;
+  const flushFn = options.flushFn || upsertMmsRealtimePayload;
+  const activeSlot = getMmsWorkSlot(now);
+  const entriesToFlush = [];
+
+  for (const [key, entry] of buffer.entries()) {
+    if (getMmsHourlyBufferKey(entry.machineNo, activeSlot) !== key) {
+      entriesToFlush.push(entry);
+      buffer.delete(key);
+    }
+  }
+
+  return Promise.all(entriesToFlush.map((entry) => flushMmsHourlyEntry(entry, flushFn)));
 }
 
 function createSocketServer(httpServer) {
@@ -57,22 +120,31 @@ function createSocketServer(httpServer) {
           timestampUtc
         };
 
-        try {
-          await upsertMmsRealtimePayload(enrichedPayload, new Date(timestampUtc));
-        } catch (error) {
+        io.to(getFeatureRoom("mms", "all")).emit(eventName, enrichedPayload);
+        io.to(getFeatureRoom("mms", machineNo)).emit(eventName, enrichedPayload);
+        io.to(getFeatureRoom("mms", areaScope)).emit(eventName, enrichedPayload);
+
+        queueMmsHourlyPayload(enrichedPayload, new Date(timestampUtc)).catch((error) => {
           socket.emit("mms:persist-error", {
             eventName,
             machineNo,
             message: error.message
           });
-          return;
-        }
-
-        io.to(getFeatureRoom("mms", "all")).emit(eventName, enrichedPayload);
-        io.to(getFeatureRoom("mms", machineNo)).emit(eventName, enrichedPayload);
-        io.to(getFeatureRoom("mms", areaScope)).emit(eventName, enrichedPayload);
+        });
       });
     });
+  });
+
+  const flushTimer = setInterval(() => {
+    flushClosedMmsHourlyBuffers().catch(() => {});
+  }, 60 * 1000);
+
+  if (typeof flushTimer.unref === "function") {
+    flushTimer.unref();
+  }
+
+  httpServer.on("close", () => {
+    clearInterval(flushTimer);
   });
 
   return io;
@@ -99,9 +171,13 @@ function emitRealtimeEvent(io, { feature, scopes = ["all"], event, payload = {} 
 }
 
 module.exports = {
+  createMmsHourlyBuffer,
   createSocketServer,
   emitJobRequestEvent,
   emitRealtimeEvent,
+  flushClosedMmsHourlyBuffers,
   getFeatureRoom,
+  getMmsHourlyBufferKey,
+  queueMmsHourlyPayload,
   sectionRooms
 };

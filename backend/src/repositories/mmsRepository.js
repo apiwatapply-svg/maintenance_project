@@ -382,14 +382,14 @@ async function listMmsReport(query = {}) {
   };
 }
 
-async function upsertMmsRealtimePayload(payload = {}, now = new Date()) {
+async function upsertMmsRealtimePayload(payload = {}, now = new Date(), slotOverride = null) {
   const machineNo = payload.machineNo || payload.machine_no;
   if (!machineNo) return null;
 
   const pool = await getPool();
   await ensureMmsReportSchema(pool);
 
-  const slot = getMmsWorkSlot(now);
+  const slot = slotOverride || getMmsWorkSlot(now);
   const row = mapMmsRealtimePayloadToHourlyRow(payload, slot);
   const hourSortSql = getMmsHourSortSql("tb_mms_machine_hourly");
   const totals = await pool.request()

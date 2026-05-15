@@ -6,6 +6,7 @@ import AppFooter from "@/components/AppFooter";
 import SearchableDropdown from "@/components/SearchableDropdown";
 import api from "@/lib/api";
 import {
+  applyMmsRealtimePayloadToMachines,
   buildMmsPayload,
   canMmsMachineProduce,
   getMmsEffectiveStatus,
@@ -162,7 +163,12 @@ export default function MmsSimulationShell() {
   }, []);
 
   useEffect(() => {
-    const socket = createMmsSocket(() => {
+    const socket = createMmsSocket(({ payload, source } = {}) => {
+      if (source === "mms") {
+        setMachines((current) => applyMmsRealtimePayloadToMachines(current, payload));
+        return;
+      }
+
       loadMachines();
     });
     socketRef.current = socket;

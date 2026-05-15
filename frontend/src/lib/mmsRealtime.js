@@ -6,6 +6,10 @@ function getSocketBaseUrl() {
   return (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "");
 }
 
+export function isMmsRealtimeEvent(eventName) {
+  return Object.values(mmsSocketEvents).includes(eventName);
+}
+
 export function createMmsSocket(onJobRequestEvent) {
   const socket = io(getSocketBaseUrl(), {
     transports: ["websocket", "polling"]
@@ -17,11 +21,11 @@ export function createMmsSocket(onJobRequestEvent) {
   });
 
   mmsRealtimeJobRequestEvents.forEach((eventName) => {
-    socket.on(eventName, (payload) => onJobRequestEvent?.({ eventName, payload }));
+    socket.on(eventName, (payload) => onJobRequestEvent?.({ eventName, payload, source: "job-request" }));
   });
 
   Object.values(mmsSocketEvents).forEach((eventName) => {
-    socket.on(eventName, (payload) => onJobRequestEvent?.({ eventName, payload }));
+    socket.on(eventName, (payload) => onJobRequestEvent?.({ eventName, payload, source: "mms" }));
   });
 
   return socket;
