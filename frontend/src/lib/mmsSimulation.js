@@ -263,6 +263,27 @@ export function buildMmsOverviewSummary(machines = []) {
   };
 }
 
+export function buildMmsAreaPanelSummary(machines = []) {
+  return machines.reduce((summary, machine) => {
+    const state = machine.layoutState || buildMmsLayoutMachineState(machine);
+    const canProduceOutput = state.canProduceOutput ?? canMmsMachineProduce(machine);
+
+    summary.total += 1;
+    if (state.mmsStatus === "RUN") summary.running += 1;
+    if (state.mmsStatus === "ALARM") summary.alarm += 1;
+    if (state.hasJob) summary.activeJobs += 1;
+    if (!canProduceOutput) summary.outputBlocked += 1;
+
+    return summary;
+  }, {
+    activeJobs: 0,
+    alarm: 0,
+    outputBlocked: 0,
+    running: 0,
+    total: 0
+  });
+}
+
 export function getDefaultMmsReportFilters(defaultPeriod = "monthly") {
   return {
     area: "All",
@@ -502,6 +523,7 @@ export function buildMmsLayoutMachineState(machine = {}) {
     mmsStatus,
     jobStatus,
     responsible,
+    canProduceOutput: canMmsMachineProduce(machine),
     hasJob: jobStatus !== "NONE",
     needsAttention: mmsStatus !== "RUN" || jobStatus !== "NONE"
   };

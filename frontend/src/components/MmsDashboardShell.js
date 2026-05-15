@@ -16,6 +16,7 @@ import {
   YAxis
 } from "recharts";
 import {
+  buildMmsAreaPanelSummary,
   buildMmsGraphReportSeries,
   buildMmsLayoutMachineState,
   buildMmsMachineTypeSummary,
@@ -344,7 +345,8 @@ const styles = {
   overviewCommandMeta: "flex flex-wrap gap-2 [&_span]:inline-flex [&_span]:items-center [&_span]:gap-2 [&_span]:rounded-full [&_span]:border [&_span]:border-white/10 [&_span]:bg-white/[0.06] [&_span]:px-3 [&_span]:py-1.5 [&_span]:text-xs [&_span]:font-black [&_i]:h-2 [&_i]:w-2 [&_i]:rounded-full",
   overviewAreaCard: "min-h-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-2 shadow-sm",
   overviewAreaGrid: "grid grid-cols-4 gap-3 max-[1400px]:grid-cols-2 max-[760px]:grid-cols-1",
-  overviewAreaHeader: "mb-1.5 flex items-start justify-between gap-2 [&_h4]:m-0 [&_h4]:text-sm [&_h4]:font-black [&_p]:m-0 [&_p]:text-[10px] [&_p]:font-bold [&_p]:text-slate-500",
+  overviewAreaHeader: "mb-2 grid gap-2 [&_h4]:m-0 [&_h4]:text-sm [&_h4]:font-black [&_p]:m-0 [&_p]:text-[10px] [&_p]:font-bold [&_p]:text-slate-500",
+  overviewAreaStats: "grid grid-cols-4 gap-1 [&_span]:grid [&_span]:gap-0.5 [&_span]:rounded-lg [&_span]:border [&_span]:bg-slate-50 [&_span]:px-1.5 [&_span]:py-1 [&_small]:text-[7px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.08em] [&_strong]:text-[11px] [&_strong]:font-black",
   overviewChartGrid: "grid grid-cols-[1.35fr_0.85fr] gap-3 max-[1100px]:grid-cols-1",
   overviewFactoryHeader: "mb-2 flex flex-wrap items-center justify-between gap-2 [&_h3]:m-0 [&_h3]:text-base [&_h3]:font-black [&_p]:m-0 [&_p]:text-[10px] [&_p]:font-black [&_p]:text-slate-500",
   overviewFactoryLayout: "grid min-h-0 grid-cols-4 items-start gap-2 max-[1600px]:grid-cols-2 max-[900px]:grid-cols-1",
@@ -356,8 +358,9 @@ const styles = {
   overviewKpi: "rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm [&_small]:block [&_small]:text-[10px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.12em] [&_small]:text-slate-500 [&_span]:mt-1 [&_span]:block [&_span]:text-xs [&_span]:font-bold [&_span]:text-slate-500 [&_strong]:mt-1 [&_strong]:block [&_strong]:text-2xl [&_strong]:font-black [&_strong]:text-slate-950",
   overviewKpiStrip: "grid grid-cols-6 gap-3 max-[1400px]:grid-cols-3 max-[760px]:grid-cols-2",
   overviewLayout: "grid h-[calc(100vh-172px)] min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2 overflow-hidden",
-  overviewMachineCard: "grid h-[112px] min-w-0 content-between overflow-hidden rounded-xl border-2 p-1.5 shadow-sm",
-  overviewMachineGrid: "grid grid-cols-[repeat(auto-fill,minmax(136px,1fr))] auto-rows-[112px] gap-1.5",
+  overviewMachineCard: "grid h-[126px] min-w-0 content-between overflow-hidden rounded-xl border-2 p-1.5 shadow-sm",
+  overviewMachineGate: "mt-1 flex min-w-0 items-center justify-between gap-1 [&_b]:min-w-0 [&_b]:truncate [&_b]:rounded-md [&_b]:border [&_b]:border-violet-200 [&_b]:bg-violet-50 [&_b]:px-1.5 [&_b]:py-0.5 [&_b]:text-[7px] [&_b]:font-black [&_b]:text-violet-800 [&_span]:shrink-0 [&_span]:rounded-md [&_span]:border [&_span]:px-1.5 [&_span]:py-0.5 [&_span]:text-[7px] [&_span]:font-black",
+  overviewMachineGrid: "grid grid-cols-[repeat(auto-fill,minmax(146px,1fr))] auto-rows-[126px] gap-1.5",
   overviewMachineMeta: "mt-1 grid min-w-0 gap-0.5 text-[8px] font-black text-slate-700 [&_b]:shrink-0 [&_b]:text-slate-950 [&_em]:min-w-0 [&_em]:truncate [&_em]:not-italic [&_span]:flex [&_span]:min-w-0 [&_span]:items-center [&_span]:justify-between [&_span]:gap-1",
   overviewMachineMetrics: "mt-1 grid min-w-0 grid-cols-4 gap-0.5 [&_span]:min-w-0 [&_span]:rounded-md [&_span]:border [&_span]:border-white/70 [&_span]:bg-white/80 [&_span]:px-0.5 [&_span]:py-0.5 [&_small]:block [&_small]:truncate [&_small]:text-center [&_small]:text-[6px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.04em] [&_small]:text-slate-500 [&_strong]:block [&_strong]:text-center [&_strong]:text-[8px] [&_strong]:font-black [&_strong]:leading-tight [&_strong]:text-slate-950",
   overviewMachineTitle: "flex min-w-0 items-start justify-between gap-1 [&_div]:min-w-0 [&_h5]:m-0 [&_h5]:truncate [&_h5]:text-[11px] [&_h5]:font-black [&_h5]:leading-tight [&_p]:m-0 [&_p]:truncate [&_p]:text-[7px] [&_p]:font-bold [&_p]:text-slate-600",
@@ -654,10 +657,14 @@ function DashboardView() {
   const filteredLayoutStates = selectMmsOverviewMachines(layoutStates, overviewFilters);
   const overviewSummary = buildMmsOverviewSummary(layoutStates);
   const filteredSummary = buildMmsOverviewSummary(filteredLayoutStates);
-  const areaLayout = areas.map((area) => ({
-    ...area,
-    machines: filteredLayoutStates.filter((machine) => machine.area === area.area)
-  })).filter((area) => area.machines.length > 0);
+  const areaLayout = areas.map((area) => {
+    const areaMachines = filteredLayoutStates.filter((machine) => machine.area === area.area);
+    return {
+      ...area,
+      machines: areaMachines,
+      summary: buildMmsAreaPanelSummary(areaMachines)
+    };
+  }).filter((area) => area.machines.length > 0);
 
   useEffect(() => {
     try {
@@ -722,7 +729,7 @@ function DashboardView() {
                       <h4>{area.area}</h4>
                       <p>{area.machines.length} machines / {area.machines.filter((machine) => machine.layoutState.mmsStatus === "RUN").length} MMS running</p>
                     </div>
-                    <StatusBadge status={area.machines.some((machine) => machine.layoutState.mmsStatus === "ALARM") ? "ALARM" : area.machines.some((machine) => machine.layoutState.hasJob) ? "JOB" : "RUN"} />
+                    <OverviewAreaStats summary={area.summary} />
                   </div>
                   <div className={styles.typeStack}>
                     {groupMachinesByType(area.machines).map((group) => (
@@ -885,6 +892,8 @@ function groupMachinesByType(rows = []) {
 function OverviewMachineCard({ machine }) {
   const state = machine.layoutState || buildMmsLayoutMachineState(machine);
   const okOutput = Math.max(0, Number(machine.output || 0) - Number(machine.ng || 0));
+  const outputGateLabel = state.canProduceOutput ? "Output ON" : "Output Block";
+  const jobOverlayLabel = state.hasJob ? `Job ${compactMmsStatus(state.jobStatus)}` : "No Job";
 
   return (
     <article className={styles.overviewMachineCard} data-testid="mms-overview-machine-card" style={statusCardStyle(state.mmsStatus)}>
@@ -899,6 +908,10 @@ function OverviewMachineCard({ machine }) {
         <span><b>Job</b><em>{state.jobStatus}</em></span>
         <span><b>PIC</b><em>{state.responsible}</em></span>
       </div>
+      <div className={styles.overviewMachineGate}>
+        <span style={statusBadgeStyle(state.canProduceOutput ? "RUN" : "STOP")}>{outputGateLabel}</span>
+        <b>{jobOverlayLabel}</b>
+      </div>
       <div className={styles.overviewMachineMetrics}>
         <span><small>Out</small><strong>{Number(machine.output || 0).toLocaleString()}</strong></span>
         <span><small>OK</small><strong>{okOutput.toLocaleString()}</strong></span>
@@ -906,6 +919,26 @@ function OverviewMachineCard({ machine }) {
         <span><small>OEE</small><strong>{machine.oee}%</strong></span>
       </div>
     </article>
+  );
+}
+
+function OverviewAreaStats({ summary }) {
+  const stats = [
+    ["RUN", summary.running, "RUN"],
+    ["ALM", summary.alarm, "ALARM"],
+    ["JOB", summary.activeJobs, "JOB"],
+    ["BLOCK", summary.outputBlocked, "STOP"]
+  ];
+
+  return (
+    <div className={styles.overviewAreaStats}>
+      {stats.map(([label, value, status]) => (
+        <span key={label} style={statusBadgeStyle(status)}>
+          <small>{label}</small>
+          <strong>{value}</strong>
+        </span>
+      ))}
+    </div>
   );
 }
 
