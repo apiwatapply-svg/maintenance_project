@@ -210,28 +210,6 @@ const hourly = shiftHourLabels.map((hour, index) => ({
   targetAccum: rows.slice(0, index + 1).reduce((sum, row) => sum + row.target, 0)
 }));
 
-const dailyRows = [
-  ["Line A", "CNV-A", "6,820", "32", "94.2%", "86.4%", "2.2s", "01:42"],
-  ["Line B", "LBL-B", "8,360", "21", "96.1%", "91.8%", "1.9s", "00:46"],
-  ["Packing", "SEA-P", "4,910", "48", "89.4%", "82.7%", "2.6s", "02:18"],
-  ["Utility", "BLR-U", "2,240", "5", "98.0%", "88.6%", "3.0s", "00:24"]
-];
-
-const monthlyRows = [
-  ["2026-05-01", "83,420", "430", "89.2%", "2.3s", "12:40"],
-  ["2026-05-02", "86,120", "388", "90.4%", "2.2s", "10:35"],
-  ["2026-05-03", "80,650", "510", "86.8%", "2.5s", "15:10"],
-  ["2026-05-04", "88,040", "360", "91.1%", "2.1s", "09:55"],
-  ["2026-05-05", "85,300", "402", "89.9%", "2.3s", "11:20"]
-];
-
-const monthTrend = Array.from({ length: 14 }, (_, index) => ({
-  day: String(index + 1).padStart(2, "0"),
-  output: 76000 + index * 760 + (index % 4) * 1200,
-  ng: 320 + (index % 5) * 34,
-  oee: 84 + (index % 8)
-}));
-
 const machineStatusSegments = [
   { start: "07:00", end: "07:20", label: "WARM UP", status: "WARM_UP", percent: 1.4 },
   { start: "07:20", end: "09:20", label: "RUN", status: "RUN", percent: 8.3 },
@@ -535,10 +513,8 @@ function getTitle(view) {
   const map = {
     overview: "Overview",
     dashboard: "Overview",
-    "daily-report": "Graph Report",
     "graph-report": "Graph Report",
     "machine-working": "Machine Working",
-    "monthly-report": "Graph Report",
     "overall-machine-working": "Overall Working",
     "table-report": "Table Report"
   };
@@ -546,17 +522,15 @@ function getTitle(view) {
 }
 
 function shouldShowGlobalFilter(view) {
-  return !["overview", "overall-machine-working", "graph-report", "table-report", "daily-report", "monthly-report"].includes(view);
+  return !["overview", "overall-machine-working", "graph-report", "table-report"].includes(view);
 }
 
 function getSubtitle(view) {
   const map = {
     overview: "Plant output, status, OEE, and machine health overview.",
     dashboard: "Plant output, status, OEE, and machine health overview.",
-    "daily-report": "Graph report for output, OEE, quality, CT, and availability.",
     "graph-report": "Graph report for output, OEE, quality, CT, and availability.",
     "machine-working": "Single machine output, CT, OEE, status timeline, and operator view.",
-    "monthly-report": "Graph report for output, OEE, quality, CT, and availability.",
     "overall-machine-working": "Multi-machine working view for selected area and type.",
     "table-report": "Matrix table report for output, OEE, quality, CT, and availability."
   };
@@ -634,9 +608,7 @@ function renderView(view) {
   if (view === "overview") return <DashboardView />;
   if (view === "overall-machine-working") return <OverallMachineWorkingView />;
   if (view === "machine-working") return <MachineWorkingView />;
-  if (view === "daily-report") return <GraphReportView defaultPeriod="daily" forcePeriod />;
   if (view === "graph-report") return <GraphReportView defaultPeriod="monthly" />;
-  if (view === "monthly-report") return <GraphReportView defaultPeriod="monthly" forcePeriod />;
   if (view === "table-report") return <TableReportView defaultPeriod="monthly" />;
   return <DashboardView />;
 }
@@ -1743,51 +1715,6 @@ function MachineWorkingHeader({ compact = false, date = "2026-05-13", machine })
         <div className={styles.summaryMetric}><small>Q Quality</small><strong>{metrics.quality}%</strong><b>Target 98%</b></div>
         <div className={styles.summaryMetric}><small>Total Output</small><strong>{metrics.totalOutput}</strong><b>OK + NG</b></div>
       </div>
-  );
-}
-
-function DailyReportView() {
-  return (
-    <>
-      <Kpis />
-      <section className={styles.reportCards}>
-        <Panel title="Daily Output Trend" meta="Hourly">
-          <ChartBox>
-            <BarChart data={hourly}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="hour" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="output" fill="#0ea5e9" isAnimationActive={false} />
-            </BarChart>
-          </ChartBox>
-        </Panel>
-        <CompactTable title="Daily Summary" rows={dailyRows} headers={["Area", "Type", "OK", "NG", "Achieve", "OEE", "CT", "Down"]} />
-      </section>
-    </>
-  );
-}
-
-function MonthlyReportView() {
-  return (
-    <>
-      <section className={styles.grid2}>
-        <Panel title="Monthly Output / NG / OEE" meta="May 2026">
-          <ChartBox>
-            <ComposedChart data={monthTrend}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="output" fill="#0ea5e9" isAnimationActive={false} />
-              <Line dataKey="oee" stroke="#10b981" strokeWidth={3} isAnimationActive={false} />
-              <Line dataKey="ng" stroke="#ef4444" strokeWidth={2} isAnimationActive={false} />
-            </ComposedChart>
-          </ChartBox>
-        </Panel>
-        <CompactTable title="Monthly Table" rows={monthlyRows} headers={["Date", "OK", "NG", "OEE", "CT", "Down"]} />
-      </section>
-    </>
   );
 }
 
