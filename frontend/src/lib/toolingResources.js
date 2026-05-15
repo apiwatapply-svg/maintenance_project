@@ -216,7 +216,7 @@ export const toolingPages = [
       fields: [
         { key: "request", label: "Borrow Request", type: "search", options: ["BRQ-2026-002 - TL-CV-002 - Narin", "BRQ-2026-001 - TL-TQ-001 - Somchai"], value: "BRQ-2026-002 - TL-CV-002 - Narin" },
         { key: "tool", label: "Tool", type: "search", options: ["TL-CV-002 - Caliper Vernier | Available", "TL-TQ-001 - Torque Wrench | Available"], value: "TL-CV-002 - Caliper Vernier | Available" },
-        { key: "issueBy", label: "Issue By", type: "search", options: ["tolladmin - Tooling Admin", "EMP-010 - Store Keeper"], value: "tolladmin - Tooling Admin" },
+        { key: "issueBy", label: "Issue By", type: "search", options: ["tooladmin - Tooling Admin", "EMP-010 - Store Keeper"], value: "tooladmin - Tooling Admin" },
         { key: "issueDate", label: "Issue Date", type: "date", value: "2026-05-12" },
         { key: "dueDate", label: "Due Date", type: "date", value: "2026-05-20" },
         { key: "remark", label: "Remark", type: "textarea", value: "Tool condition checked before issue." }
@@ -488,10 +488,10 @@ export const toolingPages = [
     description: "Review stock in, stock out, borrow, return, adjustment, and calibration movement.",
     mockColumns: ["Date", "Movement Type", "Code", "Name", "Quantity", "Reference", "User"],
     mockRows: [
-      ["2026-05-12", "Stock In", "ST-BRG-6204", "Bearing 6204 ZZ", "+24", "SIN-2026-001", "tolladmin"],
-      ["2026-05-12", "Stock Out", "ST-TAPE-001", "Insulation Tape", "-2", "JOB-2026-043", "tolladmin"],
-      ["2026-05-13", "Borrow", "TL-CV-002", "Caliper Vernier", "1", "BRQ-2026-002", "tolladmin"],
-      ["2026-05-14", "Return", "TL-CV-002", "Caliper Vernier", "1", "RTN-2026-001", "tolladmin"]
+      ["2026-05-12", "Stock In", "ST-BRG-6204", "Bearing 6204 ZZ", "+24", "SIN-2026-001", "tooladmin"],
+      ["2026-05-12", "Stock Out", "ST-TAPE-001", "Insulation Tape", "-2", "JOB-2026-043", "tooladmin"],
+      ["2026-05-13", "Borrow", "TL-CV-002", "Caliper Vernier", "1", "BRQ-2026-002", "tooladmin"],
+      ["2026-05-14", "Return", "TL-CV-002", "Caliper Vernier", "1", "RTN-2026-001", "tooladmin"]
     ],
     mockFilters: ["All", "Stock In", "Stock Out", "Borrow", "Return", "Calibration"]
   },

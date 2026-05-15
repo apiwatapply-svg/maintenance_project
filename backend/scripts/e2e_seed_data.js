@@ -107,11 +107,11 @@ function buildAdminSeedData() {
     { emp_id: "STORE-001", emp_name: "Tooling Clerk", department_code: "STORE", department_name: "Tooling Store", section: "Store", status: "active" }
   ];
   const users = [
-    { emp_id: "ADM-001", emp_name: "Apiwat Admin", department_code: "ADM", department_name: "Administration", username: "admin", password: "admin", role: "admin", admin_scope: "all", status: "active" },
+    { emp_id: "ADM-001", emp_name: "Apiwat Admin", department_code: "ADM", department_name: "Administration", username: "admin", password: "admin", role: "super_admin", admin_scope: "all", status: "active" },
     { emp_id: "MM-006", emp_name: "Anan S.", department_code: "MM", department_name: "Maintenance", username: "mmadmin", password: "admin", role: "admin", admin_scope: "maintenance", status: "active" },
     { emp_id: "QC-003", emp_name: "Narin T.", department_code: "QC", department_name: "Quality Control", username: "qcadmin", password: "admin", role: "admin", admin_scope: "qc", status: "active" },
     { emp_id: "PRD-014", emp_name: "Somchai W.", department_code: "PRD", department_name: "Production", username: "prodadmin", password: "admin", role: "admin", admin_scope: "production", status: "active" },
-    { emp_id: "STORE-001", emp_name: "Tooling Clerk", department_code: "STORE", department_name: "Tooling Store", username: "tolladmin", password: "admin", role: "admin", admin_scope: "store", status: "active" }
+    { emp_id: "STORE-001", emp_name: "Tooling Clerk", department_code: "STORE", department_name: "Tooling Store", username: "tooladmin", password: "admin", role: "admin", admin_scope: "tooling_store", status: "active" }
   ];
 
   return { areas, departments, employees, machineTypes, machines, users };
@@ -178,8 +178,8 @@ function buildToolingSeedData(todayText = toBangkokDateText()) {
     };
   });
   const movementHistory = [
-    ...stockIn.map((row) => ({ movement_date: row.receive_date, movement_type: "Stock In", item_code: row.item_code, item_name: row.item_name, quantity: row.quantity, reference_no: row.receive_no, created_by: "tolladmin", image_path: row.image_path })),
-    ...stockOut.map((row) => ({ movement_date: row.issue_date, movement_type: "Stock Out", item_code: row.item_code, item_name: row.item_name, quantity: -row.quantity, reference_no: row.issue_no, created_by: "tolladmin", image_path: row.image_path }))
+    ...stockIn.map((row) => ({ movement_date: row.receive_date, movement_type: "Stock In", item_code: row.item_code, item_name: row.item_name, quantity: row.quantity, reference_no: row.receive_no, created_by: "tooladmin", image_path: row.image_path })),
+    ...stockOut.map((row) => ({ movement_date: row.issue_date, movement_type: "Stock Out", item_code: row.item_code, item_name: row.item_name, quantity: -row.quantity, reference_no: row.issue_no, created_by: "tooladmin", image_path: row.image_path }))
   ];
   const calibrationBase = [
     { tool_code: "TL-TQ-001", tool_name: "Torque Wrench", serial_number: "TQ-1001", lastOffset: -170, interval: 180, owner: "Tooling Store", image_path: "/tooling-images/torque-wrench.svg", remark: "Schedule calibration" },

@@ -21,6 +21,19 @@ test("e2e seed data covers every operational module with deterministic current-d
   assert.equal(seed.mmsHourly.length, seed.admin.machines.length * 24);
 });
 
+test("e2e seed creates the expected admin accounts and feature scopes", () => {
+  const seed = buildE2eSeedData(new Date("2026-05-15T02:00:00.000Z"));
+  const users = new Map(seed.admin.users.map((user) => [user.username, user]));
+
+  assert.deepEqual([...users.keys()].sort(), ["admin", "mmadmin", "prodadmin", "qcadmin", "tooladmin"]);
+  assert.equal(users.get("admin").role, "super_admin");
+  assert.equal(users.get("admin").admin_scope, "all");
+  assert.equal(users.get("mmadmin").admin_scope, "maintenance");
+  assert.equal(users.get("prodadmin").admin_scope, "production");
+  assert.equal(users.get("qcadmin").admin_scope, "qc");
+  assert.equal(users.get("tooladmin").admin_scope, "tooling_store");
+});
+
 test("e2e seed stock and calibration statuses are calculated from quantities and dates", () => {
   const seed = buildE2eSeedData(new Date("2026-05-15T02:00:00.000Z"));
   const tape = seed.tooling.stockBalance.find((row) => row.item_code === "ST-TAPE-001");

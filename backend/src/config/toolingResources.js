@@ -500,9 +500,9 @@ function getToolingSeedStatements() {
     IF NOT EXISTS (SELECT 1 FROM dbo.tb_tooling_movement_history)
     INSERT INTO dbo.tb_tooling_movement_history (movement_date, movement_type, item_code, item_name, quantity, reference_no, created_by, image_path)
     VALUES
-      ('2026-05-12', 'Stock In', 'ST-BRG-6204', 'Bearing 6204 ZZ', 24, 'SIN-2026-001', 'tolladmin', '/tooling-images/bearing.svg'),
-      ('2026-05-12', 'Stock Out', 'ST-TAPE-001', 'Insulation Tape', -2, 'JOB-2026-043', 'tolladmin', '/tooling-images/insulation-tape.svg'),
-      ('2026-05-13', 'Borrow', 'TL-CV-002', 'Caliper Vernier', 1, 'ISS-2026-001', 'tolladmin', '/tooling-images/caliper.svg');
+      ('2026-05-12', 'Stock In', 'ST-BRG-6204', 'Bearing 6204 ZZ', 24, 'SIN-2026-001', 'tooladmin', '/tooling-images/bearing.svg'),
+      ('2026-05-12', 'Stock Out', 'ST-TAPE-001', 'Insulation Tape', -2, 'JOB-2026-043', 'tooladmin', '/tooling-images/insulation-tape.svg'),
+      ('2026-05-13', 'Borrow', 'TL-CV-002', 'Caliper Vernier', 1, 'ISS-2026-001', 'tooladmin', '/tooling-images/caliper.svg');
     `,
     `
     IF NOT EXISTS (SELECT 1 FROM dbo.tb_tooling_calibration)
