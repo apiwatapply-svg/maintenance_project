@@ -207,11 +207,60 @@ export function selectMmsOverviewMachines(machines = [], filters = getDefaultMms
     const areaMatched = !filters.area || filters.area === "All" || machine.area === filters.area;
     const typeMatched = !filters.machineType || filters.machineType === "All" || machine.machineType === filters.machineType || machine.type === filters.machineType;
     const machineMatched = !filters.machineNo || filters.machineNo === "All" || machine.machineNo === filters.machineNo || machine.name === filters.machineNo;
-    const mmsMatched = !filters.mmsStatus || filters.mmsStatus === "All" || mmsStatus === filters.mmsStatus;
-    const jobMatched = !filters.jobStatus || filters.jobStatus === "All" || jobStatus === filters.jobStatus;
+    const mmsMatched = !filters.mmsStatus || filters.mmsStatus === "All"
+      || (filters.mmsStatus === "STOPPED" ? !canMmsMachineProduce(machine) : mmsStatus === filters.mmsStatus);
+    const jobMatched = !filters.jobStatus || filters.jobStatus === "All"
+      || (filters.jobStatus === "HAS_JOB" ? jobStatus !== "NONE" : jobStatus === filters.jobStatus);
 
     return areaMatched && typeMatched && machineMatched && mmsMatched && jobMatched;
   });
+}
+
+export function buildMmsOverviewSummary(machines = []) {
+  const totals = machines.reduce((summary, machine) => {
+    const status = getMmsEffectiveStatus(machine);
+    const output = Number(machine.outputOk ?? machine.output ?? 0);
+    const ng = Number(machine.outputNg ?? machine.ng ?? 0);
+    const oee = Number(machine.oee ?? 0);
+
+    summary.total += 1;
+    summary.outputOk += Math.max(0, output - (machine.outputOk === undefined ? ng : 0));
+    summary.outputNg += ng;
+    summary.oeeTotal += Number.isFinite(oee) ? oee : 0;
+    if (status === "RUN") summary.running += 1;
+    if (status === "ALARM") summary.alarm += 1;
+    if (!canMmsMachineProduce(machine)) summary.stopped += 1;
+    if (getMmsJobStatus(machine) !== "NONE") summary.activeJobs += 1;
+    return summary;
+  }, {
+    activeJobs: 0,
+    alarm: 0,
+    oeeTotal: 0,
+    outputNg: 0,
+    outputOk: 0,
+    running: 0,
+    stopped: 0,
+    total: 0
+  });
+
+  const oeeAverage = totals.total ? Number((totals.oeeTotal / totals.total).toFixed(1)) : 0;
+  const availability = totals.total ? Number(((totals.running / totals.total) * 100).toFixed(1)) : 0;
+  const ngRate = totals.outputOk + totals.outputNg
+    ? Number(((totals.outputNg / (totals.outputOk + totals.outputNg)) * 100).toFixed(2))
+    : 0;
+
+  return {
+    activeJobs: totals.activeJobs,
+    alarm: totals.alarm,
+    availability,
+    ngRate,
+    oeeAverage,
+    outputNg: totals.outputNg,
+    outputOk: totals.outputOk,
+    running: totals.running,
+    stopped: totals.stopped,
+    total: totals.total
+  };
 }
 
 export function getDefaultMmsReportFilters(defaultPeriod = "monthly") {

@@ -5,6 +5,7 @@ import {
   buildMmsLayoutMachineState,
   buildMmsGraphReportSeries,
   buildMmsMachineTypeSummary,
+  buildMmsOverviewSummary,
   buildMmsReportColumns,
   buildMmsReportMatrixRows,
   canMmsMachineProduce,
@@ -208,9 +209,38 @@ test("mms overview machine filter combines area type machine MMS and job status"
     ["CNV-A-002"]
   );
   assert.deepEqual(
+    selectMmsOverviewMachines(rows, { ...getDefaultMmsOverviewFilters(), mmsStatus: "STOPPED" }).map((row) => row.machineNo),
+    ["FIL-A-003", "LBL-B-002"]
+  );
+  assert.deepEqual(
+    selectMmsOverviewMachines(rows, { ...getDefaultMmsOverviewFilters(), jobStatus: "HAS_JOB" }).map((row) => row.machineNo),
+    ["CNV-A-002", "FIL-A-003"]
+  );
+  assert.deepEqual(
     selectMmsOverviewMachines(rows, { ...getDefaultMmsOverviewFilters(), machineNo: "FIL-A-003" }).map((row) => row.machineNo),
     ["FIL-A-003"]
   );
+});
+
+test("mms overview summary gives control room totals", () => {
+  const summary = buildMmsOverviewSummary([
+    { machineNo: "A", plcStatus: "RUN", output: 100, ng: 2, oee: 90 },
+    { machineNo: "B", plcStatus: "RUN", simMachineAlarm: true, output: 80, ng: 8, oee: 70 },
+    { machineNo: "C", plcStatus: "MM_REPAIR", activeJobStatus: "MM_REPAIR", output: 50, ng: 0, oee: 60 }
+  ]);
+
+  assert.deepEqual(summary, {
+    activeJobs: 1,
+    alarm: 1,
+    availability: 33.3,
+    ngRate: 4.35,
+    oeeAverage: 73.3,
+    outputNg: 10,
+    outputOk: 220,
+    running: 1,
+    stopped: 2,
+    total: 3
+  });
 });
 
 test("mms report filter defaults support graph and table report tabs", () => {

@@ -19,6 +19,7 @@ import {
   buildMmsGraphReportSeries,
   buildMmsLayoutMachineState,
   buildMmsMachineTypeSummary,
+  buildMmsOverviewSummary,
   buildMmsReportColumns,
   buildMmsReportMatrixRows,
   getDefaultMmsOverviewFilters,
@@ -335,6 +336,11 @@ const styles = {
   oeeSummaryCell: "items-center justify-center text-center [&_strong]:text-3xl [&_strong]:text-emerald-700",
   okText: "text-emerald-700",
   operatorCell: "flex items-center gap-3 bg-slate-100 [&_img]:h-14 [&_img]:w-14 [&_img]:rounded-xl [&_img]:ring-2 [&_img]:ring-sky-200 [&_span]:grid [&_span]:min-w-0 [&_span]:gap-0.5 [&_span_b]:truncate [&_span_strong]:truncate",
+  overviewCommandBar: "grid grid-cols-[minmax(280px,.95fr)_minmax(0,1.5fr)] gap-3 rounded-2xl border border-slate-800 bg-slate-950 p-3 text-white shadow-sm max-[1200px]:grid-cols-1",
+  overviewCommandCopy: "grid content-between gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-4 [&_h3]:m-0 [&_h3]:text-2xl [&_h3]:font-black [&_p]:m-0 [&_p]:text-sm [&_p]:font-bold [&_p]:text-slate-300",
+  overviewCommandKpis: "grid grid-cols-4 gap-2 max-[1200px]:grid-cols-4 max-[760px]:grid-cols-2",
+  overviewCommandKpi: "rounded-xl border border-white/10 bg-white/[0.06] p-3 [&_small]:block [&_small]:text-[10px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.12em] [&_small]:text-slate-400 [&_span]:mt-1 [&_span]:block [&_span]:text-[11px] [&_span]:font-bold [&_span]:text-slate-400 [&_strong]:mt-1 [&_strong]:block [&_strong]:text-2xl [&_strong]:font-black",
+  overviewCommandMeta: "flex flex-wrap gap-2 [&_span]:inline-flex [&_span]:items-center [&_span]:gap-2 [&_span]:rounded-full [&_span]:border [&_span]:border-white/10 [&_span]:bg-white/[0.06] [&_span]:px-3 [&_span]:py-1.5 [&_span]:text-xs [&_span]:font-black [&_i]:h-2 [&_i]:w-2 [&_i]:rounded-full",
   overviewAreaCard: "min-h-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-2 shadow-sm",
   overviewAreaGrid: "grid grid-cols-4 gap-3 max-[1400px]:grid-cols-2 max-[760px]:grid-cols-1",
   overviewAreaHeader: "mb-1.5 flex items-start justify-between gap-2 [&_h4]:m-0 [&_h4]:text-sm [&_h4]:font-black [&_p]:m-0 [&_p]:text-[10px] [&_p]:font-bold [&_p]:text-slate-500",
@@ -348,7 +354,7 @@ const styles = {
   overviewHeroGrid: "grid grid-cols-[1.25fr_0.75fr] gap-3 max-[1100px]:grid-cols-1",
   overviewKpi: "rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm [&_small]:block [&_small]:text-[10px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.12em] [&_small]:text-slate-500 [&_span]:mt-1 [&_span]:block [&_span]:text-xs [&_span]:font-bold [&_span]:text-slate-500 [&_strong]:mt-1 [&_strong]:block [&_strong]:text-2xl [&_strong]:font-black [&_strong]:text-slate-950",
   overviewKpiStrip: "grid grid-cols-6 gap-3 max-[1400px]:grid-cols-3 max-[760px]:grid-cols-2",
-  overviewLayout: "grid h-[calc(100vh-172px)] min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden",
+  overviewLayout: "grid h-[calc(100vh-172px)] min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2 overflow-hidden",
   overviewMachineCard: "grid h-[112px] min-w-0 content-between overflow-hidden rounded-xl border-2 p-1.5 shadow-sm",
   overviewMachineGrid: "grid grid-cols-[repeat(auto-fill,minmax(136px,1fr))] auto-rows-[112px] gap-1.5",
   overviewMachineMeta: "mt-1 grid min-w-0 gap-0.5 text-[8px] font-black text-slate-700 [&_b]:shrink-0 [&_b]:text-slate-950 [&_em]:min-w-0 [&_em]:truncate [&_em]:not-italic [&_span]:flex [&_span]:min-w-0 [&_span]:items-center [&_span]:justify-between [&_span]:gap-1",
@@ -358,6 +364,8 @@ const styles = {
   overviewSignalList: "grid gap-2 [&_article]:rounded-xl [&_article]:border [&_article]:border-slate-200 [&_article]:bg-slate-50 [&_article]:p-3 [&_b]:block [&_b]:text-sm [&_b]:font-black [&_small]:block [&_small]:text-xs [&_small]:font-bold [&_small]:text-slate-500",
   overviewStatusBoard: "grid grid-cols-2 gap-2",
   overviewStatusCard: "rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm [&_small]:block [&_small]:text-[10px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.12em] [&_small]:text-slate-500 [&_strong]:mt-1 [&_strong]:block [&_strong]:text-2xl [&_strong]:font-black",
+  overviewQuickFilters: "col-span-full flex flex-wrap gap-2 border-t border-slate-200 pt-2 max-[760px]:col-span-1 [&_button]:h-9 [&_button]:rounded-lg [&_button]:border [&_button]:border-slate-300 [&_button]:bg-white [&_button]:px-3 [&_button]:text-xs [&_button]:font-black [&_button]:text-slate-700 [&_button]:shadow-sm [&_button]:transition [&_button:hover]:bg-slate-50",
+  overviewQuickFilterActive: "!border-slate-950 !bg-slate-950 !text-white",
   overviewTypeBlock: "rounded-lg border border-slate-200 bg-slate-50 p-1.5 [&_h5]:mb-1 [&_h5]:text-[10px] [&_h5]:font-black [&_h5]:text-slate-700",
   overallCard: "flex h-[320px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm",
   overallChartCell: "grid min-h-0 grid-rows-[minmax(0,1fr)_22px]",
@@ -641,6 +649,8 @@ function DashboardView() {
   const factoryLayoutRef = useRef(null);
   const layoutStates = machines.map((machine) => ({ ...machine, layoutState: buildMmsLayoutMachineState(machine) }));
   const filteredLayoutStates = selectMmsOverviewMachines(layoutStates, overviewFilters);
+  const overviewSummary = buildMmsOverviewSummary(layoutStates);
+  const filteredSummary = buildMmsOverviewSummary(filteredLayoutStates);
   const areaLayout = areas.map((area) => ({
     ...area,
     machines: filteredLayoutStates.filter((machine) => machine.area === area.area)
@@ -681,6 +691,7 @@ function DashboardView() {
 
   return (
     <section className={styles.overviewLayout}>
+      <OverviewCommandBar filteredSummary={filteredSummary} summary={overviewSummary} />
       <OverviewFilterBar filters={overviewFilters} machines={layoutStates} onChange={setOverviewFilters} />
 
       <article className={styles.overviewFactoryPanel} ref={factoryLayoutRef}>
@@ -730,6 +741,44 @@ function DashboardView() {
   );
 }
 
+function OverviewCommandBar({ filteredSummary, summary }) {
+  const cards = [
+    { color: "#22c55e", label: "Running", note: `${summary.availability}% availability`, value: `${summary.running}/${summary.total}` },
+    { color: "#ef4444", label: "Alarm", note: "Needs response", value: summary.alarm },
+    { color: "#64748b", label: "Stopped", note: "Output blocked", value: summary.stopped },
+    { color: "#8b5cf6", label: "Active Job", note: "Repair / QC context", value: summary.activeJobs },
+    { color: "#38bdf8", label: "Output OK", note: "Current working day", value: summary.outputOk.toLocaleString() },
+    { color: "#f97316", label: "NG Rate", note: `${summary.outputNg.toLocaleString()} NG`, value: `${summary.ngRate}%` },
+    { color: "#14b8a6", label: "OEE Avg", note: "All monitored machines", value: `${summary.oeeAverage}%` },
+    { color: "#eab308", label: "Filtered", note: "Machines on board", value: filteredSummary.total }
+  ];
+
+  return (
+    <section className={styles.overviewCommandBar}>
+      <div className={styles.overviewCommandCopy}>
+        <div>
+          <h3>Factory Control Room</h3>
+          <p>Live MMS status board for the 07:00-07:00 working day.</p>
+        </div>
+        <div className={styles.overviewCommandMeta}>
+          <span><i style={{ backgroundColor: "#22c55e" }} />Live</span>
+          <span><i style={{ backgroundColor: "#38bdf8" }} />Shift Monitor</span>
+          <span><i style={{ backgroundColor: "#f97316" }} />Job Overlay</span>
+        </div>
+      </div>
+      <div className={styles.overviewCommandKpis}>
+        {cards.map((card) => (
+          <article className={styles.overviewCommandKpi} key={card.label} style={{ borderTop: `4px solid ${card.color}` }}>
+            <small>{card.label}</small>
+            <strong>{card.value}</strong>
+            <span>{card.note}</span>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function OverviewFilterBar({ filters, machines, onChange }) {
   const areaOptions = ["All", ...uniqueValues(machines.map((machine) => machine.area))];
   const typeOptions = ["All", ...uniqueValues(machines
@@ -739,8 +788,15 @@ function OverviewFilterBar({ filters, machines, onChange }) {
     .filter((machine) => filters.area === "All" || machine.area === filters.area)
     .filter((machine) => filters.machineType === "All" || machine.machineType === filters.machineType || machine.type === filters.machineType)
     .map((machine) => machine.machineNo || machine.name))];
-  const mmsOptions = ["All", "ALARM", ...mmsMachineStatuses];
-  const jobOptions = ["All", ...uniqueValues(machines.map((machine) => machine.layoutState?.jobStatus || "NONE"))];
+  const mmsOptions = ["All", "ALARM", "STOPPED", ...mmsMachineStatuses];
+  const jobOptions = ["All", "HAS_JOB", ...uniqueValues(machines.map((machine) => machine.layoutState?.jobStatus || "NONE"))];
+  const quickFilters = [
+    { label: "All", patch: getDefaultMmsOverviewFilters() },
+    { label: "Alarm", patch: { ...getDefaultMmsOverviewFilters(), mmsStatus: "ALARM" } },
+    { label: "Stopped", patch: { ...getDefaultMmsOverviewFilters(), mmsStatus: "STOPPED" } },
+    { label: "Active Job", patch: { ...getDefaultMmsOverviewFilters(), jobStatus: "HAS_JOB" } },
+    { label: "Running", patch: { ...getDefaultMmsOverviewFilters(), mmsStatus: "RUN" } }
+  ];
 
   function updateFilter(key) {
     return (event) => {
@@ -757,6 +813,17 @@ function OverviewFilterBar({ filters, machines, onChange }) {
         return next;
       });
     };
+  }
+
+  function applyQuickFilter(patch) {
+    onChange((current) => ({
+      ...current,
+      ...patch
+    }));
+  }
+
+  function isQuickFilterActive(patch) {
+    return Object.entries(patch).every(([key, value]) => filters[key] === value);
   }
 
   return (
@@ -780,6 +847,18 @@ function OverviewFilterBar({ filters, machines, onChange }) {
       <div className={styles.field}>
         <label>Job Status</label>
         <select value={filters.jobStatus} onChange={updateFilter("jobStatus")}>{jobOptions.map((option) => <option key={option}>{option}</option>)}</select>
+      </div>
+      <div className={styles.overviewQuickFilters}>
+        {quickFilters.map((item) => (
+          <button
+            className={isQuickFilterActive(item.patch) ? styles.overviewQuickFilterActive : ""}
+            key={item.label}
+            onClick={() => applyQuickFilter(item.patch)}
+            type="button"
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
     </section>
   );
