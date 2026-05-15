@@ -2,13 +2,25 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildMmsPayload,
+  buildMmsLayoutMachineState,
+  buildMmsGraphReportSeries,
+  buildMmsMachineTypeSummary,
+  buildMmsReportColumns,
+  buildMmsReportMatrixRows,
   canMmsMachineProduce,
+  getDefaultMmsOverviewFilters,
+  getDefaultMmsReportFilters,
   getMmsEffectiveStatus,
   getRandomMmsAlarmName,
   getRandomMmsCycleTime,
   groupMmsMachinesByZone,
+  getMmsDashboardViewKey,
+  mmsOverviewFilterStorageKey,
+  mmsReportsFilterStorageKey,
   hydrateMmsMachine,
   selectOverallMmsMachines,
+  selectMmsOverviewMachines,
+  selectMmsReportMachines,
   mmsBaseControlStatuses,
   mmsMachineStatuses,
   mmsPanelStatuses,
@@ -133,4 +145,189 @@ test("overall machine working filters by area type and selected machine checkbox
     selectOverallMmsMachines(rows, { area: "All", machineType: "Conveyor", machineNos: [] }).map((row) => row.machineNo),
     ["CNV-A-001", "CNV-A-002", "CNV-B-001"]
   );
+});
+
+test("mms dashboard keeps only overview for legacy dashboard routes", () => {
+  assert.equal(getMmsDashboardViewKey("dashboard"), "overview");
+  assert.equal(getMmsDashboardViewKey("machine-area"), "overview");
+  assert.equal(getMmsDashboardViewKey("layout-dashboard"), "overview");
+  assert.equal(getMmsDashboardViewKey("overall-machine-working"), "overall-machine-working");
+});
+
+test("mms layout machine state separates MMS status job status and PIC", () => {
+  const state = buildMmsLayoutMachineState({
+    area: "Line A",
+    machineType: "Conveyor",
+    machineNo: "CNV-A-002",
+    plcStatus: "RUN",
+    activeJobStatus: "WAIT_MM",
+    responsible: "Production / PRD-014"
+  });
+
+  assert.deepEqual(state, {
+    area: "Line A",
+    machineNo: "CNV-A-002",
+    machineType: "Conveyor",
+    mmsStatus: "RUN",
+    jobStatus: "WAIT_MM",
+    responsible: "Production / PRD-014",
+    hasJob: true,
+    needsAttention: true
+  });
+});
+
+test("mms overview filter defaults are stable for localStorage persistence", () => {
+  assert.equal(mmsOverviewFilterStorageKey, "mms:overview:filters");
+  assert.deepEqual(getDefaultMmsOverviewFilters(), {
+    area: "All",
+    jobStatus: "All",
+    machineNo: "All",
+    machineType: "All",
+    mmsStatus: "All"
+  });
+});
+
+test("mms overview machine filter combines area type machine MMS and job status", () => {
+  const rows = [
+    { area: "Line A", machineType: "Conveyor", machineNo: "CNV-A-001", plcStatus: "RUN" },
+    { area: "Line A", machineType: "Conveyor", machineNo: "CNV-A-002", plcStatus: "RUN", activeJobStatus: "WAIT_MM" },
+    { area: "Line A", machineType: "Filling", machineNo: "FIL-A-003", plcStatus: "MM_REPAIR", activeJobStatus: "MM_REPAIR" },
+    { area: "Line B", machineType: "Labeler", machineNo: "LBL-B-002", plcStatus: "RUN", simMachineAlarm: true }
+  ];
+
+  assert.deepEqual(
+    selectMmsOverviewMachines(rows, { ...getDefaultMmsOverviewFilters(), area: "Line A", machineType: "Conveyor" }).map((row) => row.machineNo),
+    ["CNV-A-001", "CNV-A-002"]
+  );
+  assert.deepEqual(
+    selectMmsOverviewMachines(rows, { ...getDefaultMmsOverviewFilters(), mmsStatus: "ALARM" }).map((row) => row.machineNo),
+    ["LBL-B-002"]
+  );
+  assert.deepEqual(
+    selectMmsOverviewMachines(rows, { ...getDefaultMmsOverviewFilters(), jobStatus: "WAIT_MM" }).map((row) => row.machineNo),
+    ["CNV-A-002"]
+  );
+  assert.deepEqual(
+    selectMmsOverviewMachines(rows, { ...getDefaultMmsOverviewFilters(), machineNo: "FIL-A-003" }).map((row) => row.machineNo),
+    ["FIL-A-003"]
+  );
+});
+
+test("mms report filter defaults support graph and table report tabs", () => {
+  assert.equal(mmsReportsFilterStorageKey, "mms:reports:filters");
+  assert.deepEqual(getDefaultMmsReportFilters("daily"), {
+    area: "All",
+    date: "2026-05-13",
+    graphPeriod: "daily",
+    machineNo: "All",
+    machineType: "All",
+    month: "2026-05",
+    year: "2026"
+  });
+  assert.equal(getDefaultMmsReportFilters("monthly").graphPeriod, "monthly");
+});
+
+test("mms report columns support daily monthly and yearly periods", () => {
+  assert.deepEqual(buildMmsReportColumns("daily", { date: "2026-05-13" }).map((column) => column.label), ["07:00", "11:00", "15:00", "19:00", "23:00", "03:00", "07:00"]);
+  assert.equal(buildMmsReportColumns("monthly", { month: "2026-05" }).length, 31);
+  assert.deepEqual(buildMmsReportColumns("yearly", { year: "2026" }).map((column) => column.label), ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]);
+});
+
+test("mms report machine filter narrows area type and machine number", () => {
+  const rows = [
+    { area: "Line A", machineType: "ABR", machineNo: "ABR-001" },
+    { area: "Line A", machineType: "CNV", machineNo: "CNV-001" },
+    { area: "Packing", machineType: "ABR", machineNo: "ABR-900" }
+  ];
+
+  assert.deepEqual(
+    selectMmsReportMachines(rows, { area: "Line A", machineType: "ABR", machineNo: "All" }).map((row) => row.machineNo),
+    ["ABR-001"]
+  );
+  assert.deepEqual(
+    selectMmsReportMachines(rows, { area: "All", machineType: "All", machineNo: "ABR-900" }).map((row) => row.machineNo),
+    ["ABR-900"]
+  );
+});
+
+test("mms report machine filter migrates old className filters to area matching", () => {
+  const rows = [
+    { area: "Line A", machineType: "CNV", machineNo: "CNV-A-001" },
+    { area: "Line B", machineType: "CNV", machineNo: "CNV-B-001" }
+  ];
+
+  assert.deepEqual(
+    selectMmsReportMachines(rows, { className: "Line A", machineType: "All", machineNo: "All" }).map((row) => row.machineNo),
+    ["CNV-A-001"]
+  );
+});
+
+test("mms report matrix rows include required metric rows and total cells", () => {
+  const columns = buildMmsReportColumns("monthly", { month: "2026-05" });
+  const rows = buildMmsReportMatrixRows([
+    { area: "Line A", machineType: "ABR", machineNo: "ABR-005", modelType: "-", modelName: "-", process: "Line A" }
+  ], columns);
+
+  assert.deepEqual(rows.map((row) => row.metric), [
+    "OEE",
+    "Output (Target)",
+    "Machine Output",
+    "Output",
+    "Availability (Target)",
+    "Cycle time (Target)",
+    "Cycle time",
+    "Over Reject",
+    "NG Qty",
+    "Availability",
+    "Performance",
+    "Quality",
+    "OEE"
+  ]);
+  assert.equal(rows.every((row) => Object.hasOwn(row, "total")), true);
+  assert.equal(rows[0].isFirstMetric, true);
+  assert.equal(rows[0].rowSpan, 13);
+  assert.equal(rows.slice(1).every((row) => row.machineNo === "ABR-005" && row.isFirstMetric === false), true);
+});
+
+test("mms report matrix rows append machine type total rows when type filter is selected", () => {
+  const columns = buildMmsReportColumns("monthly", { month: "2026-05" }).slice(0, 2);
+  const rows = buildMmsReportMatrixRows([
+    { area: "Packing", machineType: "PKG", machineNo: "PKG-B-001", modelType: "PKG", modelName: "MODEL-A", process: "Packing" },
+    { area: "Packing", machineType: "PKG", machineNo: "PKG-B-002", modelType: "PKG", modelName: "MODEL-A", process: "Packing" }
+  ], columns, { machineType: "PKG" });
+  const totalRows = rows.filter((row) => row.machineNo === "PKG-TOTAL");
+
+  assert.equal(totalRows.length, 13);
+  assert.equal(totalRows[0].rowType, "summary");
+  assert.equal(totalRows[0].isFirstMetric, true);
+  assert.equal(totalRows[0].modelType, "TOTAL");
+  assert.equal(totalRows.find((row) => row.metric === "Output (Target)").cells[0], "54,720");
+  assert.match(totalRows.find((row) => row.metric === "OEE").cells[0], /%$/);
+});
+
+test("mms machine type summary aggregates selected machines for report header", () => {
+  const summary = buildMmsMachineTypeSummary([
+    { machineNo: "CNV-A-001", output: 120, outputOk: 118, outputNg: 2, oee: 80, plcStatus: "RUN" },
+    { machineNo: "CNV-A-002", output: 100, outputOk: 99, outputNg: 1, oee: 90, plcStatus: "MM_REPAIR", activeJobStatus: "MM_REPAIR" }
+  ]);
+
+  assert.deepEqual(summary, {
+    activeJobs: 1,
+    ng: 3,
+    oeeAverage: 85,
+    ok: 217,
+    output: 220,
+    running: 1,
+    totalMachines: 2
+  });
+});
+
+test("mms graph report series exposes output CT OEE and NG datasets", () => {
+  const series = buildMmsGraphReportSeries("yearly", { year: "2026" });
+
+  assert.equal(series.output.length, 12);
+  assert.equal(series.output[0].hasOwnProperty("outputActual"), true);
+  assert.equal(series.ctAvailability[0].hasOwnProperty("cycleTimeActual"), true);
+  assert.equal(series.oee[0].hasOwnProperty("quality"), true);
+  assert.equal(series.ngReject[0].hasOwnProperty("ngQty"), true);
 });

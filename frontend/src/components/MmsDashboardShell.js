@@ -10,33 +10,47 @@ import {
   ComposedChart,
   Legend,
   Line,
+  ReferenceLine,
   Tooltip,
   XAxis,
   YAxis
 } from "recharts";
-import { selectOverallMmsMachines } from "@/lib/mmsSimulation";
+import {
+  buildMmsGraphReportSeries,
+  buildMmsLayoutMachineState,
+  buildMmsMachineTypeSummary,
+  buildMmsReportColumns,
+  buildMmsReportMatrixRows,
+  getDefaultMmsOverviewFilters,
+  getDefaultMmsReportFilters,
+  getMmsDashboardViewKey,
+  mmsMachineStatuses,
+  mmsOverviewFilterStorageKey,
+  mmsReportsFilterStorageKey,
+  selectMmsOverviewMachines,
+  selectMmsReportMachines,
+  selectOverallMmsMachines
+} from "@/lib/mmsSimulation";
 
 const navGroups = [
   {
     title: "Overview",
     items: [
-      { href: "/mms-dashboard", key: "dashboard", icon: "DB", label: "Dashboard" },
-      { href: "/mms-dashboard/machine-area", key: "machine-area", icon: "AR", label: "Machine Area" },
-      { href: "/mms-dashboard/layout-dashboard", key: "layout-dashboard", icon: "LY", label: "Layout Dashboard" }
+      { href: "/mms-dashboard", key: "overview", icon: "OV", label: "Overview" }
     ]
   },
   {
     title: "Working",
     items: [
-      { href: "/mms-dashboard/overall-machine-working", key: "overall-machine-working", icon: "OW", label: "Overall Machine Working" },
+      { href: "/mms-dashboard/overall-machine-working", key: "overall-machine-working", icon: "OW", label: "Overall Working" },
       { href: "/mms-dashboard/machine-working", key: "machine-working", icon: "MW", label: "Machine Working" }
     ]
   },
   {
     title: "Reports",
     items: [
-      { href: "/mms-dashboard/daily-report", key: "daily-report", icon: "DR", label: "Daily Report" },
-      { href: "/mms-dashboard/monthly-report", key: "monthly-report", icon: "MR", label: "Monthly Report" }
+      { href: "/mms-dashboard/graph-report", key: "graph-report", icon: "GR", label: "Graph Report" },
+      { href: "/mms-dashboard/table-report", key: "table-report", icon: "TR", label: "Table Report" }
     ]
   },
   {
@@ -101,22 +115,78 @@ const machineTypeByPrefix = {
   WGH: "Weigher"
 };
 
+const machineOverrides = {
+  "CNV-A-002": {
+    activeJobStatus: "WAIT_MM",
+    jobNo: "JOB-20260514-011",
+    responsible: "Production / PRD-014"
+  },
+  "FIL-A-003": {
+    plcStatus: "MM_REPAIR",
+    activeJobStatus: "MM_REPAIR",
+    jobNo: "JOB-20260514-009",
+    responsible: "MM-006 Narin"
+  },
+  "LBL-B-002": {
+    alarmName: "Sensor abnormal",
+    plcStatus: "RUN",
+    simMachineAlarm: true,
+    responsible: "MM standby"
+  },
+  "MIX-B-001": {
+    plcStatus: "QC",
+    activeJobStatus: "WAIT_QC",
+    jobNo: "JOB-20260514-008",
+    responsible: "QC-003 Narin"
+  },
+  "SEA-P-002": {
+    plcStatus: "WAIT_PART",
+    activeJobStatus: "MM_REPAIR",
+    jobNo: "JOB-20260514-006",
+    responsible: "MM-002 Kanda"
+  },
+  "WGH-P-001": {
+    plcStatus: "WAIT_PART",
+    responsible: "Tooling Store"
+  }
+};
+
 const machines = [
   "CNV-A-001", "CNV-A-002", "CNV-A-003", "FIL-A-001", "FIL-A-002", "FIL-A-003",
   "RBT-A-001", "RBT-A-002", "LBL-B-001", "LBL-B-002", "MIX-B-001", "MIX-B-002",
   "PKG-B-001", "PKG-B-002", "SEA-P-001", "SEA-P-002", "WGH-P-001", "BLR-U-001"
-].map((name, index) => ({
-  name,
-  machineNo: name,
-  area: index < 8 ? "Line A" : index < 14 ? "Line B" : index < 17 ? "Packing" : "Utility",
-  machineType: machineTypeByPrefix[name.split("-")[0]] || name.split("-")[0],
-  type: machineTypeByPrefix[name.split("-")[0]] || name.split("-")[0],
-  status: index === 1 ? "JOB" : index === 9 ? "ALARM" : index === 16 ? "WAIT" : "RUN",
-  output: 720 + index * 46,
-  ng: index % 5,
-  ct: 1 + (index % 3),
-  oee: 78 + (index % 14)
-}));
+].map((name, index) => {
+  const override = machineOverrides[name] || {};
+  const plcStatus = override.plcStatus || "RUN";
+  const status = override.simMachineAlarm ? "ALARM" : plcStatus === "WAIT_PART" ? "WAIT" : plcStatus;
+
+  return {
+    name,
+    machineNo: name,
+    area: index < 8 ? "Line A" : index < 14 ? "Line B" : index < 17 ? "Packing" : "Utility",
+    machineType: machineTypeByPrefix[name.split("-")[0]] || name.split("-")[0],
+    type: machineTypeByPrefix[name.split("-")[0]] || name.split("-")[0],
+    status,
+    plcStatus,
+    output: 720 + index * 46,
+    ng: index % 5,
+    ct: 1 + (index % 3),
+    oee: 78 + (index % 14),
+    ...override,
+    jobRequestActive: Boolean(override.activeJobStatus)
+  };
+});
+
+const reportMachines = machines.map((machine, index) => {
+  const prefix = machine.machineNo.split("-")[0];
+  return {
+    ...machine,
+    machineType: prefix,
+    modelName: index % 3 === 0 ? "C4G, 12630" : machine.model || "MODEL-A",
+    modelType: "-",
+    process: machine.area || "-"
+  };
+});
 
 const shiftHourLabels = Array.from({ length: 24 }, (_item, index) => {
   const hour = (7 + index) % 24;
@@ -208,6 +278,28 @@ function statusBadgeStyle(status) {
   };
 }
 
+function statusCardStyle(status) {
+  const color = statusColors[status] || statusColors.STOP;
+  return {
+    background: `linear-gradient(135deg, ${color}38 0%, ${color}24 52%, #ffffff 100%)`,
+    borderColor: `${color}cc`,
+    boxShadow: `inset 0 0 0 1px ${color}22, 0 10px 22px ${color}1f`
+  };
+}
+
+function compactMmsStatus(status) {
+  const labels = {
+    BRAKE_TIME: "BRAKE",
+    CLEANING: "CLEAN",
+    MM_PREVENTIVE: "MM PM",
+    MM_REPAIR: "MM",
+    PLAN_STOP: "PLAN",
+    WAIT_PART: "WAIT",
+    WARM_UP: "WARM"
+  };
+  return labels[status] || status;
+}
+
 function statusFillStyle(status) {
   return { backgroundColor: statusColors[status] || statusColors.STOP };
 }
@@ -217,10 +309,10 @@ const styles = {
   backButton: "inline-flex h-10 items-center justify-center rounded-xl bg-white px-5 text-sm font-black text-slate-950 shadow-sm transition hover:bg-slate-100",
   brand: "mb-6 flex items-center gap-3",
   brandText: "[&_h1]:m-0 [&_h1]:text-lg [&_h1]:font-black [&_h1]:leading-tight [&_p]:m-0 [&_p]:mt-1 [&_p]:text-sm [&_p]:font-bold [&_p]:text-slate-400",
-  chartBox: "min-h-[290px] min-w-0",
-  chartBoxCompact: "min-h-[205px]",
+  chartBox: "h-[290px] min-w-0",
+  chartBoxCompact: "h-[170px] min-h-0 min-w-0",
   chartBoxOverall: "h-full min-h-0 min-w-0",
-  chartBoxTall: "min-h-[330px]",
+  chartBoxTall: "h-[300px] min-h-[300px]",
   chartTabButton: "inline-flex h-8 items-center justify-center rounded-lg border border-blue-600 bg-white px-5 text-xs font-black text-blue-700 shadow-sm transition hover:bg-blue-50",
   chartTabButtonActive: "inline-flex h-8 items-center justify-center rounded-lg border border-blue-700 bg-blue-700 px-5 text-xs font-black text-white shadow-sm transition hover:bg-blue-700",
   collapseButton: "mb-5 h-11 w-full rounded-xl border border-white/10 bg-white/10 text-sm font-black text-white transition hover:bg-white/15",
@@ -246,10 +338,10 @@ const styles = {
   machineDropdownMenu: "absolute z-30 mt-2 max-h-72 w-full overflow-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl",
   machineMap: "grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-2",
   machineStatusTimeline: "grid gap-2",
-  machineSummaryTable: "grid overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 text-slate-950 shadow-sm grid-cols-[240px_repeat(6,minmax(120px,1fr))_190px] max-[1200px]:grid-cols-2",
+  machineSummaryTable: "grid overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 text-slate-950 shadow-sm grid-cols-[240px_repeat(6,minmax(120px,1fr))_190px] max-[1200px]:grid-cols-2 [&_.operator-avatar]:h-12 [&_.operator-avatar]:w-12",
   machineSummaryTableCompact: "grid grid-cols-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 text-[10px] text-slate-950 shadow-sm [&_.operator-avatar]:h-9 [&_.operator-avatar]:w-9 [&_.summary-cell]:min-h-12 [&_.summary-cell]:p-1.5 [&_.summary-cell_b]:text-[8px] [&_.summary-cell_small]:text-[8px] [&_.summary-cell_strong]:text-sm max-[900px]:grid-cols-2",
   machineTile: "rounded-xl border border-l-4 border-slate-200 bg-white p-3 text-sm shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
-  machineWorkingChartGrid: "grid grid-cols-2 gap-3 max-[1000px]:grid-cols-1",
+  machineWorkingChartGrid: "grid grid-cols-2 gap-3 max-[1000px]:grid-cols-1 [&>article]:min-w-0",
   main: "min-w-0 bg-slate-100 bg-[linear-gradient(rgba(15,23,42,0.026)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.026)_1px,transparent_1px)] bg-[length:32px_32px] p-4",
   nav: "grid gap-3",
   navGroup: "grid gap-1 rounded-2xl border border-white/10 bg-white/[0.04] p-2",
@@ -265,6 +357,30 @@ const styles = {
   oeeSummaryCell: "items-center justify-center text-center [&_strong]:text-3xl [&_strong]:text-emerald-700",
   okText: "text-emerald-700",
   operatorCell: "flex items-center gap-3 bg-slate-100 [&_img]:h-14 [&_img]:w-14 [&_img]:rounded-xl [&_img]:ring-2 [&_img]:ring-sky-200 [&_span]:grid [&_span]:min-w-0 [&_span]:gap-0.5 [&_span_b]:truncate [&_span_strong]:truncate",
+  overviewAreaCard: "min-h-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-2 shadow-sm",
+  overviewAreaGrid: "grid grid-cols-4 gap-3 max-[1400px]:grid-cols-2 max-[760px]:grid-cols-1",
+  overviewAreaHeader: "mb-1.5 flex items-start justify-between gap-2 [&_h4]:m-0 [&_h4]:text-sm [&_h4]:font-black [&_p]:m-0 [&_p]:text-[10px] [&_p]:font-bold [&_p]:text-slate-500",
+  overviewChartGrid: "grid grid-cols-[1.35fr_0.85fr] gap-3 max-[1100px]:grid-cols-1",
+  overviewFactoryHeader: "mb-2 flex flex-wrap items-center justify-between gap-2 [&_h3]:m-0 [&_h3]:text-base [&_h3]:font-black [&_p]:m-0 [&_p]:text-[10px] [&_p]:font-black [&_p]:text-slate-500",
+  overviewFactoryLayout: "grid min-h-0 grid-cols-4 items-start gap-2 max-[1600px]:grid-cols-2 max-[900px]:grid-cols-1",
+  overviewFactoryPanel: "grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-sm",
+  overviewFactoryScaleWrap: "min-h-0 overflow-auto rounded-xl pr-1",
+  overviewFilterPanel: "grid grid-cols-[1fr_1fr_1fr_1fr_1fr] gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm max-[1200px]:grid-cols-3 max-[760px]:grid-cols-1",
+  overviewHero: "rounded-2xl border border-slate-200 bg-white p-4 shadow-sm",
+  overviewHeroGrid: "grid grid-cols-[1.25fr_0.75fr] gap-3 max-[1100px]:grid-cols-1",
+  overviewKpi: "rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm [&_small]:block [&_small]:text-[10px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.12em] [&_small]:text-slate-500 [&_span]:mt-1 [&_span]:block [&_span]:text-xs [&_span]:font-bold [&_span]:text-slate-500 [&_strong]:mt-1 [&_strong]:block [&_strong]:text-2xl [&_strong]:font-black [&_strong]:text-slate-950",
+  overviewKpiStrip: "grid grid-cols-6 gap-3 max-[1400px]:grid-cols-3 max-[760px]:grid-cols-2",
+  overviewLayout: "grid h-[calc(100vh-172px)] min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden",
+  overviewMachineCard: "grid h-[112px] min-w-0 content-between overflow-hidden rounded-xl border-2 p-1.5 shadow-sm",
+  overviewMachineGrid: "grid grid-cols-[repeat(auto-fill,minmax(136px,1fr))] auto-rows-[112px] gap-1.5",
+  overviewMachineMeta: "mt-1 grid min-w-0 gap-0.5 text-[8px] font-black text-slate-700 [&_b]:shrink-0 [&_b]:text-slate-950 [&_em]:min-w-0 [&_em]:truncate [&_em]:not-italic [&_span]:flex [&_span]:min-w-0 [&_span]:items-center [&_span]:justify-between [&_span]:gap-1",
+  overviewMachineMetrics: "mt-1 grid min-w-0 grid-cols-4 gap-0.5 [&_span]:min-w-0 [&_span]:rounded-md [&_span]:border [&_span]:border-white/70 [&_span]:bg-white/80 [&_span]:px-0.5 [&_span]:py-0.5 [&_small]:block [&_small]:truncate [&_small]:text-center [&_small]:text-[6px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.04em] [&_small]:text-slate-500 [&_strong]:block [&_strong]:text-center [&_strong]:text-[8px] [&_strong]:font-black [&_strong]:leading-tight [&_strong]:text-slate-950",
+  overviewMachineTitle: "flex min-w-0 items-start justify-between gap-1 [&_div]:min-w-0 [&_h5]:m-0 [&_h5]:truncate [&_h5]:text-[11px] [&_h5]:font-black [&_h5]:leading-tight [&_p]:m-0 [&_p]:truncate [&_p]:text-[7px] [&_p]:font-bold [&_p]:text-slate-600",
+  overviewStatusBadge: "inline-flex min-h-5 max-w-[72px] shrink-0 items-center justify-center truncate rounded-full border px-1.5 text-[8px] font-black uppercase tracking-[0.02em]",
+  overviewSignalList: "grid gap-2 [&_article]:rounded-xl [&_article]:border [&_article]:border-slate-200 [&_article]:bg-slate-50 [&_article]:p-3 [&_b]:block [&_b]:text-sm [&_b]:font-black [&_small]:block [&_small]:text-xs [&_small]:font-bold [&_small]:text-slate-500",
+  overviewStatusBoard: "grid grid-cols-2 gap-2",
+  overviewStatusCard: "rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm [&_small]:block [&_small]:text-[10px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.12em] [&_small]:text-slate-500 [&_strong]:mt-1 [&_strong]:block [&_strong]:text-2xl [&_strong]:font-black",
+  overviewTypeBlock: "rounded-lg border border-slate-200 bg-slate-50 p-1.5 [&_h5]:mb-1 [&_h5]:text-[10px] [&_h5]:font-black [&_h5]:text-slate-700",
   overallCard: "flex h-[320px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm",
   overallChartCell: "grid min-h-0 grid-rows-[minmax(0,1fr)_22px]",
   overallChartLegend: "flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 overflow-hidden px-1 text-[8px] font-bold leading-none text-slate-600 [&_i]:inline-block [&_i]:h-2 [&_i]:w-2 [&_i]:rounded-sm [&_span]:inline-flex [&_span]:items-center [&_span]:gap-1",
@@ -285,7 +401,33 @@ const styles = {
   overallStatusBlock: "grid flex-1 grid-rows-[82px_minmax(0,1fr)] gap-2 p-2",
   overallTabSwitch: "flex h-11 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1",
   panel: "rounded-2xl border border-slate-200 bg-white p-3 shadow-sm",
+  panelActionButton: "inline-flex h-8 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-black text-slate-800 shadow-sm transition hover:bg-slate-50",
+  panelActionButtonPrimary: "inline-flex h-8 items-center justify-center rounded-lg border border-slate-900 bg-slate-950 px-3 text-xs font-black text-white shadow-sm transition hover:bg-slate-800",
+  panelActions: "flex flex-wrap items-center justify-end gap-2",
+  panelControlHeader: "mb-3 flex flex-wrap items-center justify-between gap-3 [&_h3]:m-0 [&_h3]:text-lg [&_h3]:font-black [&_p]:m-0 [&_p]:text-xs [&_p]:font-black [&_p]:text-slate-500",
   panelHeader: "mb-3 flex items-center justify-between gap-3 [&_h3]:m-0 [&_h3]:text-lg [&_h3]:font-black [&_span]:text-xs [&_span]:font-black [&_span]:text-slate-500",
+  reportFilterPanel: "grid grid-cols-[1fr_1fr_1fr_130px_180px_auto] items-end gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm max-[1300px]:grid-cols-3 max-[760px]:grid-cols-1",
+  reportGrid2: "grid grid-cols-2 gap-3 max-[1100px]:grid-cols-1",
+  reportOeeKpiGrid: "grid grid-cols-4 gap-2 px-2 pb-2 max-[900px]:grid-cols-2 [&_article]:rounded-xl [&_article]:border [&_article]:border-slate-200 [&_article]:bg-slate-50 [&_article]:p-2 [&_small]:block [&_small]:text-[9px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.1em] [&_small]:text-slate-500 [&_strong]:mt-1 [&_strong]:block [&_strong]:text-lg [&_strong]:font-black",
+  reportDateBodyPanel: "min-w-0 overflow-x-auto overflow-y-hidden",
+  reportDateHeaderPanel: "min-w-0 overflow-hidden bg-slate-800",
+  reportDateTable: "min-w-[1550px] border-separate border-spacing-0 text-[11px] text-slate-950 [&_td]:h-9 [&_td]:border-b [&_td]:border-r [&_td]:border-slate-300 [&_td]:px-2.5 [&_td]:py-1.5 [&_td]:text-center [&_td]:align-middle [&_td]:font-bold",
+  reportDateTableHeader: "min-w-[1550px] border-separate border-spacing-0 text-[11px] text-white [&_th]:h-10 [&_th]:border-b [&_th]:border-r [&_th]:border-slate-600 [&_th]:bg-slate-800 [&_th]:px-2.5 [&_th]:py-2 [&_th]:text-center [&_th]:align-middle [&_th]:text-[10px] [&_th]:font-black [&_th]:leading-tight [&_th]:text-white",
+  reportDividerRow: "[&_td]:border-t-4 [&_td]:border-t-slate-700",
+  reportFixedPanel: "w-[628px] shrink-0 overflow-hidden border-r-2 border-slate-700 bg-white",
+  reportFixedTable: "w-full table-fixed border-separate border-spacing-0 text-[11px] text-slate-950 [&_td]:h-9 [&_td]:border-b [&_td]:border-r [&_td]:border-slate-300 [&_td]:px-2.5 [&_td]:py-1.5 [&_td]:text-center [&_td]:align-middle [&_td]:font-bold [&_tr>*:first-child]:border-l",
+  reportFixedTableHeader: "w-full table-fixed border-separate border-spacing-0 text-[11px] text-white [&_th]:h-10 [&_th]:border-b [&_th]:border-r [&_th]:border-slate-600 [&_th]:bg-slate-800 [&_th]:px-2.5 [&_th]:py-2 [&_th]:text-center [&_th]:align-middle [&_th]:text-[10px] [&_th]:font-black [&_th]:leading-tight [&_th]:text-white [&_tr>*:first-child]:border-l",
+  reportMatrixBody: "max-h-[calc(100vh-290px)] overflow-y-auto overflow-x-hidden overscroll-contain",
+  reportMatrixHeader: "sticky top-0 z-30 flex min-w-0 border-b-2 border-slate-700 bg-slate-800",
+  reportMatrixPanel: "overflow-hidden rounded-xl border border-slate-500 bg-white shadow-sm",
+  reportMatrixSplit: "flex min-w-0",
+  reportMetricCell: "border-l-2 border-l-slate-500 bg-slate-50 text-left font-black",
+  reportMergedCell: "border-b-2 border-l border-slate-500 bg-slate-50 text-center font-black text-slate-950",
+  reportSummaryCell: "bg-amber-50 text-amber-900",
+  reportSummaryPanel: "grid grid-cols-6 gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 p-3 shadow-sm max-[1300px]:grid-cols-3 max-[760px]:grid-cols-2 [&_small]:block [&_small]:text-[10px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.12em] [&_small]:text-cyan-800 [&_strong]:mt-1 [&_strong]:block [&_strong]:text-xl [&_strong]:font-black [&_strong]:text-slate-950",
+  reportTotalCell: "border-l-2 border-l-slate-500 bg-amber-100 font-black text-amber-950",
+  reportPrimaryButton: "inline-flex h-11 items-center justify-center rounded-xl bg-emerald-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700",
+  reportTabHeader: "flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm [&_h3]:m-0 [&_h3]:text-lg [&_h3]:font-black [&_p]:m-0 [&_p]:text-xs [&_p]:font-bold [&_p]:text-slate-500",
   reportCards: "grid grid-cols-[1.2fr_.8fr] gap-3 max-[1100px]:grid-cols-1",
   screen: "min-h-screen text-slate-950",
   shiftScale: "grid grid-cols-7 px-2 text-center text-[9px] font-black text-slate-500",
@@ -299,8 +441,8 @@ const styles = {
   statusTimelinePanel: "rounded-xl border border-slate-200 bg-white p-2",
   statusTooltip: "pointer-events-none absolute top-14 z-10 grid -translate-x-1/2 gap-1 rounded-lg bg-slate-950 px-3 py-2 text-xs font-bold text-white shadow-xl",
   statusTrack: "relative flex overflow-visible rounded-xl border border-slate-200 bg-white p-0.5",
-  summaryCell: "summary-cell grid min-h-16 content-center border-b border-r border-slate-200 p-2 [&_b]:text-[11px] [&_b]:font-bold [&_b]:text-slate-500 [&_small]:text-[10px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.12em] [&_small]:text-slate-500 [&_strong]:text-base [&_strong]:font-black",
-  summaryMetric: "summary-cell grid min-h-16 content-center border-b border-r border-slate-200 p-2 [&_b]:text-[11px] [&_b]:font-bold [&_b]:text-slate-500 [&_small]:text-[10px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.12em] [&_small]:text-slate-500 [&_strong]:text-lg [&_strong]:font-black",
+  summaryCell: "summary-cell grid min-h-14 content-center border-b border-r border-slate-200 p-2 [&_b]:text-[10px] [&_b]:font-bold [&_b]:text-slate-500 [&_small]:text-[9px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.12em] [&_small]:text-slate-500 [&_strong]:text-base [&_strong]:font-black",
+  summaryMetric: "summary-cell grid min-h-14 content-center border-b border-r border-slate-200 p-2 [&_b]:text-[10px] [&_b]:font-bold [&_b]:text-slate-500 [&_small]:text-[9px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.12em] [&_small]:text-slate-500 [&_strong]:text-base [&_strong]:font-black",
   summaryTallCell: "row-span-2",
   table: "w-full border-collapse text-sm [&_td]:border-b [&_td]:border-slate-200 [&_td]:px-3 [&_td]:py-2 [&_td]:font-bold [&_td]:text-slate-700 [&_th]:border-b [&_th]:border-slate-200 [&_th]:bg-slate-50 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:text-[11px] [&_th]:font-black [&_th]:uppercase [&_th]:tracking-[0.12em] [&_th]:text-slate-500",
   tableWrap: "overflow-auto rounded-xl border border-slate-200",
@@ -311,13 +453,14 @@ const styles = {
   topbar: "mb-3 flex items-center justify-between gap-4 rounded-2xl border border-cyan-700/30 bg-gradient-to-r from-slate-950 via-slate-900 to-cyan-800 p-4 text-white shadow-sm [&_h2]:m-0 [&_h2]:text-2xl [&_h2]:font-black [&_p:last-child]:m-0 [&_p:last-child]:text-sm [&_p:last-child]:font-bold [&_p:last-child]:text-cyan-50 max-[700px]:flex-col max-[700px]:items-start",
   typeButton: "mb-3 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-950 px-4 py-3 text-base font-black text-white no-underline shadow-sm transition hover:bg-slate-800 [&_span]:text-xs [&_span]:font-bold [&_span]:text-cyan-100",
   typeSection: "rounded-2xl border border-slate-200 bg-white p-3 shadow-sm",
-  typeStack: "grid gap-3"
+  typeStack: "grid gap-1.5"
 };
 
-export default function MmsDashboardShell({ view = "dashboard" }) {
+export default function MmsDashboardShell({ view = "overview" }) {
   const [collapsed, setCollapsed] = useState(false);
-  const title = getTitle(view);
-  const backHref = view === "dashboard" ? "/" : "/mms-dashboard";
+  const activeView = getMmsDashboardViewKey(view);
+  const title = getTitle(activeView);
+  const backHref = activeView === "overview" ? "/" : "/mms-dashboard";
 
   useEffect(() => {
     const saved = localStorage.getItem("mms:sidebar:collapsed");
@@ -352,7 +495,7 @@ export default function MmsDashboardShell({ view = "dashboard" }) {
                 <div className={classNames(styles.navTitle, collapsed ? "sr-only" : "")}>{group.title}</div>
                 {group.items.map((item) => (
                   <Link
-                    className={classNames(styles.navLink, collapsed ? styles.navLinkCollapsed : styles.navLinkExpanded, view === item.key ? styles.active : "")}
+                    className={classNames(styles.navLink, collapsed ? styles.navLinkCollapsed : styles.navLinkExpanded, activeView === item.key ? styles.active : "")}
                     href={item.href}
                     key={item.key}
                     target={item.target}
@@ -372,16 +515,16 @@ export default function MmsDashboardShell({ view = "dashboard" }) {
             <div>
               <p className={styles.eyebrow}>Machine Monitoring System</p>
               <h2>{title}</h2>
-              <p>{getSubtitle(view)}</p>
+              <p>{getSubtitle(activeView)}</p>
             </div>
             <Link className={styles.backButton} href={backHref}>Back</Link>
           </header>
 
           <section className={styles.content}>
-            {view !== "dashboard" && view !== "overall-machine-working" ? <FilterBar view={view} /> : null}
-            {renderView(view)}
+             {shouldShowGlobalFilter(activeView) ? <FilterBar view={activeView} /> : null}
+             {renderView(activeView)}
           </section>
-          <div className={styles.footer}>MMS Dashboard | Factory Management System</div>
+          {!["overview", "table-report", "machine-working"].includes(activeView) ? <div className={styles.footer}>MMS Dashboard | Factory Management System</div> : null}
         </section>
       </div>
     </main>
@@ -390,26 +533,32 @@ export default function MmsDashboardShell({ view = "dashboard" }) {
 
 function getTitle(view) {
   const map = {
-    dashboard: "Executive Dashboard",
-    "daily-report": "Daily Report",
-    "layout-dashboard": "Layout Dashboard",
-    "machine-area": "Machine Area",
+    overview: "Overview",
+    dashboard: "Overview",
+    "daily-report": "Graph Report",
+    "graph-report": "Graph Report",
     "machine-working": "Machine Working",
-    "monthly-report": "Monthly Report",
-    "overall-machine-working": "Overall Machine Working"
+    "monthly-report": "Graph Report",
+    "overall-machine-working": "Overall Working",
+    "table-report": "Table Report"
   };
   return map[view] || "MMS Dashboard";
 }
 
+function shouldShowGlobalFilter(view) {
+  return !["overview", "overall-machine-working", "graph-report", "table-report", "daily-report", "monthly-report"].includes(view);
+}
+
 function getSubtitle(view) {
   const map = {
+    overview: "Plant output, status, OEE, and machine health overview.",
     dashboard: "Plant output, status, OEE, and machine health overview.",
-    "daily-report": "Daily production, NG, OEE, CT, and downtime by area/type.",
-    "layout-dashboard": "Factory machine layout with live status color.",
-    "machine-area": "Area level machine condition and production view.",
+    "daily-report": "Graph report for output, OEE, quality, CT, and availability.",
+    "graph-report": "Graph report for output, OEE, quality, CT, and availability.",
     "machine-working": "Single machine output, CT, OEE, status timeline, and operator view.",
-    "monthly-report": "Monthly production trend and machine performance summary.",
-    "overall-machine-working": "Multi-machine working view for selected area and type."
+    "monthly-report": "Graph report for output, OEE, quality, CT, and availability.",
+    "overall-machine-working": "Multi-machine working view for selected area and type.",
+    "table-report": "Matrix table report for output, OEE, quality, CT, and availability."
   };
   return map[view] || "Machine monitoring system.";
 }
@@ -482,12 +631,13 @@ function FilterBar({ view }) {
 }
 
 function renderView(view) {
-  if (view === "machine-area") return <MachineAreaView />;
-  if (view === "layout-dashboard") return <LayoutDashboardView />;
+  if (view === "overview") return <DashboardView />;
   if (view === "overall-machine-working") return <OverallMachineWorkingView />;
   if (view === "machine-working") return <MachineWorkingView />;
-  if (view === "daily-report") return <DailyReportView />;
-  if (view === "monthly-report") return <MonthlyReportView />;
+  if (view === "daily-report") return <GraphReportView defaultPeriod="daily" forcePeriod />;
+  if (view === "graph-report") return <GraphReportView defaultPeriod="monthly" />;
+  if (view === "monthly-report") return <GraphReportView defaultPeriod="monthly" forcePeriod />;
+  if (view === "table-report") return <TableReportView defaultPeriod="monthly" />;
   return <DashboardView />;
 }
 
@@ -513,75 +663,561 @@ function Kpis() {
 }
 
 function DashboardView() {
-  return (
-    <>
-      <section className={styles.oeeHeader}>
-        <div>
-          <p className={styles.eyebrowDark}>OEE Dashboard</p>
-          <h3>Select working area and machine type</h3>
-        </div>
-        <span>Real-time</span>
-      </section>
-      <FilterBar />
-      <section className={styles.typeStack}>
-        {["Conveyor", "Filling", "Robot Arm"].map((type) => (
-          <article className={styles.typeSection} key={type}>
-            <Link className={styles.typeButton} href="/mms-dashboard/overall-machine-working">
-              {type} <span>Open overall view</span>
-            </Link>
-            <div className={styles.machineMap}>
-              {machines.filter((machine) => machine.area === "Line A").slice(0, 6).map((machine) => <MachineTile key={`${type}-${machine.name}`} machine={{ ...machine, type }} />)}
-            </div>
-          </article>
-        ))}
-      </section>
-      <section className={styles.grid3}>
-        <CompactTable title="Top Alarm" rows={[["LBL-B-004", "Sensor fault", "12m"], ["SEA-P-002", "Heater temp", "8m"], ["CNV-A-001", "Job request", "5m"]]} />
-        <CompactTable title="Top Output" rows={[["PMP-B-008", "708 pcs", "RUN"], ["CMP-U-007", "1188 pcs", "RUN"], ["CHL-U-007", "1104 pcs", "RUN"]]} />
-        <CompactTable title="OEE Risk" rows={[["Packing", "82.7%", "Check"], ["Line A", "86.4%", "Watch"], ["Utility", "88.6%", "OK"]]} />
-      </section>
-    </>
-  );
-}
-
-function MachineAreaView() {
-  return (
-    <>
-      <section className={styles.typeStack}>
-        {areas.map((area) => (
-          <article className={styles.typeSection} key={area.area}>
-            <Link className={styles.typeButton} href="/mms-dashboard/overall-machine-working">
-              {area.area} <span>{area.oee}% OEE / {area.output.toLocaleString()} pcs</span>
-            </Link>
-            <div className={styles.machineMap}>
-              {machines.filter((machine) => machine.area === area.area).map((machine) => <MachineTile key={machine.name} machine={machine} />)}
-            </div>
-          </article>
-        ))}
-      </section>
-    </>
-  );
-}
-
-function LayoutDashboardView() {
-  const groupedByArea = areas.map((area) => ({
+  const [overviewFilters, setOverviewFilters] = useState(getDefaultMmsOverviewFilters());
+  const [layoutScale, setLayoutScale] = useState(0.85);
+  const [hydrated, setHydrated] = useState(false);
+  const factoryLayoutRef = useRef(null);
+  const layoutStates = machines.map((machine) => ({ ...machine, layoutState: buildMmsLayoutMachineState(machine) }));
+  const filteredLayoutStates = selectMmsOverviewMachines(layoutStates, overviewFilters);
+  const areaLayout = areas.map((area) => ({
     ...area,
-    machines: machines.filter((machine) => machine.area === area.area)
-  }));
+    machines: filteredLayoutStates.filter((machine) => machine.area === area.area)
+  })).filter((area) => area.machines.length > 0);
+
+  useEffect(() => {
+    try {
+      setOverviewFilters({
+        ...getDefaultMmsOverviewFilters(),
+        ...JSON.parse(localStorage.getItem(mmsOverviewFilterStorageKey) || "{}")
+      });
+    } catch {
+      setOverviewFilters(getDefaultMmsOverviewFilters());
+    } finally {
+      setHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (hydrated) {
+      localStorage.setItem(mmsOverviewFilterStorageKey, JSON.stringify(overviewFilters));
+    }
+  }, [hydrated, overviewFilters]);
+
+  const adjustLayoutScale = (step) => {
+    setLayoutScale((current) => Math.min(1.3, Math.max(0.7, Number((current + step).toFixed(1)))));
+  };
+
+  const toggleFactoryFullscreen = async () => {
+    const node = factoryLayoutRef.current;
+    if (!node) return;
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    } else {
+      await node.requestFullscreen();
+    }
+  };
 
   return (
-    <Panel title="Factory Layout" meta="Area / Type / Machine">
-      <div className={styles.factoryLayoutGrid}>
-        {groupedByArea.map((area, index) => (
-          <section className={styles.factoryArea} data-area={index} key={area.area}>
-            <div className={styles.factoryAreaTitle}>{area.area}</div>
-            <div className={styles.machineMap}>
-              {area.machines.map((machine) => <MachineTile key={machine.name} machine={machine} />)}
+    <section className={styles.overviewLayout}>
+      <OverviewFilterBar filters={overviewFilters} machines={layoutStates} onChange={setOverviewFilters} />
+
+      <article className={styles.overviewFactoryPanel} ref={factoryLayoutRef}>
+        <div className={styles.overviewFactoryHeader}>
+          <div>
+            <h3>Factory Layout Status</h3>
+            <p>MMS + Job Request + PIC + Output / OK / NG / OEE</p>
+          </div>
+          <div className={styles.panelActions}>
+            <button className={styles.panelActionButton} type="button" onClick={() => adjustLayoutScale(-0.1)}>−</button>
+            <span className={styles.statusBadge}>{Math.round(layoutScale * 100)}%</span>
+            <button className={styles.panelActionButton} type="button" onClick={() => adjustLayoutScale(0.1)}>+</button>
+            <button className={styles.panelActionButtonPrimary} type="button" onClick={toggleFactoryFullscreen}>Full screen</button>
+          </div>
+        </div>
+        {areaLayout.length === 0 ? (
+          <div className={styles.overallEmpty}>No machines match the selected filters.</div>
+        ) : (
+          <div className={styles.overviewFactoryScaleWrap}>
+            <div className={styles.overviewFactoryLayout} style={{ zoom: layoutScale }}>
+              {areaLayout.map((area) => (
+                <article className={styles.overviewAreaCard} key={area.area}>
+                  <div className={styles.overviewAreaHeader}>
+                    <div>
+                      <h4>{area.area}</h4>
+                      <p>{area.machines.length} machines / {area.machines.filter((machine) => machine.layoutState.mmsStatus === "RUN").length} MMS running</p>
+                    </div>
+                    <StatusBadge status={area.machines.some((machine) => machine.layoutState.mmsStatus === "ALARM") ? "ALARM" : area.machines.some((machine) => machine.layoutState.hasJob) ? "JOB" : "RUN"} />
+                  </div>
+                  <div className={styles.typeStack}>
+                    {groupMachinesByType(area.machines).map((group) => (
+                      <section className={styles.overviewTypeBlock} key={`${area.area}-${group.machineType}`}>
+                        <h5>{group.machineType}</h5>
+                        <div className={styles.overviewMachineGrid}>
+                          {group.machines.map((machine) => <OverviewMachineCard key={machine.machineNo} machine={machine} />)}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                </article>
+              ))}
             </div>
-          </section>
-        ))}
+          </div>
+        )}
+      </article>
+    </section>
+  );
+}
+
+function OverviewFilterBar({ filters, machines, onChange }) {
+  const areaOptions = ["All", ...uniqueValues(machines.map((machine) => machine.area))];
+  const typeOptions = ["All", ...uniqueValues(machines
+    .filter((machine) => filters.area === "All" || machine.area === filters.area)
+    .map((machine) => machine.machineType || machine.type))];
+  const machineOptions = ["All", ...uniqueValues(machines
+    .filter((machine) => filters.area === "All" || machine.area === filters.area)
+    .filter((machine) => filters.machineType === "All" || machine.machineType === filters.machineType || machine.type === filters.machineType)
+    .map((machine) => machine.machineNo || machine.name))];
+  const mmsOptions = ["All", "ALARM", ...mmsMachineStatuses];
+  const jobOptions = ["All", ...uniqueValues(machines.map((machine) => machine.layoutState?.jobStatus || "NONE"))];
+
+  function updateFilter(key) {
+    return (event) => {
+      const value = event.target.value;
+      onChange((current) => {
+        const next = { ...current, [key]: value };
+        if (key === "area") {
+          next.machineType = "All";
+          next.machineNo = "All";
+        }
+        if (key === "machineType") {
+          next.machineNo = "All";
+        }
+        return next;
+      });
+    };
+  }
+
+  return (
+    <section className={styles.overviewFilterPanel}>
+      <div className={styles.field}>
+        <label>Area</label>
+        <select value={filters.area} onChange={updateFilter("area")}>{areaOptions.map((option) => <option key={option}>{option}</option>)}</select>
       </div>
-    </Panel>
+      <div className={styles.field}>
+        <label>Machine Type</label>
+        <select value={filters.machineType} onChange={updateFilter("machineType")}>{typeOptions.map((option) => <option key={option}>{option}</option>)}</select>
+      </div>
+      <div className={styles.field}>
+        <label>Machine No</label>
+        <select value={filters.machineNo} onChange={updateFilter("machineNo")}>{machineOptions.map((option) => <option key={option}>{option}</option>)}</select>
+      </div>
+      <div className={styles.field}>
+        <label>MMS Status</label>
+        <select value={filters.mmsStatus} onChange={updateFilter("mmsStatus")}>{mmsOptions.map((option) => <option key={option}>{option}</option>)}</select>
+      </div>
+      <div className={styles.field}>
+        <label>Job Status</label>
+        <select value={filters.jobStatus} onChange={updateFilter("jobStatus")}>{jobOptions.map((option) => <option key={option}>{option}</option>)}</select>
+      </div>
+    </section>
+  );
+}
+
+function uniqueValues(values = []) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function groupMachinesByType(rows = []) {
+  return Object.values(rows.reduce((groups, machine) => {
+    const key = machine.machineType || "Other";
+    groups[key] = groups[key] || { machineType: key, machines: [] };
+    groups[key].machines.push(machine);
+    return groups;
+  }, {}));
+}
+
+function OverviewMachineCard({ machine }) {
+  const state = machine.layoutState || buildMmsLayoutMachineState(machine);
+  const okOutput = Math.max(0, Number(machine.output || 0) - Number(machine.ng || 0));
+
+  return (
+    <article className={styles.overviewMachineCard} data-testid="mms-overview-machine-card" style={statusCardStyle(state.mmsStatus)}>
+      <div className={styles.overviewMachineTitle}>
+        <div>
+          <h5>{state.machineNo}</h5>
+          <p>{machine.model || "MODEL-A"}</p>
+        </div>
+        <span className={styles.overviewStatusBadge} style={statusBadgeStyle(state.mmsStatus)} title={state.mmsStatus}>{compactMmsStatus(state.mmsStatus)}</span>
+      </div>
+      <div className={styles.overviewMachineMeta}>
+        <span><b>Job</b><em>{state.jobStatus}</em></span>
+        <span><b>PIC</b><em>{state.responsible}</em></span>
+      </div>
+      <div className={styles.overviewMachineMetrics}>
+        <span><small>Out</small><strong>{Number(machine.output || 0).toLocaleString()}</strong></span>
+        <span><small>OK</small><strong>{okOutput.toLocaleString()}</strong></span>
+        <span><small>NG</small><strong>{Number(machine.ng || 0).toLocaleString()}</strong></span>
+        <span><small>OEE</small><strong>{machine.oee}%</strong></span>
+      </div>
+    </article>
+  );
+}
+
+function OverviewKpi({ color, label, note, value }) {
+  return (
+    <article className={styles.overviewKpi} style={{ borderTopColor: color, borderTopWidth: 4 }}>
+      <small>{label}</small>
+      <strong>{value}</strong>
+      <span>{note}</span>
+    </article>
+  );
+}
+
+function GraphReportView({ defaultPeriod = "monthly", forcePeriod = false }) {
+  const [filters, setFilters] = useReportFilters(defaultPeriod, forcePeriod);
+  const selectedMachines = selectMmsReportMachines(reportMachines, filters);
+  const series = buildMmsGraphReportSeries(filters.graphPeriod, filters);
+  const oeeSummary = summarizeOeeSeries(series.oee);
+
+  return (
+    <section className={styles.overviewLayout}>
+      <ReportFilterBar filters={filters} machines={reportMachines} onChange={setFilters} showPeriod />
+      <section className={styles.reportGrid2}>
+        <Panel title="Output Monitor" meta={`${selectedMachines.length} machines`}>
+          <ChartBox>
+            <ComposedChart data={series.output}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+              <YAxis yAxisId="left" />
+              <YAxis yAxisId="right" orientation="right" />
+              <Tooltip />
+              <Legend />
+              <Bar yAxisId="left" dataKey="outputActual" name="Output Actual" fill="#10b981" isAnimationActive={false} />
+              <Line yAxisId="left" dataKey="outputTarget" name="Output Target" stroke="#365314" strokeDasharray="5 5" strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Line yAxisId="right" dataKey="outputAccum" name="Output Accum" stroke="#dc2626" strokeWidth={3} isAnimationActive={false} />
+              <Line yAxisId="right" dataKey="outputTargetAccum" name="Target Accum" stroke="#f472b6" strokeDasharray="5 5" strokeWidth={2} isAnimationActive={false} />
+            </ComposedChart>
+          </ChartBox>
+        </Panel>
+        <Panel title="CT & Availability Monitor" meta={filters.graphPeriod.toUpperCase()}>
+          <ChartBox>
+            <ComposedChart data={series.ctAvailability}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+              <YAxis yAxisId="left" />
+              <YAxis yAxisId="right" orientation="right" />
+              <Tooltip />
+              <Legend />
+              <Bar yAxisId="left" dataKey="cycleTimeActual" name="Cycle Time Actual" fill="#60a5fa" isAnimationActive={false} />
+              <Line yAxisId="left" dataKey="cycleTimeTarget" name="Cycle Time Target" stroke="#1e3a8a" strokeDasharray="5 5" strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Line yAxisId="right" dataKey="availabilityActual" name="Availability Actual" stroke="#15803d" strokeWidth={3} isAnimationActive={false} />
+              <Line yAxisId="right" dataKey="availabilityTarget" name="Availability Target" stroke="#f97316" strokeDasharray="5 5" strokeWidth={2} dot={false} isAnimationActive={false} />
+            </ComposedChart>
+          </ChartBox>
+        </Panel>
+        <Panel title="OEE Performance Trend" meta="A / P / Q">
+          <ChartBox>
+            <ComposedChart data={series.oee}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+              <YAxis domain={[60, 100]} tickFormatter={(value) => `${value}%`} />
+              <Tooltip />
+              <Legend />
+              <ReferenceLine y={85} stroke="#f97316" strokeDasharray="6 6" label={{ value: "Target 85%", fill: "#c2410c", fontSize: 11 }} />
+              <Bar dataKey="oee" name="OEE" fill="#0f766e" isAnimationActive={false} />
+              <Line dataKey="availability" name="A Availability" stroke="#16a34a" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+              <Line dataKey="performance" name="P Performance" stroke="#2563eb" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+              <Line dataKey="quality" name="Q Quality" stroke="#f59e0b" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+            </ComposedChart>
+          </ChartBox>
+          <section className={styles.reportOeeKpiGrid}>
+            <article>
+              <small>OEE Avg</small>
+              <strong>{oeeSummary.oee.toFixed(1)}%</strong>
+            </article>
+            <article>
+              <small>Availability</small>
+              <strong>{oeeSummary.availability.toFixed(1)}%</strong>
+            </article>
+            <article>
+              <small>Performance</small>
+              <strong>{oeeSummary.performance.toFixed(1)}%</strong>
+            </article>
+            <article>
+              <small>Quality</small>
+              <strong>{oeeSummary.quality.toFixed(1)}%</strong>
+            </article>
+          </section>
+        </Panel>
+        <Panel title="NG / Reject Trend" meta="Quality">
+          <ChartBox>
+            <BarChart data={series.ngReject}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="ngQty" name="NG Qty" fill="#ef4444" isAnimationActive={false} />
+              <Bar dataKey="overReject" name="Over Reject" fill="#f97316" isAnimationActive={false} />
+            </BarChart>
+          </ChartBox>
+        </Panel>
+      </section>
+    </section>
+  );
+}
+
+function summarizeOeeSeries(rows = []) {
+  const average = (key) => {
+    const values = rows.map((row) => Number(row[key])).filter((value) => Number.isFinite(value));
+    return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+  };
+
+  return {
+    availability: average("availability"),
+    oee: average("oee"),
+    performance: average("performance"),
+    quality: average("quality")
+  };
+}
+
+function TableReportView({ defaultPeriod = "monthly" }) {
+  const [filters, setFilters] = useReportFilters(defaultPeriod);
+  const selectedMachines = selectMmsReportMachines(reportMachines, filters).slice(0, 6);
+  const columns = buildMmsReportColumns(filters.graphPeriod, filters);
+  const rows = buildMmsReportMatrixRows(selectedMachines, columns, { machineType: filters.machineType });
+  const summary = buildMmsMachineTypeSummary(selectedMachines);
+
+  return (
+    <section className={styles.overviewLayout}>
+      <ReportFilterBar filters={filters} machines={reportMachines} onChange={setFilters} showPeriod />
+      {filters.machineType !== "All" ? <MachineTypeSummary machineType={filters.machineType} summary={summary} /> : null}
+      <ReportMatrixTable columns={columns} rows={rows} />
+    </section>
+  );
+}
+
+function MachineTypeSummary({ machineType, summary }) {
+  return (
+    <section className={styles.reportSummaryPanel}>
+      <div>
+        <small>Machine Type</small>
+        <strong>{machineType}</strong>
+      </div>
+      <div>
+        <small>Machines</small>
+        <strong>{summary.totalMachines}</strong>
+      </div>
+      <div>
+        <small>Running</small>
+        <strong>{summary.running}</strong>
+      </div>
+      <div>
+        <small>Active Jobs</small>
+        <strong>{summary.activeJobs}</strong>
+      </div>
+      <div>
+        <small>Output / NG</small>
+        <strong>{summary.output.toLocaleString()} / {summary.ng.toLocaleString()}</strong>
+      </div>
+      <div>
+        <small>OEE Avg</small>
+        <strong>{summary.oeeAverage.toFixed(1)}%</strong>
+      </div>
+    </section>
+  );
+}
+
+function useReportFilters(defaultPeriod, forcePeriod = false) {
+  const defaults = getDefaultMmsReportFilters(defaultPeriod);
+  const [filters, setFilters] = useState(defaults);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(mmsReportsFilterStorageKey) || "{}");
+      const migrated = {
+        ...saved,
+        area: saved.area ?? saved.className ?? defaults.area
+      };
+      delete migrated.className;
+      setFilters({
+        ...defaults,
+        ...migrated,
+        graphPeriod: forcePeriod ? defaultPeriod : migrated.graphPeriod || defaultPeriod
+      });
+    } catch {
+      setFilters(defaults);
+    } finally {
+      setHydrated(true);
+    }
+  }, [defaultPeriod, forcePeriod]);
+
+  useEffect(() => {
+    if (hydrated) {
+      localStorage.setItem(mmsReportsFilterStorageKey, JSON.stringify(filters));
+    }
+  }, [filters, hydrated]);
+
+  return [filters, setFilters];
+}
+
+function ReportFilterBar({ filters, machines, onChange, showPeriod = false }) {
+  const selectedArea = filters.area || "All";
+  const areaOptions = ["All", ...uniqueValues(machines.map((machine) => machine.area || machine.areaName))];
+  const typeOptions = ["All", ...uniqueValues(machines
+    .filter((machine) => selectedArea === "All" || machine.area === selectedArea || machine.areaName === selectedArea)
+    .map((machine) => machine.machineType))];
+  const machineOptions = ["All", ...uniqueValues(machines
+    .filter((machine) => selectedArea === "All" || machine.area === selectedArea || machine.areaName === selectedArea)
+    .filter((machine) => filters.machineType === "All" || machine.machineType === filters.machineType)
+    .map((machine) => machine.machineNo))];
+  const dateField = filters.graphPeriod === "daily" ? "date" : filters.graphPeriod === "yearly" ? "year" : "month";
+  const dateType = filters.graphPeriod === "daily" ? "date" : filters.graphPeriod === "yearly" ? "number" : "month";
+
+  const update = (key) => (event) => {
+    const value = event.target.value;
+    onChange((current) => {
+      const next = { ...current, [key]: value };
+      if (key === "area") {
+        next.machineType = "All";
+        next.machineNo = "All";
+      }
+      if (key === "machineType") next.machineNo = "All";
+      return next;
+    });
+  };
+
+  return (
+    <section className={styles.reportFilterPanel}>
+      <div className={styles.field}>
+        <label>Area</label>
+        <select value={selectedArea} onChange={update("area")}>{areaOptions.map((option) => <option key={option}>{option}</option>)}</select>
+      </div>
+      <div className={styles.field}>
+        <label>Machine Type</label>
+        <select value={filters.machineType} onChange={update("machineType")}>{typeOptions.map((option) => <option key={option}>{option}</option>)}</select>
+      </div>
+      <div className={styles.field}>
+        <label>Machine No</label>
+        <select value={filters.machineNo} onChange={update("machineNo")}>{machineOptions.map((option) => <option key={option}>{option}</option>)}</select>
+      </div>
+      {showPeriod ? (
+        <div className={styles.field}>
+          <label>Period</label>
+          <select value={filters.graphPeriod} onChange={update("graphPeriod")}>
+            <option value="daily">Daily</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+        </div>
+      ) : null}
+      <div className={styles.field}>
+        <label>{dateField}</label>
+        <input type={dateType} value={filters[dateField]} onChange={update(dateField)} />
+      </div>
+      <button className={styles.reportPrimaryButton} type="button">Export Excel</button>
+    </section>
+  );
+}
+
+function ReportMatrixTable({ columns, rows }) {
+  const dateHeaderRef = useRef(null);
+  const dateBodyRef = useRef(null);
+
+  const syncDateHeaderScroll = () => {
+    if (!dateHeaderRef.current || !dateBodyRef.current) return;
+    dateHeaderRef.current.scrollLeft = dateBodyRef.current.scrollLeft;
+  };
+
+  return (
+    <div className={styles.reportMatrixPanel}>
+      <div className={styles.reportMatrixHeader}>
+        <div className={styles.reportFixedPanel}>
+          <table className={styles.reportFixedTableHeader}>
+            <colgroup>
+              <col className="w-[84px]" />
+              <col className="w-[74px]" />
+              <col className="w-[104px]" />
+              <col className="w-[92px]" />
+              <col className="w-[164px]" />
+              <col className="w-[108px]" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>MC No</th>
+                <th>Model</th>
+                <th>Model Name</th>
+                <th>Area</th>
+                <th className="border-l-2 border-l-slate-600">Metric</th>
+                <th className="border-l-2 border-l-slate-600 bg-amber-200 text-amber-950">Total</th>
+              </tr>
+            </thead>
+          </table>
+        </div>
+        <div className={styles.reportDateHeaderPanel} ref={dateHeaderRef}>
+          <table className={styles.reportDateTableHeader}>
+            <colgroup>
+              {columns.map((column) => <col className="w-[66px]" key={column.key} />)}
+            </colgroup>
+            <thead>
+              <tr>
+                {columns.map((column) => <th key={column.key}>{column.label}</th>)}
+              </tr>
+            </thead>
+          </table>
+        </div>
+      </div>
+      <div className={styles.reportMatrixBody}>
+        <div className={styles.reportMatrixSplit}>
+          <div className={styles.reportFixedPanel}>
+            <table className={styles.reportFixedTable}>
+              <colgroup>
+                <col className="w-[84px]" />
+                <col className="w-[74px]" />
+                <col className="w-[104px]" />
+                <col className="w-[92px]" />
+                <col className="w-[164px]" />
+                <col className="w-[108px]" />
+              </colgroup>
+            <tbody>
+              {rows.map((row, rowIndex) => (
+                <tr
+                  key={`fixed-${row.machineNo || "row"}-${row.metric}-${rowIndex}`}
+                  className={classNames(row.rowType === "summary" ? "bg-amber-50" : "bg-white", row.isFirstMetric ? styles.reportDividerRow : "")}
+                >
+                  {row.isFirstMetric ? (
+                    <>
+                      <td className={classNames(styles.reportMergedCell, row.rowType === "summary" ? styles.reportSummaryCell : "")} rowSpan={row.rowSpan}>{row.machineNo}</td>
+                      <td className={classNames(styles.reportMergedCell, row.rowType === "summary" ? styles.reportSummaryCell : "")} rowSpan={row.rowSpan}>{row.modelType}</td>
+                      <td className={classNames(styles.reportMergedCell, row.rowType === "summary" ? styles.reportSummaryCell : "")} rowSpan={row.rowSpan}>{row.modelName}</td>
+                      <td className={classNames(styles.reportMergedCell, row.rowType === "summary" ? styles.reportSummaryCell : "")} rowSpan={row.rowSpan}>{row.process}</td>
+                    </>
+                  ) : null}
+                  <td className={classNames(styles.reportMetricCell, row.rowType === "summary" ? styles.reportSummaryCell : "")}>{row.metric}</td>
+                  <td className={styles.reportTotalCell}>{row.total}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className={styles.reportDateBodyPanel} onScroll={syncDateHeaderScroll} ref={dateBodyRef}>
+          <table className={styles.reportDateTable}>
+            <colgroup>
+              {columns.map((column) => <col className="w-[66px]" key={column.key} />)}
+            </colgroup>
+            <tbody>
+              {rows.map((row, rowIndex) => (
+                <tr
+                  key={`date-${row.machineNo || "row"}-${row.metric}-${rowIndex}`}
+                  className={classNames(row.rowType === "summary" ? "bg-amber-50" : "bg-white", row.isFirstMetric ? styles.reportDividerRow : "")}
+                >
+                  {row.cells.map((cell, cellIndex) => (
+                    <td
+                      className={cell === "-" ? "bg-rose-50 text-slate-500" : row.rowType === "summary" ? styles.reportSummaryCell : "bg-white"}
+                      key={`${rowIndex}-${cellIndex}`}
+                    >
+                      {cell}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      </div>
+    </div>
   );
 }
 
@@ -1247,7 +1883,7 @@ function ChartBox({ children, compact = false, overall = false, tall = false }) 
   }, []);
 
   return (
-    <div className={classNames(overall ? styles.chartBoxOverall : styles.chartBox, compact && styles.chartBoxCompact, tall && styles.chartBoxTall)} ref={chartRef}>
+    <div className={classNames(overall ? styles.chartBoxOverall : compact ? styles.chartBoxCompact : tall ? styles.chartBoxTall : styles.chartBox)} ref={chartRef}>
       {size ? cloneElement(children, { height: size.height, width: size.width }) : null}
     </div>
   );

@@ -33,6 +33,28 @@ export const mmsAlarmNames = [
   "Conveyor jam"
 ];
 
+export const mmsDashboardOverviewViews = ["dashboard", "machine-area", "layout-dashboard", "overview"];
+
+export const mmsOverviewFilterStorageKey = "mms:overview:filters";
+
+export const mmsReportsFilterStorageKey = "mms:reports:filters";
+
+export const mmsReportMetricNames = [
+  "OEE",
+  "Output (Target)",
+  "Machine Output",
+  "Output",
+  "Availability (Target)",
+  "Cycle time (Target)",
+  "Cycle time",
+  "Over Reject",
+  "NG Qty",
+  "Availability",
+  "Performance",
+  "Quality",
+  "OEE"
+];
+
 const blockedStatuses = new Set(["WAIT_PART", "BRAKE_TIME", "PLAN_STOP", "WARM_UP", "MM_REPAIR", "MM_PREVENTIVE", "QC", "CLEANING", "STOP", "ALARM"]);
 
 export function getRandomMmsCycleTime() {
@@ -162,4 +184,276 @@ export function selectOverallMmsMachines(machines = [], filters = {}) {
     const machineMatched = selectedMachineNos.length === 0 || selectedMachineNos.includes(machine.machineNo || machine.name);
     return areaMatched && typeMatched && machineMatched;
   });
+}
+
+export function getDefaultMmsOverviewFilters() {
+  return {
+    area: "All",
+    jobStatus: "All",
+    machineNo: "All",
+    machineType: "All",
+    mmsStatus: "All"
+  };
+}
+
+export function getMmsJobStatus(machine = {}) {
+  return machine.activeJobStatus || machine.jobStatus || (machine.jobRequestActive ? "JOB_ACTIVE" : "NONE");
+}
+
+export function selectMmsOverviewMachines(machines = [], filters = getDefaultMmsOverviewFilters()) {
+  return machines.filter((machine) => {
+    const mmsStatus = getMmsEffectiveStatus(machine);
+    const jobStatus = getMmsJobStatus(machine);
+    const areaMatched = !filters.area || filters.area === "All" || machine.area === filters.area;
+    const typeMatched = !filters.machineType || filters.machineType === "All" || machine.machineType === filters.machineType || machine.type === filters.machineType;
+    const machineMatched = !filters.machineNo || filters.machineNo === "All" || machine.machineNo === filters.machineNo || machine.name === filters.machineNo;
+    const mmsMatched = !filters.mmsStatus || filters.mmsStatus === "All" || mmsStatus === filters.mmsStatus;
+    const jobMatched = !filters.jobStatus || filters.jobStatus === "All" || jobStatus === filters.jobStatus;
+
+    return areaMatched && typeMatched && machineMatched && mmsMatched && jobMatched;
+  });
+}
+
+export function getDefaultMmsReportFilters(defaultPeriod = "monthly") {
+  return {
+    area: "All",
+    date: "2026-05-13",
+    graphPeriod: defaultPeriod,
+    machineNo: "All",
+    machineType: "All",
+    month: "2026-05",
+    year: "2026"
+  };
+}
+
+export function selectMmsReportMachines(machines = [], filters = {}) {
+  const selectedArea = filters.area ?? filters.className;
+
+  return machines.filter((machine) => {
+    const machineArea = machine.area || machine.areaName || machine.className;
+    const areaMatched = !selectedArea || selectedArea === "All" || machineArea === selectedArea;
+    const typeMatched = !filters.machineType || filters.machineType === "All" || machine.machineType === filters.machineType || machine.type === filters.machineType;
+    const machineMatched = !filters.machineNo || filters.machineNo === "All" || machine.machineNo === filters.machineNo || machine.name === filters.machineNo;
+
+    return areaMatched && typeMatched && machineMatched;
+  });
+}
+
+export function buildMmsReportColumns(period = "monthly", filters = {}) {
+  if (period === "daily") {
+    return ["07:00", "11:00", "15:00", "19:00", "23:00", "03:00", "07:00"].map((label, index) => ({
+      key: `h${index}`,
+      label
+    }));
+  }
+
+  if (period === "yearly") {
+    return ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((label, index) => ({
+      key: `m${index + 1}`,
+      label
+    }));
+  }
+
+  const [year, month] = String(filters.month || "2026-05").split("-").map(Number);
+  const days = new Date(year, month, 0).getDate();
+  const monthLabel = new Date(year, month - 1, 1).toLocaleString("en-US", { month: "short" });
+
+  return Array.from({ length: days }, (_item, index) => ({
+    key: `d${index + 1}`,
+    label: `${index + 1}-${monthLabel}`
+  }));
+}
+
+function getMetricValue(metric, columnIndex, machineIndex = 0) {
+  const noDataCutoff = 15;
+  if (columnIndex >= noDataCutoff) return "-";
+  const seed = columnIndex + 1 + machineIndex;
+  const values = {
+    "OEE": `${Math.max(0, 72 + ((seed * 3) % 18)).toFixed(2)}%`,
+    "Output (Target)": 27360,
+    "Machine Output": seed % 3 === 0 ? 0 : 4200 + seed * 820,
+    "Output": seed % 4 === 0 ? 0 : 3800 + seed * 760,
+    "Availability (Target)": "95.00%",
+    "Cycle time (Target)": 3,
+    "Cycle time": (2.5 + (seed % 6) * 0.1).toFixed(3),
+    "Over Reject": seed % 5 === 0 ? 210 : 0,
+    "NG Qty": seed % 4 === 0 ? 34 : "-",
+    "Availability": `${Math.min(100, 76 + (seed % 20)).toFixed(2)}%`,
+    "Performance": `${Math.min(100, 70 + ((seed * 2) % 25)).toFixed(2)}%`,
+    "Quality": `${Math.min(100, 90 + (seed % 10)).toFixed(2)}%`
+  };
+
+  return values[metric] ?? "-";
+}
+
+function getMetricNumber(value) {
+  const number = Number(String(value).replace("%", "").replaceAll(",", ""));
+  return Number.isFinite(number) ? number : null;
+}
+
+function isSummedReportMetric(metric) {
+  return metric.includes("Output") || metric.includes("Reject") || metric.includes("Qty");
+}
+
+function isPercentReportMetric(metric) {
+  return metric.includes("Availability") || metric.includes("Performance") || metric.includes("Quality") || metric === "OEE";
+}
+
+function formatReportMetricValue(metric, numbers = []) {
+  if (numbers.length === 0) return "-";
+  if (isSummedReportMetric(metric)) {
+    return numbers.reduce((sum, value) => sum + value, 0).toLocaleString();
+  }
+
+  const average = numbers.reduce((sum, value) => sum + value, 0) / numbers.length;
+  return `${average.toFixed(metric.includes("Cycle") ? 3 : 2)}${isPercentReportMetric(metric) ? "%" : ""}`;
+}
+
+function calculateReportTotal(metric, cells = []) {
+  const numericCells = cells.map(getMetricNumber).filter((value) => value !== null);
+  return formatReportMetricValue(metric, numericCells);
+}
+
+function buildReportMetricRowsForMachine(machine, machineIndex, columns) {
+  return mmsReportMetricNames.map((metric, metricIndex) => {
+    const cells = columns.map((_column, columnIndex) => getMetricValue(metric, columnIndex, machineIndex));
+
+    return {
+      cells,
+      area: machine.area || machine.areaName || machine.className || "-",
+      isFirstMetric: metricIndex === 0,
+      machineNo: machine.machineNo || machine.name || "-",
+      metric,
+      modelName: machine.modelName || machine.model || "-",
+      modelType: machine.modelType || "-",
+      process: machine.process || machine.area || machine.areaName || machine.className || "-",
+      rowSpan: mmsReportMetricNames.length,
+      rowType: machine.machineNo?.endsWith("ALL") ? "summary" : "machine",
+      total: calculateReportTotal(metric, cells)
+    };
+  });
+}
+
+function buildMachineTypeTotalRows(machineRowsByMachine = [], columns = [], options = {}) {
+  if (!options.machineType || options.machineType === "All" || machineRowsByMachine.length === 0) return [];
+
+  const firstMachine = machineRowsByMachine[0]?.[0] || {};
+  return mmsReportMetricNames.map((metric, metricIndex) => {
+    const cells = columns.map((_column, columnIndex) => {
+      const values = machineRowsByMachine
+        .map((rows) => getMetricNumber(rows[metricIndex]?.cells?.[columnIndex]))
+        .filter((value) => value !== null);
+      return formatReportMetricValue(metric, values);
+    });
+
+    return {
+      cells,
+      area: firstMachine.area || firstMachine.className || "-",
+      isFirstMetric: metricIndex === 0,
+      machineNo: `${options.machineType}-TOTAL`,
+      metric,
+      modelName: "TYPE TOTAL",
+      modelType: "TOTAL",
+      process: firstMachine.process || firstMachine.area || firstMachine.className || "-",
+      rowSpan: mmsReportMetricNames.length,
+      rowType: "summary",
+      total: calculateReportTotal(metric, cells)
+    };
+  });
+}
+
+export function buildMmsReportMatrixRows(machines = [], columns = [], options = {}) {
+  const machineRowsByMachine = machines.map((machine, machineIndex) => buildReportMetricRowsForMachine(machine, machineIndex, columns));
+  const machineRows = machineRowsByMachine.flat();
+  return [
+    ...machineRows,
+    ...buildMachineTypeTotalRows(machineRowsByMachine, columns, options)
+  ];
+}
+
+export function buildMmsMachineTypeSummary(machines = []) {
+  const totalMachines = machines.length;
+  const output = machines.reduce((sum, machine) => sum + Number(machine.output || 0), 0);
+  const ok = machines.reduce((sum, machine) => sum + Number(machine.outputOk ?? machine.output ?? 0), 0);
+  const ng = machines.reduce((sum, machine) => sum + Number(machine.outputNg ?? machine.ng ?? 0), 0);
+  const oeeValues = machines.map((machine) => Number(machine.oee)).filter((value) => Number.isFinite(value));
+  const oeeAverage = oeeValues.length > 0 ? oeeValues.reduce((sum, value) => sum + value, 0) / oeeValues.length : 0;
+  const activeJobs = machines.filter((machine) => machine.jobRequestActive || machine.activeJobStatus).length;
+  const running = machines.filter((machine) => getMmsEffectiveStatus(machine) === "RUN").length;
+
+  return {
+    activeJobs,
+    ng,
+    oeeAverage,
+    ok,
+    output,
+    running,
+    totalMachines
+  };
+}
+
+export function buildMmsGraphReportSeries(period = "monthly", filters = {}) {
+  const columns = buildMmsReportColumns(period, filters);
+  let accum = 0;
+  let targetAccum = 0;
+  const output = columns.map((column, index) => {
+    const outputActual = 820 + (index % 6) * 55 + index * 9;
+    const outputTarget = 900 + index * 12;
+    accum += outputActual;
+    targetAccum += outputTarget;
+    return {
+      label: column.label,
+      outputAccum: accum,
+      outputActual,
+      outputTarget,
+      outputTargetAccum: targetAccum
+    };
+  });
+  const ctAvailability = columns.map((column, index) => ({
+    availabilityActual: 88 + (index % 6),
+    availabilityTarget: 95,
+    cycleTimeActual: 2.1 + (index % 5) * 0.12,
+    cycleTimeTarget: 3,
+    label: column.label
+  }));
+  const oee = columns.map((column, index) => ({
+    availability: 88 + (index % 8),
+    label: column.label,
+    oee: 78 + (index % 12),
+    performance: 82 + (index % 10),
+    quality: 94 + (index % 6)
+  }));
+  const ngReject = columns.map((column, index) => ({
+    label: column.label,
+    ngQty: index % 4 === 0 ? 12 + index : 4 + (index % 5),
+    overReject: index % 6 === 0 ? 8 + index : 0
+  }));
+
+  return {
+    ctAvailability,
+    ngReject,
+    oee,
+    output
+  };
+}
+
+export function getMmsDashboardViewKey(view = "overview") {
+  return mmsDashboardOverviewViews.includes(view) ? "overview" : view;
+}
+
+export function buildMmsLayoutMachineState(machine = {}) {
+  const mmsStatus = getMmsEffectiveStatus(machine);
+  const jobStatus = getMmsJobStatus(machine);
+  const responsible = machine.responsible || machine.pic || machine.owner || "-";
+
+  return {
+    machineNo: machine.machineNo || machine.name || "-",
+    machineType: machine.machineType || machine.type || "-",
+    area: machine.area || "-",
+    mmsStatus,
+    jobStatus,
+    responsible,
+    hasJob: jobStatus !== "NONE",
+    needsAttention: mmsStatus !== "RUN" || jobStatus !== "NONE"
+  };
 }
