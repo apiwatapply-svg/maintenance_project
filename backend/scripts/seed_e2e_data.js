@@ -154,6 +154,12 @@ async function upsertAdmin(pool, admin) {
   for (const row of admin.machines) await upsert(pool, "tbm_machine_no", "machine_no", row);
   for (const row of admin.employees) await upsert(pool, "tbm_employee", "emp_id", row);
   for (const row of admin.users) await upsert(pool, "tbm_user", "username", row);
+  await pool.request().query(`
+    UPDATE dbo.tbm_user
+    SET status = 'inactive', updated_at = SYSUTCDATETIME()
+    WHERE username = 'tolladmin'
+      AND admin_scope = 'store';
+  `);
   for (const row of shifts) {
     await upsert(pool, "tbm_mms_working_shift", "shift_code", row, {
       end_time_local: sql.VarChar(8),
