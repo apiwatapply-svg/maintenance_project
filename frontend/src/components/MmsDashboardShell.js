@@ -291,7 +291,7 @@ const styles = {
   chartBox: "h-[235px] min-w-0 overflow-hidden",
   chartBoxCompact: "h-[150px] min-h-0 min-w-0 overflow-hidden",
   chartBoxOverall: "h-full min-h-0 min-w-0 overflow-hidden",
-  chartBoxTall: "h-[260px] min-h-[260px] overflow-hidden",
+  chartBoxTall: "h-[360px] min-h-[360px] overflow-hidden",
   chartTabButton: "inline-flex h-8 items-center justify-center rounded-lg border border-blue-600 bg-white px-5 text-xs font-black text-blue-700 shadow-sm transition hover:bg-blue-50",
   chartTabButtonActive: "inline-flex h-8 items-center justify-center rounded-lg border border-blue-700 bg-blue-700 px-5 text-xs font-black text-white shadow-sm transition hover:bg-blue-700",
   collapseButton: "mb-5 h-11 w-full rounded-xl border border-white/10 bg-white/10 text-sm font-black text-white transition hover:bg-white/15",
@@ -1844,7 +1844,7 @@ function ChartBox({ children, compact = false, overall = false, tall = false }) 
   const chartRef = useRef(null);
   const [size, setSize] = useState(null);
   const fallbackSize = {
-    height: overall ? 170 : compact ? 150 : tall ? 260 : 235,
+    height: overall ? 170 : compact ? 150 : tall ? 360 : 235,
     width: 720
   };
 
