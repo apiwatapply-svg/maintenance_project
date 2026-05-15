@@ -288,10 +288,10 @@ const styles = {
   backButton: "inline-flex h-10 items-center justify-center rounded-xl bg-white px-5 text-sm font-black text-slate-950 shadow-sm transition hover:bg-slate-100",
   brand: "mb-6 flex items-center gap-3",
   brandText: "[&_h1]:m-0 [&_h1]:text-lg [&_h1]:font-black [&_h1]:leading-tight [&_p]:m-0 [&_p]:mt-1 [&_p]:text-sm [&_p]:font-bold [&_p]:text-slate-400",
-  chartBox: "h-[290px] min-w-0",
-  chartBoxCompact: "h-[170px] min-h-0 min-w-0",
-  chartBoxOverall: "h-full min-h-0 min-w-0",
-  chartBoxTall: "h-[300px] min-h-[300px]",
+  chartBox: "h-[235px] min-w-0 overflow-hidden",
+  chartBoxCompact: "h-[150px] min-h-0 min-w-0 overflow-hidden",
+  chartBoxOverall: "h-full min-h-0 min-w-0 overflow-hidden",
+  chartBoxTall: "h-[260px] min-h-[260px] overflow-hidden",
   chartTabButton: "inline-flex h-8 items-center justify-center rounded-lg border border-blue-600 bg-white px-5 text-xs font-black text-blue-700 shadow-sm transition hover:bg-blue-50",
   chartTabButtonActive: "inline-flex h-8 items-center justify-center rounded-lg border border-blue-700 bg-blue-700 px-5 text-xs font-black text-white shadow-sm transition hover:bg-blue-700",
   collapseButton: "mb-5 h-11 w-full rounded-xl border border-white/10 bg-white/10 text-sm font-black text-white transition hover:bg-white/15",
@@ -317,10 +317,10 @@ const styles = {
   machineDropdownMenu: "absolute z-30 mt-2 max-h-72 w-full overflow-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl",
   machineMap: "grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-2",
   machineStatusTimeline: "grid gap-2",
-  machineSummaryTable: "grid overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 text-slate-950 shadow-sm grid-cols-[240px_repeat(6,minmax(120px,1fr))_190px] max-[1200px]:grid-cols-2 [&_.operator-avatar]:h-12 [&_.operator-avatar]:w-12",
+  machineSummaryTable: "grid overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 text-slate-950 shadow-sm grid-cols-[200px_repeat(6,minmax(86px,1fr))_140px] max-[1200px]:grid-cols-2 [&_.operator-avatar]:h-10 [&_.operator-avatar]:w-10",
   machineSummaryTableCompact: "grid grid-cols-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 text-[10px] text-slate-950 shadow-sm [&_.operator-avatar]:h-9 [&_.operator-avatar]:w-9 [&_.summary-cell]:min-h-12 [&_.summary-cell]:p-1.5 [&_.summary-cell_b]:text-[8px] [&_.summary-cell_small]:text-[8px] [&_.summary-cell_strong]:text-sm max-[900px]:grid-cols-2",
   machineTile: "rounded-xl border border-l-4 border-slate-200 bg-white p-3 text-sm shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
-  machineWorkingChartGrid: "grid grid-cols-2 gap-3 max-[1000px]:grid-cols-1 [&>article]:min-w-0",
+  machineWorkingChartGrid: "grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 max-[1000px]:grid-cols-1 [&>article]:min-w-0",
   main: "min-w-0 bg-slate-100 bg-[linear-gradient(rgba(15,23,42,0.026)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.026)_1px,transparent_1px)] bg-[length:32px_32px] p-4",
   nav: "grid gap-3",
   navGroup: "grid gap-1 rounded-2xl border border-white/10 bg-white/[0.04] p-2",
@@ -333,7 +333,7 @@ const styles = {
   navTitle: "px-2 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-slate-400",
   ngText: "text-red-600",
   oeeHeader: "flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm [&_h3]:m-0 [&_h3]:text-xl [&_h3]:font-black [&_span]:rounded-full [&_span]:bg-emerald-50 [&_span]:px-3 [&_span]:py-1 [&_span]:text-xs [&_span]:font-black [&_span]:text-emerald-700",
-  oeeSummaryCell: "items-center justify-center text-center [&_strong]:text-3xl [&_strong]:text-emerald-700",
+  oeeSummaryCell: "items-center justify-center text-center [&_strong]:text-2xl [&_strong]:text-emerald-700",
   okText: "text-emerald-700",
   operatorCell: "flex items-center gap-3 bg-slate-100 [&_img]:h-14 [&_img]:w-14 [&_img]:rounded-xl [&_img]:ring-2 [&_img]:ring-sky-200 [&_span]:grid [&_span]:min-w-0 [&_span]:gap-0.5 [&_span_b]:truncate [&_span_strong]:truncate",
   overviewCommandBar: "grid grid-cols-[minmax(280px,.95fr)_minmax(0,1.5fr)] gap-3 rounded-2xl border border-slate-800 bg-slate-950 p-3 text-white shadow-sm max-[1200px]:grid-cols-1",
@@ -369,34 +369,33 @@ const styles = {
   overviewQuickFilters: "col-span-full flex flex-wrap gap-2 border-t border-slate-200 pt-2 max-[760px]:col-span-1 [&_button]:h-9 [&_button]:rounded-lg [&_button]:border [&_button]:border-slate-300 [&_button]:bg-white [&_button]:px-3 [&_button]:text-xs [&_button]:font-black [&_button]:text-slate-700 [&_button]:shadow-sm [&_button]:transition [&_button:hover]:bg-slate-50",
   overviewQuickFilterActive: "!border-slate-950 !bg-slate-950 !text-white",
   overviewTypeBlock: "rounded-lg border border-slate-200 bg-slate-50 p-1.5 [&_h5]:mb-1 [&_h5]:text-[10px] [&_h5]:font-black [&_h5]:text-slate-700",
-  overallCard: "flex h-[320px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm",
+  overallCard: "flex h-[286px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm",
   overallChartCell: "grid min-h-0 grid-rows-[minmax(0,1fr)_22px]",
   overallChartLegend: "flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 overflow-hidden px-1 text-[8px] font-bold leading-none text-slate-600 [&_i]:inline-block [&_i]:h-2 [&_i]:w-2 [&_i]:rounded-sm [&_span]:inline-flex [&_span]:items-center [&_span]:gap-1",
-  overallChartRow: "grid flex-1 grid-cols-2 gap-2 p-2 max-[800px]:grid-cols-1",
+  overallChartRow: "grid flex-1 grid-cols-2 gap-1.5 p-1.5 max-[800px]:grid-cols-1",
   overallEmpty: "rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm font-black text-slate-500",
-  overallFilterPanel: "grid grid-cols-[1fr_1fr_1.35fr_180px_auto] items-end gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm max-[1200px]:grid-cols-2 max-[700px]:grid-cols-1",
-  overallMachineGrid: "grid grid-cols-3 gap-3 max-[1500px]:grid-cols-2 max-[900px]:grid-cols-1",
-  overallMiniHeader: "grid h-[88px] overflow-hidden border-b border-slate-200 bg-slate-50 text-slate-950 grid-cols-[108px_minmax(0,1fr)_74px] max-[900px]:h-auto max-[900px]:grid-cols-1",
-  overallMiniCenter: "grid min-w-0 grid-rows-[42px_1fr] border-x border-slate-200 bg-white max-[900px]:border-x-0 max-[900px]:border-y",
+  overallFilterPanel: "grid grid-cols-[1fr_1fr_1.35fr_160px_auto] items-end gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm max-[1200px]:grid-cols-2 max-[700px]:grid-cols-1",
+  overallMachineGrid: "grid grid-cols-3 gap-2 max-[1500px]:grid-cols-2 max-[900px]:grid-cols-1",
+  overallMiniHeader: "grid h-[76px] overflow-hidden border-b border-slate-200 bg-slate-50 text-slate-950 grid-cols-[96px_minmax(0,1fr)_68px] max-[900px]:h-auto max-[900px]:grid-cols-1",
+  overallMiniCenter: "grid min-w-0 grid-rows-[36px_1fr] border-x border-slate-200 bg-white max-[900px]:border-x-0 max-[900px]:border-y",
   overallMiniKpi: "grid min-w-0 content-center border-r border-slate-200 px-1.5 py-1 last:border-r-0 [&_small]:truncate [&_small]:text-[7px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.06em] [&_small]:text-slate-500 [&_strong]:truncate [&_strong]:text-[10px] [&_strong]:font-black",
   overallMiniKpiGrid: "grid min-w-0 grid-cols-[1fr_1fr_1fr_.85fr] border-t border-slate-200",
   overallMiniMeta: "flex min-w-0 flex-wrap items-center gap-1.5 text-[8px] font-bold text-slate-600 [&_b]:font-black [&_b]:text-slate-900 [&_span]:inline-flex [&_span]:items-center [&_span]:gap-1",
   overallMiniMachineBlock: "grid min-w-0 gap-0.5 [&_small]:text-[7px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.08em] [&_small]:text-slate-500 [&_strong]:truncate [&_strong]:text-sm [&_strong]:font-black",
-  overallMiniOperator: "flex min-w-0 items-center gap-1.5 bg-slate-100 px-2 py-1.5 [&_img]:h-9 [&_img]:w-9 [&_img]:rounded-lg [&_img]:ring-2 [&_img]:ring-sky-200 [&_span]:grid [&_span]:min-w-0 [&_small]:text-[7px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.08em] [&_small]:text-slate-500 [&_strong]:truncate [&_strong]:text-xs [&_strong]:font-black [&_b]:truncate [&_b]:text-[8px] [&_b]:font-bold [&_b]:text-slate-600",
+  overallMiniOperator: "flex min-w-0 items-center gap-1.5 bg-slate-100 px-1.5 py-1 [&_img]:h-8 [&_img]:w-8 [&_img]:rounded-lg [&_img]:ring-2 [&_img]:ring-sky-200 [&_span]:grid [&_span]:min-w-0 [&_small]:text-[7px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.08em] [&_small]:text-slate-500 [&_strong]:truncate [&_strong]:text-xs [&_strong]:font-black [&_b]:truncate [&_b]:text-[8px] [&_b]:font-bold [&_b]:text-slate-600",
   overallMiniOee: "grid content-center justify-items-center bg-white px-2 py-1 text-center [&_small]:text-[7px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.08em] [&_small]:text-slate-500 [&_strong]:text-base [&_strong]:font-black [&_strong]:text-emerald-700 [&_b]:text-[7px] [&_b]:font-bold [&_b]:text-slate-600",
   overallMiniStatusPill: "inline-flex h-5 items-center rounded-full border border-emerald-300 bg-emerald-50 px-2 text-[10px] font-black text-emerald-700",
   overallMiniTopLine: "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-2 py-1",
-  overallStatusBlock: "grid flex-1 grid-rows-[82px_minmax(0,1fr)] gap-2 p-2",
+  overallStatusBlock: "grid flex-1 grid-rows-[72px_minmax(0,1fr)] gap-1.5 p-1.5",
   overallTabSwitch: "flex h-11 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1",
-  panel: "rounded-2xl border border-slate-200 bg-white p-3 shadow-sm",
+  panel: "rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm",
   panelActionButton: "inline-flex h-8 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-black text-slate-800 shadow-sm transition hover:bg-slate-50",
   panelActionButtonPrimary: "inline-flex h-8 items-center justify-center rounded-lg border border-slate-900 bg-slate-950 px-3 text-xs font-black text-white shadow-sm transition hover:bg-slate-800",
   panelActions: "flex flex-wrap items-center justify-end gap-2",
   panelControlHeader: "mb-3 flex flex-wrap items-center justify-between gap-3 [&_h3]:m-0 [&_h3]:text-lg [&_h3]:font-black [&_p]:m-0 [&_p]:text-xs [&_p]:font-black [&_p]:text-slate-500",
-  panelHeader: "mb-3 flex items-center justify-between gap-3 [&_h3]:m-0 [&_h3]:text-lg [&_h3]:font-black [&_span]:text-xs [&_span]:font-black [&_span]:text-slate-500",
-  reportFilterPanel: "grid grid-cols-[1fr_1fr_1fr_130px_180px_auto] items-end gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm max-[1300px]:grid-cols-3 max-[760px]:grid-cols-1",
-  reportGrid2: "grid grid-cols-2 gap-3 max-[1100px]:grid-cols-1",
-  reportOeeKpiGrid: "grid grid-cols-4 gap-2 px-2 pb-2 max-[900px]:grid-cols-2 [&_article]:rounded-xl [&_article]:border [&_article]:border-slate-200 [&_article]:bg-slate-50 [&_article]:p-2 [&_small]:block [&_small]:text-[9px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.1em] [&_small]:text-slate-500 [&_strong]:mt-1 [&_strong]:block [&_strong]:text-lg [&_strong]:font-black",
+  panelHeader: "mb-2 flex items-center justify-between gap-3 [&_h3]:m-0 [&_h3]:text-base [&_h3]:font-black [&_span]:text-xs [&_span]:font-black [&_span]:text-slate-500",
+  reportFilterPanel: "grid grid-cols-[1fr_1fr_1fr_120px_160px_auto] items-end gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm max-[1300px]:grid-cols-3 max-[760px]:grid-cols-1",
+  reportGrid2: "grid min-h-0 grid-cols-2 gap-2 max-[1100px]:grid-cols-1",
   reportDateBodyPanel: "min-w-0 overflow-x-auto overflow-y-hidden",
   reportDateHeaderPanel: "min-w-0 overflow-hidden bg-slate-800",
   reportDateTable: "min-w-[1550px] border-separate border-spacing-0 text-[11px] text-slate-950 [&_td]:h-9 [&_td]:border-b [&_td]:border-r [&_td]:border-slate-300 [&_td]:px-2.5 [&_td]:py-1.5 [&_td]:text-center [&_td]:align-middle [&_td]:font-bold",
@@ -929,7 +928,6 @@ function GraphReportView({ defaultPeriod = "monthly", forcePeriod = false }) {
   const [filters, setFilters] = useReportFilters(defaultPeriod, forcePeriod);
   const selectedMachines = selectMmsReportMachines(reportMachines, filters);
   const series = buildMmsGraphReportSeries(filters.graphPeriod, filters);
-  const oeeSummary = summarizeOeeSeries(series.oee);
 
   return (
     <section className={styles.overviewLayout}>
@@ -982,24 +980,6 @@ function GraphReportView({ defaultPeriod = "monthly", forcePeriod = false }) {
               <Line dataKey="quality" name="Q Quality" stroke="#f59e0b" strokeWidth={2.5} dot={false} isAnimationActive={false} />
             </ComposedChart>
           </ChartBox>
-          <section className={styles.reportOeeKpiGrid}>
-            <article>
-              <small>OEE Avg</small>
-              <strong>{oeeSummary.oee.toFixed(1)}%</strong>
-            </article>
-            <article>
-              <small>Availability</small>
-              <strong>{oeeSummary.availability.toFixed(1)}%</strong>
-            </article>
-            <article>
-              <small>Performance</small>
-              <strong>{oeeSummary.performance.toFixed(1)}%</strong>
-            </article>
-            <article>
-              <small>Quality</small>
-              <strong>{oeeSummary.quality.toFixed(1)}%</strong>
-            </article>
-          </section>
         </Panel>
         <Panel title="NG / Reject Trend" meta="Quality">
           <ChartBox>
@@ -1017,20 +997,6 @@ function GraphReportView({ defaultPeriod = "monthly", forcePeriod = false }) {
       </section>
     </section>
   );
-}
-
-function summarizeOeeSeries(rows = []) {
-  const average = (key) => {
-    const values = rows.map((row) => Number(row[key])).filter((value) => Number.isFinite(value));
-    return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
-  };
-
-  return {
-    availability: average("availability"),
-    oee: average("oee"),
-    performance: average("performance"),
-    quality: average("quality")
-  };
 }
 
 function TableReportView({ defaultPeriod = "monthly" }) {
@@ -1289,7 +1255,7 @@ function OverallMachineWorkingView() {
     area: "Line A",
     date: "2026-05-13",
     machineType: "All",
-    machineNos: machines.filter((machine) => machine.area === "Line A").slice(0, 6).map((machine) => machine.machineNo)
+    machineNos: machines.filter((machine) => machine.area === "Line A").slice(0, 4).map((machine) => machine.machineNo)
   };
   const [filters, setFilters] = useState(defaultFilters);
   const [hydrated, setHydrated] = useState(false);
@@ -1877,6 +1843,10 @@ function Panel({ title, meta, children }) {
 function ChartBox({ children, compact = false, overall = false, tall = false }) {
   const chartRef = useRef(null);
   const [size, setSize] = useState(null);
+  const fallbackSize = {
+    height: overall ? 170 : compact ? 150 : tall ? 260 : 235,
+    width: 720
+  };
 
   useEffect(() => {
     const node = chartRef.current;
@@ -1901,7 +1871,7 @@ function ChartBox({ children, compact = false, overall = false, tall = false }) 
 
   return (
     <div className={classNames(overall ? styles.chartBoxOverall : compact ? styles.chartBoxCompact : tall ? styles.chartBoxTall : styles.chartBox)} ref={chartRef}>
-      {size ? cloneElement(children, { height: size.height, width: size.width }) : null}
+      {cloneElement(children, { height: size?.height || fallbackSize.height, width: size?.width || fallbackSize.width })}
     </div>
   );
 }
