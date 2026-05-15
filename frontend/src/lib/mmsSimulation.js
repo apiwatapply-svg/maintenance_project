@@ -39,6 +39,14 @@ export const mmsOverviewFilterStorageKey = "mms:overview:filters";
 
 export const mmsReportsFilterStorageKey = "mms:reports:filters";
 
+export function getMmsCurrentWorkDateText(now = new Date()) {
+  const bangkokDate = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  if (bangkokDate.getUTCHours() < 7) {
+    bangkokDate.setUTCDate(bangkokDate.getUTCDate() - 1);
+  }
+  return bangkokDate.toISOString().slice(0, 10);
+}
+
 export const mmsReportMetricNames = [
   "OEE",
   "Output (Target)",
@@ -264,7 +272,7 @@ export function buildMmsOverviewSummary(machines = []) {
 }
 
 export function getDefaultMmsReportFilters(defaultPeriod = "monthly") {
-  const today = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const today = getMmsCurrentWorkDateText();
   const month = today.slice(0, 7);
   const year = today.slice(0, 4);
 

@@ -24,6 +24,7 @@ import {
   buildMmsReportMatrixRows,
   getDefaultMmsOverviewFilters,
   getDefaultMmsReportFilters,
+  getMmsCurrentWorkDateText,
   getMmsDashboardViewKey,
   mmsMachineStatuses,
   mmsOverviewFilterStorageKey,
@@ -135,7 +136,19 @@ function compactMmsStatus(status) {
 }
 
 function getBangkokTodayText() {
+  return getMmsCurrentWorkDateText();
+}
+
+function getBangkokCalendarDateText() {
   return new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+function normalizeMmsFilterDate(date, defaultDate = getBangkokTodayText()) {
+  if (!date) {
+    return defaultDate;
+  }
+  const calendarDate = getBangkokCalendarDateText();
+  return date === calendarDate && calendarDate !== defaultDate ? defaultDate : date;
 }
 
 function normalizeBackendMmsMachine(machine = {}, index = 0) {
@@ -537,11 +550,9 @@ export default function MmsDashboardShell({ view = "overview" }) {
   }, []);
 
   useEffect(() => {
-    const socket = createMmsSocket(({ eventName } = {}) => {
-      if (String(eventName || "").startsWith("mms:") || String(eventName || "").startsWith("job")) {
-        loadDashboardMachines();
-        setRealtimeRefreshKey((current) => current + 1);
-      }
+    const socket = createMmsSocket(() => {
+      loadDashboardMachines();
+      setRealtimeRefreshKey((current) => current + 1);
     });
 
     return () => {
@@ -665,18 +676,19 @@ function FilterBar({ machines: filterMachines = [], view }) {
         setFilters({
           ...saved,
           area: saved.area === "All" ? defaults.area : saved.area,
+          date: normalizeMmsFilterDate(saved.date, defaults.date),
           machineType: saved.machineType === "All" ? defaults.machineType : saved.machineType,
           machineNo: saved.machineNo === "All" ? defaults.machineNo : saved.machineNo
         });
       } else {
-        setFilters(saved);
+        setFilters({ ...saved, date: normalizeMmsFilterDate(saved.date, defaults.date) });
       }
     } catch {
       setFilters(defaults);
     } finally {
       setHydrated(true);
     }
-  }, [storageKey, isSingleMachine]);
+  }, [storageKey, isSingleMachine, sourceMachines.length]);
 
   useEffect(() => {
     if (hydrated) {
@@ -1181,6 +1193,7 @@ function useReportFilters(defaultPeriod, forcePeriod = false) {
       setFilters({
         ...defaults,
         ...migrated,
+        date: normalizeMmsFilterDate(migrated.date, defaults.date),
         graphPeriod: forcePeriod ? defaultPeriod : migrated.graphPeriod || defaultPeriod
       });
     } catch {
@@ -1390,6 +1403,7 @@ function OverallMachineWorkingView({ areas: sourceAreas = [], machines: sourceMa
       setFilters({
         ...defaultFilters,
         ...saved,
+        date: normalizeMmsFilterDate(saved.date, defaultFilters.date),
         machineNos: Array.isArray(saved.machineNos) ? saved.machineNos : defaultFilters.machineNos
       });
       const requestedTab = new URLSearchParams(window.location.search).get("tab");
@@ -1400,7 +1414,7 @@ function OverallMachineWorkingView({ areas: sourceAreas = [], machines: sourceMa
     } finally {
       setHydrated(true);
     }
-  }, []);
+  }, [activeMachines.length]);
 
   useEffect(() => {
     if (hydrated) {
@@ -1600,15 +1614,19 @@ function OverallMachineCard({ activeTab, date, machine, refreshKey = 0 }) {
   );
 }
 
-function MachineWorkingView({ machines: sourceMachines = [], refreshKey = 0 }) {
-  const activeMachines = sourceMachines;
-  const [activeTab, setActiveTab] = useState("output");
-  const [filters, setFilters] = useState(() => ({
+function currentMachineDefaults(activeMachines = []) {
+  return {
     area: activeMachines[0]?.area || "Line A",
     date: getBangkokTodayText(),
     machineNo: activeMachines[0]?.machineNo || "CNV-A-002",
     machineType: activeMachines[0]?.machineType || "Conveyor"
-  }));
+  };
+}
+
+function MachineWorkingView({ machines: sourceMachines = [], refreshKey = 0 }) {
+  const activeMachines = sourceMachines;
+  const [activeTab, setActiveTab] = useState("output");
+  const [filters, setFilters] = useState(() => currentMachineDefaults(activeMachines));
   const machine = activeMachines.find((row) => row.machineNo === filters.machineNo)
     || activeMachines.find((row) => row.area === filters.area && row.machineType === filters.machineType)
     || activeMachines[0]
@@ -1637,9 +1655,18 @@ function MachineWorkingView({ machines: sourceMachines = [], refreshKey = 0 }) {
     function readFilters() {
       try {
         const saved = JSON.parse(localStorage.getItem("mms:machine-working:filters") || "{}");
+        const next = {
+          ...currentMachineDefaults(activeMachines),
+          ...saved,
+          date: normalizeMmsFilterDate(saved.date)
+        };
+        const nextDefaults = currentMachineDefaults(activeMachines);
         setFilters((current) => ({
           ...current,
-          ...saved
+          ...next,
+          machineNo: activeMachines.some((machineItem) => machineItem.machineNo === next.machineNo)
+            ? next.machineNo
+            : nextDefaults.machineNo
         }));
       } catch {
         setFilters((current) => current);
@@ -1648,14 +1675,19 @@ function MachineWorkingView({ machines: sourceMachines = [], refreshKey = 0 }) {
 
     function handleFilterEvent(event) {
       if (event.detail?.view === "machine-working") {
-        setFilters((current) => ({ ...current, ...event.detail.filters }));
+        const eventFilters = event.detail.filters || {};
+        setFilters((current) => ({
+          ...current,
+          ...eventFilters,
+          date: normalizeMmsFilterDate(eventFilters.date, current.date)
+        }));
       }
     }
 
     readFilters();
     window.addEventListener("mms:global-filter-changed", handleFilterEvent);
     return () => window.removeEventListener("mms:global-filter-changed", handleFilterEvent);
-  }, []);
+  }, [activeMachines.length]);
 
   const changeTab = (tab) => {
     setActiveTab(tab);

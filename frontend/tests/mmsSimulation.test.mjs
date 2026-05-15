@@ -11,6 +11,7 @@ import {
   canMmsMachineProduce,
   getDefaultMmsOverviewFilters,
   getDefaultMmsReportFilters,
+  getMmsCurrentWorkDateText,
   getMmsEffectiveStatus,
   getRandomMmsAlarmName,
   getRandomMmsCycleTime,
@@ -29,6 +30,7 @@ import {
   mmsAlarmNames,
   summarizeMmsAreas
 } from "../src/lib/mmsSimulation.js";
+import { mmsRealtimeJobRequestEvents } from "../src/lib/mmsRealtime.js";
 
 test("mms simulation separates base status buttons from panel status buttons", () => {
   assert.deepEqual(mmsBaseControlStatuses, ["RUN", "WAIT_PART", "BRAKE_TIME", "PLAN_STOP", "WARM_UP", "STOP"]);
@@ -101,6 +103,18 @@ test("mms socket events expose status output and alarm changes", () => {
     "mms:machine-output-changed",
     "mms:machine-alarm-changed"
   ]);
+});
+
+test("mms current work date follows 07:00 to 07:00 local working day", () => {
+  assert.equal(getMmsCurrentWorkDateText(new Date("2026-05-15T22:30:00.000Z")), "2026-05-15");
+  assert.equal(getMmsCurrentWorkDateText(new Date("2026-05-16T00:30:00.000Z")), "2026-05-16");
+});
+
+test("mms realtime listens to job request events that change active machine overlay", () => {
+  assert.ok(mmsRealtimeJobRequestEvents.includes("new_job_request"));
+  assert.ok(mmsRealtimeJobRequestEvents.includes("job_handover_created"));
+  assert.ok(mmsRealtimeJobRequestEvents.includes("job_completed"));
+  assert.ok(mmsRealtimeJobRequestEvents.includes("job_request_updated"));
 });
 
 test("mms hydrate defaults from backend MSSQL rows without frontend machine mocks", () => {
@@ -245,7 +259,7 @@ test("mms overview summary gives control room totals", () => {
 });
 
 test("mms report filter defaults support graph and table report tabs", () => {
-  const today = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const today = getMmsCurrentWorkDateText();
   assert.equal(mmsReportsFilterStorageKey, "mms:reports:filters");
   assert.deepEqual(getDefaultMmsReportFilters("daily"), {
     area: "All",
