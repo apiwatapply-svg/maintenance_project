@@ -4,6 +4,29 @@ function toBangkokDateText(now = new Date()) {
   return new Date(now.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
+const mmsWorkingHourLabels = [
+  "07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00",
+  "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00",
+  "23:00", "00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00"
+];
+
+function getMmsHourSort(hourLabel) {
+  const index = mmsWorkingHourLabels.indexOf(String(hourLabel || ""));
+  return index >= 0 ? index + 1 : 99;
+}
+
+function getMmsHourSortSql(alias = "mh") {
+  return `CASE ${alias}.hour_label
+    WHEN '07:00' THEN 1 WHEN '08:00' THEN 2 WHEN '09:00' THEN 3 WHEN '10:00' THEN 4
+    WHEN '11:00' THEN 5 WHEN '12:00' THEN 6 WHEN '13:00' THEN 7 WHEN '14:00' THEN 8
+    WHEN '15:00' THEN 9 WHEN '16:00' THEN 10 WHEN '17:00' THEN 11 WHEN '18:00' THEN 12
+    WHEN '19:00' THEN 13 WHEN '20:00' THEN 14 WHEN '21:00' THEN 15 WHEN '22:00' THEN 16
+    WHEN '23:00' THEN 17 WHEN '00:00' THEN 18 WHEN '01:00' THEN 19 WHEN '02:00' THEN 20
+    WHEN '03:00' THEN 21 WHEN '04:00' THEN 22 WHEN '05:00' THEN 23 WHEN '06:00' THEN 24
+    ELSE 99
+  END`;
+}
+
 function getMmsWorkSlot(now = new Date()) {
   const bangkokDate = new Date(now.getTime() + 7 * 60 * 60 * 1000);
   const localHour = bangkokDate.getUTCHours();
@@ -18,6 +41,10 @@ function getMmsWorkSlot(now = new Date()) {
     shiftCode: localHour >= 7 && localHour < 15 ? "A" : localHour >= 15 && localHour < 23 ? "B" : "C",
     workDate: workDate.toISOString().slice(0, 10)
   };
+}
+
+function getCurrentMmsWorkDate(now = new Date()) {
+  return getMmsWorkSlot(now).workDate;
 }
 
 function normalizeMmsStatus(payload = {}) {
@@ -124,8 +151,11 @@ function mapMachine(row) {
 async function listSimulationMachines() {
   const pool = await getPool();
   await ensureMmsReportSchema(pool);
+  const slot = getMmsWorkSlot();
+  const hourSortSql = getMmsHourSortSql("mh");
   const result = await pool.request()
-    .input("today", sql.Date, toBangkokDateText())
+    .input("workDate", sql.Date, slot.workDate)
+    .input("currentHourSort", sql.Int, getMmsHourSort(slot.hourLabel))
     .query(`
     SELECT
       mn.id,
@@ -165,23 +195,17 @@ async function listSimulationMachines() {
         AVG(cycle_time_sec) AS cycle_time_sec
       FROM dbo.tb_mms_machine_hourly mh
       WHERE mh.machine_no = mn.machine_no
-        AND mh.work_date = @today
+        AND mh.work_date = @workDate
+        AND ${hourSortSql} <= @currentHourSort
     ) mms
     OUTER APPLY (
       SELECT TOP 1 status
       FROM dbo.tb_mms_machine_hourly mh
       WHERE mh.machine_no = mn.machine_no
-        AND mh.work_date = @today
+        AND mh.work_date = @workDate
+        AND ${hourSortSql} <= @currentHourSort
       ORDER BY
-        CASE mh.hour_label
-          WHEN '07:00' THEN 1 WHEN '08:00' THEN 2 WHEN '09:00' THEN 3 WHEN '10:00' THEN 4
-          WHEN '11:00' THEN 5 WHEN '12:00' THEN 6 WHEN '13:00' THEN 7 WHEN '14:00' THEN 8
-          WHEN '15:00' THEN 9 WHEN '16:00' THEN 10 WHEN '17:00' THEN 11 WHEN '18:00' THEN 12
-          WHEN '19:00' THEN 13 WHEN '20:00' THEN 14 WHEN '21:00' THEN 15 WHEN '22:00' THEN 16
-          WHEN '23:00' THEN 17 WHEN '00:00' THEN 18 WHEN '01:00' THEN 19 WHEN '02:00' THEN 20
-          WHEN '03:00' THEN 21 WHEN '04:00' THEN 22 WHEN '05:00' THEN 23 WHEN '06:00' THEN 24
-          ELSE 99
-        END DESC
+        ${hourSortSql} DESC
     ) latest
     WHERE ISNULL(mn.status, 'active') = 'active'
     ORDER BY a.area_name, mt.machine_type_name, mn.machine_no;
@@ -365,10 +389,13 @@ async function upsertMmsRealtimePayload(payload = {}, now = new Date()) {
   const pool = await getPool();
   await ensureMmsReportSchema(pool);
 
-  const row = mapMmsRealtimePayloadToHourlyRow(payload, getMmsWorkSlot(now));
+  const slot = getMmsWorkSlot(now);
+  const row = mapMmsRealtimePayloadToHourlyRow(payload, slot);
+  const hourSortSql = getMmsHourSortSql("tb_mms_machine_hourly");
   const totals = await pool.request()
     .input("work_date", sql.Date, row.work_date)
     .input("hour_label", sql.NVarChar(20), row.hour_label)
+    .input("currentHourSort", sql.Int, getMmsHourSort(slot.hourLabel))
     .input("machine_no", sql.NVarChar(80), row.machine_no)
     .query(`
       SELECT
@@ -377,7 +404,7 @@ async function upsertMmsRealtimePayload(payload = {}, now = new Date()) {
       FROM dbo.tb_mms_machine_hourly
       WHERE work_date = @work_date
         AND machine_no = @machine_no
-        AND hour_label <> @hour_label;
+        AND ${hourSortSql} < @currentHourSort;
     `);
   const previousOk = Number(totals.recordset[0]?.previous_output_ok || 0);
   const previousNg = Number(totals.recordset[0]?.previous_output_ng || 0);
@@ -431,6 +458,8 @@ async function upsertMmsRealtimePayload(payload = {}, now = new Date()) {
 
 module.exports = {
   ensureMmsReportSchema,
+  getCurrentMmsWorkDate,
+  getMmsHourSort,
   getMmsWorkSlot,
   listMmsReport,
   listSimulationMachines,

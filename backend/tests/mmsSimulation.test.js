@@ -13,7 +13,7 @@ const {
   mmsWorkingShifts,
   normalizeMachineStatus
 } = require("../src/config/mmsSimulationConfig");
-const { getMmsWorkSlot, mapMachine, mapMmsRealtimePayloadToHourlyRow } = require("../src/repositories/mmsRepository");
+const { getCurrentMmsWorkDate, getMmsHourSort, getMmsWorkSlot, mapMachine, mapMmsRealtimePayloadToHourlyRow } = require("../src/repositories/mmsRepository");
 
 test("mms simulation statuses include production and stop states", () => {
   assert.deepEqual(mmsMachineStatuses, [
@@ -91,6 +91,14 @@ test("mms repository maps realtime socket payload into current local working slo
   assert.equal(row.target_output, 900);
   assert.equal(row.status, "RUN");
   assert.equal(row.work_date, "2026-05-15");
+});
+
+test("mms simulation list uses the 07:00 working day before local morning rollover", () => {
+  assert.equal(getCurrentMmsWorkDate(new Date("2026-05-15T22:30:00.000Z")), "2026-05-15");
+  assert.equal(getCurrentMmsWorkDate(new Date("2026-05-16T00:30:00.000Z")), "2026-05-16");
+  assert.equal(getMmsHourSort("07:00"), 1);
+  assert.equal(getMmsHourSort("05:00"), 23);
+  assert.equal(getMmsHourSort("06:00"), 24);
 });
 
 test("mms repository treats realtime alarm payload as blocked output status", () => {
