@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildMmsPayload,
-  buildMmsAreaPanelSummary,
   buildMmsLayoutMachineState,
   buildMmsGraphReportSeries,
   buildMmsMachineTypeSummary,
@@ -242,23 +241,6 @@ test("mms overview summary gives control room totals", () => {
     running: 1,
     stopped: 2,
     total: 3
-  });
-});
-
-test("mms area panel summary separates production gate from job overlay", () => {
-  const summary = buildMmsAreaPanelSummary([
-    { machineNo: "A", plcStatus: "RUN" },
-    { machineNo: "B", plcStatus: "RUN", activeJobStatus: "WAIT_MM" },
-    { machineNo: "C", plcStatus: "RUN", simMachineAlarm: true, activeJobStatus: "MM_REPAIR" },
-    { machineNo: "D", plcStatus: "PLAN_STOP" }
-  ]);
-
-  assert.deepEqual(summary, {
-    activeJobs: 2,
-    alarm: 1,
-    outputBlocked: 2,
-    running: 2,
-    total: 4
   });
 });
 

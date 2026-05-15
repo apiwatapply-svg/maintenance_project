@@ -16,7 +16,6 @@ import {
   YAxis
 } from "recharts";
 import {
-  buildMmsAreaPanelSummary,
   buildMmsGraphReportSeries,
   buildMmsLayoutMachineState,
   buildMmsMachineTypeSummary,
@@ -346,7 +345,6 @@ const styles = {
   overviewAreaCard: "min-h-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-2 shadow-sm",
   overviewAreaGrid: "grid grid-cols-4 gap-3 max-[1400px]:grid-cols-2 max-[760px]:grid-cols-1",
   overviewAreaHeader: "mb-2 grid gap-2 [&_h4]:m-0 [&_h4]:text-sm [&_h4]:font-black [&_p]:m-0 [&_p]:text-[10px] [&_p]:font-bold [&_p]:text-slate-500",
-  overviewAreaStats: "grid grid-cols-4 gap-1 [&_span]:grid [&_span]:gap-0.5 [&_span]:rounded-lg [&_span]:border [&_span]:bg-slate-50 [&_span]:px-1.5 [&_span]:py-1 [&_small]:text-[7px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.08em] [&_strong]:text-[11px] [&_strong]:font-black",
   overviewChartGrid: "grid grid-cols-[1.35fr_0.85fr] gap-3 max-[1100px]:grid-cols-1",
   overviewFactoryHeader: "mb-2 flex flex-wrap items-center justify-between gap-2 [&_h3]:m-0 [&_h3]:text-base [&_h3]:font-black [&_p]:m-0 [&_p]:text-[10px] [&_p]:font-black [&_p]:text-slate-500",
   overviewFactoryLayout: "grid min-h-0 grid-cols-4 items-start gap-2 max-[1600px]:grid-cols-2 max-[900px]:grid-cols-1",
@@ -657,14 +655,10 @@ function DashboardView() {
   const filteredLayoutStates = selectMmsOverviewMachines(layoutStates, overviewFilters);
   const overviewSummary = buildMmsOverviewSummary(layoutStates);
   const filteredSummary = buildMmsOverviewSummary(filteredLayoutStates);
-  const areaLayout = areas.map((area) => {
-    const areaMachines = filteredLayoutStates.filter((machine) => machine.area === area.area);
-    return {
-      ...area,
-      machines: areaMachines,
-      summary: buildMmsAreaPanelSummary(areaMachines)
-    };
-  }).filter((area) => area.machines.length > 0);
+  const areaLayout = areas.map((area) => ({
+    ...area,
+    machines: filteredLayoutStates.filter((machine) => machine.area === area.area)
+  })).filter((area) => area.machines.length > 0);
 
   useEffect(() => {
     try {
@@ -729,7 +723,6 @@ function DashboardView() {
                       <h4>{area.area}</h4>
                       <p>{area.machines.length} machines / {area.machines.filter((machine) => machine.layoutState.mmsStatus === "RUN").length} MMS running</p>
                     </div>
-                    <OverviewAreaStats summary={area.summary} />
                   </div>
                   <div className={styles.typeStack}>
                     {groupMachinesByType(area.machines).map((group) => (
@@ -919,26 +912,6 @@ function OverviewMachineCard({ machine }) {
         <span><small>OEE</small><strong>{machine.oee}%</strong></span>
       </div>
     </article>
-  );
-}
-
-function OverviewAreaStats({ summary }) {
-  const stats = [
-    ["RUN", summary.running, "RUN"],
-    ["ALM", summary.alarm, "ALARM"],
-    ["JOB", summary.activeJobs, "JOB"],
-    ["BLOCK", summary.outputBlocked, "STOP"]
-  ];
-
-  return (
-    <div className={styles.overviewAreaStats}>
-      {stats.map(([label, value, status]) => (
-        <span key={label} style={statusBadgeStyle(status)}>
-          <small>{label}</small>
-          <strong>{value}</strong>
-        </span>
-      ))}
-    </div>
   );
 }
 
