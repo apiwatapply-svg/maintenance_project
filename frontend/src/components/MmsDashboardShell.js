@@ -32,6 +32,7 @@ import {
   selectMmsReportMachines,
   selectOverallMmsMachines
 } from "@/lib/mmsSimulation";
+import api from "@/lib/api";
 
 const navGroups = [
   {
@@ -279,6 +280,205 @@ function compactMmsStatus(status) {
   return labels[status] || status;
 }
 
+function getBangkokTodayText() {
+  return new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+function normalizeBackendMmsMachine(machine = {}, index = 0) {
+  const machineNo = machine.machineNo || machine.machine_no || machine.name || "";
+  const outputOk = Number(machine.outputOk ?? machine.output_ok ?? machine.output ?? 0);
+  const outputNg = Number(machine.outputNg ?? machine.output_ng ?? machine.ng ?? 0);
+  const output = Number(machine.output ?? outputOk + outputNg);
+  const machineType = machine.machineType || machine.machine_type || machine.type || machine.machineTypeCode || machine.machine_type_code || machineTypeByPrefix[machineNo.split("-")[0]] || "Unknown";
+  const plcStatus = machine.plcStatus || machine.plc_status || machine.status || "RUN";
+
+  return {
+    ...machine,
+    name: machine.name || machineNo,
+    machineNo,
+    area: machine.area || machine.areaName || "Unassigned",
+    machineType,
+    type: machine.type || machineType,
+    status: machine.simMachineAlarm ? "ALARM" : plcStatus === "WAIT_PART" ? "WAIT" : plcStatus,
+    plcStatus,
+    output,
+    outputOk,
+    outputNg,
+    ng: outputNg,
+    ct: Number(machine.ct ?? machine.cycleTime ?? machine.cycle_time_sec ?? 0) || 1 + (index % 3),
+    cycleTime: Number(machine.cycleTime ?? machine.ct ?? machine.cycle_time_sec ?? 0) || 1 + (index % 3),
+    oee: Number(machine.oee ?? 0),
+    target: Number(machine.target ?? machine.targetOutput ?? output ?? 0),
+    targetOutput: Number(machine.targetOutput ?? machine.target ?? output ?? 0),
+    responsible: machine.responsible || machine.activeJobNo || (machine.jobRequestActive ? "Job Request" : "Machine master"),
+    jobNo: machine.jobNo || machine.activeJobNo || null,
+    jobRequestActive: Boolean(machine.jobRequestActive || machine.activeJobNo || machine.activeJobStatus),
+    model: machine.model || "MODEL-A"
+  };
+}
+
+function buildReportMachineRows(sourceMachines = []) {
+  return sourceMachines.map((machine, index) => {
+    const prefix = machine.machineNo.split("-")[0];
+    return {
+      ...machine,
+      machineType: machine.machineType || prefix,
+      modelName: index % 3 === 0 ? "C4G, 12630" : machine.model || "MODEL-A",
+      modelType: "-",
+      process: machine.area || "-"
+    };
+  });
+}
+
+function buildAreaRows(sourceMachines = []) {
+  const grouped = sourceMachines.reduce((groups, machine) => {
+    const area = machine.area || "Unassigned";
+    const current = groups[area] || { area, run: 0, alarm: 0, stop: 0, output: 0, oeeTotal: 0, total: 0 };
+    current.total += 1;
+    current.output += Number(machine.output || 0);
+    current.oeeTotal += Number(machine.oee || 0);
+    if (machine.status === "ALARM") current.alarm += 1;
+    if (machine.status === "RUN") current.run += 1;
+    if (!["RUN", "ALARM"].includes(machine.status)) current.stop += 1;
+    groups[area] = current;
+    return groups;
+  }, {});
+
+  return Object.values(grouped).map((area) => ({
+    ...area,
+    oee: area.total ? Number((area.oeeTotal / area.total).toFixed(1)) : 0
+  }));
+}
+
+function buildMmsReportParams(filters = {}) {
+  return {
+    area: filters.area || "All",
+    date: filters.date,
+    machineNo: filters.machineNo || "All",
+    machineType: filters.machineType || "All",
+    month: filters.month,
+    period: filters.graphPeriod || "daily",
+    year: filters.year
+  };
+}
+
+function useMmsReport(filters = {}, enabled = true) {
+  const [report, setReport] = useState(null);
+  const params = buildMmsReportParams(filters);
+  const paramsKey = JSON.stringify(params);
+
+  useEffect(() => {
+    if (!enabled) {
+      setReport(null);
+      return undefined;
+    }
+
+    let alive = true;
+    api.get("/mms/reports/history", { params })
+      .then((response) => {
+        if (alive) setReport(response.data?.data || null);
+      })
+      .catch(() => {
+        if (alive) setReport(null);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [enabled, paramsKey]);
+
+  return report;
+}
+
+function useMmsReportsByMachine(filters = {}, selectedMachines = []) {
+  const [reports, setReports] = useState({});
+  const machineNos = selectedMachines.map((machine) => machine.machineNo).filter(Boolean);
+  const params = buildMmsReportParams(filters);
+  const paramsKey = JSON.stringify({ ...params, machineNos });
+
+  useEffect(() => {
+    if (!machineNos.length) {
+      setReports({});
+      return undefined;
+    }
+
+    let alive = true;
+    Promise.all(machineNos.map((machineNo) => api.get("/mms/reports/history", { params: { ...params, machineNo } })
+      .then((response) => [machineNo, response.data?.data || null])
+      .catch(() => [machineNo, null])))
+      .then((entries) => {
+        if (alive) setReports(Object.fromEntries(entries));
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [paramsKey]);
+
+  return reports;
+}
+
+function buildHourlyRowsFromReport(report) {
+  const rows = report?.series || [];
+  let outputAccum = 0;
+  let targetAccum = 0;
+
+  if (!rows.length) return hourly;
+
+  return rows.map((row) => {
+    const output = Number(row.output || 0);
+    const target = Number(row.target || 0);
+    outputAccum += output;
+    targetAccum += target;
+    return {
+      hour: row.label,
+      target,
+      output,
+      ct: Number(row.ct || 0),
+      ctTarget: 3,
+      availability: Number(row.availability || 0),
+      availabilityTarget: 90,
+      performance: Number(row.performance || 0),
+      quality: Number(row.quality || 0),
+      oee: Number(row.oee || 0),
+      accum: outputAccum,
+      targetAccum
+    };
+  });
+}
+
+function buildStatusSegmentsFromReport(report) {
+  const rows = report?.series || [];
+  if (!rows.length) return machineStatusSegments;
+
+  return rows.map((row) => {
+    const status = Number(row.alarmHours || 0) > 0 ? "ALARM" : Number(row.stopHours || 0) > 0.5 ? "STOP" : "RUN";
+    return {
+      start: row.label,
+      end: row.label,
+      label: status,
+      status,
+      percent: 1
+    };
+  });
+}
+
+function buildDowntimeRowsFromReport(report) {
+  const rows = report?.series || [];
+  if (!rows.length) return downtimeBreakdown;
+
+  const alarm = rows.reduce((sum, row) => sum + Number(row.alarmHours || 0), 0);
+  const stop = rows.reduce((sum, row) => sum + Math.max(0, Number(row.stopHours || 0) - Number(row.alarmHours || 0)), 0);
+  const run = rows.reduce((sum, row) => sum + Number(row.runHours || 0), 0);
+  const total = Math.max(1, alarm + stop + run);
+
+  return [
+    { status: "RUN", minute: Math.round(run * 60), percent: Number(((run / total) * 100).toFixed(1)), fill: statusColors.RUN },
+    { status: "ALARM", minute: Math.round(alarm * 60), percent: Number(((alarm / total) * 100).toFixed(1)), fill: statusColors.ALARM },
+    { status: "STOP", minute: Math.round(stop * 60), percent: Number(((stop / total) * 100).toFixed(1)), fill: statusColors.STOP }
+  ];
+}
+
 function statusFillStyle(status) {
   return { backgroundColor: statusColors[status] || statusColors.STOP };
 }
@@ -449,13 +649,32 @@ const styles = {
 
 export default function MmsDashboardShell({ view = "overview" }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [backendMachines, setBackendMachines] = useState([]);
   const activeView = getMmsDashboardViewKey(view);
   const title = getTitle(activeView);
   const backHref = activeView === "overview" ? "/" : "/mms-dashboard";
+  const dashboardMachines = backendMachines.length ? backendMachines : machines;
+  const dashboardAreas = backendMachines.length ? buildAreaRows(dashboardMachines) : areas;
 
   useEffect(() => {
     const saved = localStorage.getItem("mms:sidebar:collapsed");
     if (saved === "1") setCollapsed(true);
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    api.get("/mms/simulation/machines")
+      .then((response) => {
+        const rows = Array.isArray(response.data?.data) ? response.data.data : [];
+        if (alive) setBackendMachines(rows.map(normalizeBackendMmsMachine));
+      })
+      .catch(() => {
+        if (alive) setBackendMachines([]);
+      });
+
+    return () => {
+      alive = false;
+    };
   }, []);
 
   function toggleSidebar() {
@@ -514,8 +733,8 @@ export default function MmsDashboardShell({ view = "overview" }) {
           ) : null}
 
           <section className={styles.content}>
-             {shouldShowGlobalFilter(activeView) ? <FilterBar view={activeView} /> : null}
-             {renderView(activeView)}
+             {shouldShowGlobalFilter(activeView) ? <FilterBar machines={dashboardMachines} view={activeView} /> : null}
+             {renderView(activeView, { areas: dashboardAreas, machines: dashboardMachines })}
           </section>
           {!["overview", "table-report", "machine-working", "graph-report", "overall-machine-working"].includes(activeView) ? <div className={styles.footer}>MMS Dashboard | Factory Management System</div> : null}
         </section>
@@ -552,14 +771,15 @@ function getSubtitle(view) {
   return map[view] || "Machine monitoring system.";
 }
 
-function FilterBar({ view }) {
+function FilterBar({ machines: filterMachines = [], view }) {
   const isSingleMachine = view === "machine-working";
+  const sourceMachines = filterMachines.length ? filterMachines : machines;
   const storageKey = `mms:${view}:filters`;
   const defaults = {
-    area: isSingleMachine ? "Line A" : "All",
-    machineType: isSingleMachine ? "Conveyor" : "All",
-    machineNo: isSingleMachine ? "CNV-A-002" : "All",
-    date: "2026-05-13"
+    area: isSingleMachine ? sourceMachines[0]?.area || "Line A" : "All",
+    machineType: isSingleMachine ? sourceMachines[0]?.machineType || "Conveyor" : "All",
+    machineNo: isSingleMachine ? sourceMachines[0]?.machineNo || "CNV-A-002" : "All",
+    date: getBangkokTodayText()
   };
   const [filters, setFilters] = useState(defaults);
   const [hydrated, setHydrated] = useState(false);
@@ -587,15 +807,26 @@ function FilterBar({ view }) {
   useEffect(() => {
     if (hydrated) {
       localStorage.setItem(storageKey, JSON.stringify(filters));
+      window.dispatchEvent(new CustomEvent("mms:global-filter-changed", { detail: { filters, view } }));
     }
   }, [filters, hydrated, storageKey]);
 
   const updateFilter = (key) => (event) => {
     setFilters((current) => ({ ...current, [key]: event.target.value }));
   };
-  const areaOptions = isSingleMachine ? ["Line A", "Line B", "Packing", "Utility"] : ["All", "Line A", "Line B", "Packing", "Utility"];
-  const typeOptions = isSingleMachine ? ["Conveyor", "Filling", "Labeler", "Sealer"] : ["All", "Conveyor", "Filling", "Labeler", "Sealer"];
-  const machineOptions = isSingleMachine ? ["CNV-A-002", "CNV-A-001", "SEA-P-002", "LBL-B-001"] : ["All", "CNV-A-001", "SEA-P-002", "LBL-B-001"];
+  const areaOptions = isSingleMachine ? uniqueValues(sourceMachines.map((machine) => machine.area)) : ["All", ...uniqueValues(sourceMachines.map((machine) => machine.area))];
+  const typeOptions = isSingleMachine
+    ? uniqueValues(sourceMachines.filter((machine) => !filters.area || machine.area === filters.area).map((machine) => machine.machineType))
+    : ["All", ...uniqueValues(sourceMachines.filter((machine) => filters.area === "All" || machine.area === filters.area).map((machine) => machine.machineType))];
+  const machineOptions = isSingleMachine
+    ? uniqueValues(sourceMachines
+      .filter((machine) => !filters.area || machine.area === filters.area)
+      .filter((machine) => !filters.machineType || machine.machineType === filters.machineType)
+      .map((machine) => machine.machineNo))
+    : ["All", ...uniqueValues(sourceMachines
+      .filter((machine) => filters.area === "All" || machine.area === filters.area)
+      .filter((machine) => filters.machineType === "All" || machine.machineType === filters.machineType)
+      .map((machine) => machine.machineNo))];
 
   return (
     <section className={styles.toolbar}>
@@ -619,13 +850,13 @@ function FilterBar({ view }) {
   );
 }
 
-function renderView(view) {
-  if (view === "overview") return <DashboardView />;
-  if (view === "overall-machine-working") return <OverallMachineWorkingView />;
-  if (view === "machine-working") return <MachineWorkingView />;
-  if (view === "graph-report") return <GraphReportView defaultPeriod="monthly" />;
-  if (view === "table-report") return <TableReportView defaultPeriod="monthly" />;
-  return <DashboardView />;
+function renderView(view, data = {}) {
+  if (view === "overview") return <DashboardView areas={data.areas} machines={data.machines} />;
+  if (view === "overall-machine-working") return <OverallMachineWorkingView areas={data.areas} machines={data.machines} />;
+  if (view === "machine-working") return <MachineWorkingView machines={data.machines} />;
+  if (view === "graph-report") return <GraphReportView defaultPeriod="monthly" machines={data.machines} />;
+  if (view === "table-report") return <TableReportView defaultPeriod="monthly" machines={data.machines} />;
+  return <DashboardView areas={data.areas} machines={data.machines} />;
 }
 
 function Kpis() {
@@ -649,16 +880,16 @@ function Kpis() {
   );
 }
 
-function DashboardView() {
+function DashboardView({ areas: viewAreas = areas, machines: viewMachines = machines }) {
   const [overviewFilters, setOverviewFilters] = useState(getDefaultMmsOverviewFilters());
   const [layoutScale, setLayoutScale] = useState(0.85);
   const [hydrated, setHydrated] = useState(false);
   const factoryLayoutRef = useRef(null);
-  const layoutStates = machines.map((machine) => ({ ...machine, layoutState: buildMmsLayoutMachineState(machine) }));
+  const layoutStates = viewMachines.map((machine) => ({ ...machine, layoutState: buildMmsLayoutMachineState(machine) }));
   const filteredLayoutStates = selectMmsOverviewMachines(layoutStates, overviewFilters);
   const overviewSummary = buildMmsOverviewSummary(layoutStates);
   const filteredSummary = buildMmsOverviewSummary(filteredLayoutStates);
-  const areaLayout = areas.map((area) => ({
+  const areaLayout = viewAreas.map((area) => ({
     ...area,
     machines: filteredLayoutStates.filter((machine) => machine.area === area.area)
   })).filter((area) => area.machines.length > 0);
@@ -928,14 +1159,16 @@ function OverviewKpi({ color, label, note, value }) {
   );
 }
 
-function GraphReportView({ defaultPeriod = "monthly", forcePeriod = false }) {
+function GraphReportView({ defaultPeriod = "monthly", forcePeriod = false, machines: sourceMachines = machines }) {
   const [filters, setFilters] = useReportFilters(defaultPeriod, forcePeriod);
-  const selectedMachines = selectMmsReportMachines(reportMachines, filters);
-  const series = buildMmsGraphReportSeries(filters.graphPeriod, filters);
+  const currentReportMachines = buildReportMachineRows(sourceMachines.length ? sourceMachines : machines);
+  const selectedMachines = selectMmsReportMachines(currentReportMachines, filters);
+  const report = useMmsReport(filters);
+  const series = buildMmsGraphReportSeries(filters.graphPeriod, filters, report?.series);
 
   return (
     <section className={styles.reportViewportLayout}>
-      <ReportFilterBar filters={filters} machines={reportMachines} onChange={setFilters} showPeriod />
+      <ReportFilterBar filters={filters} machines={currentReportMachines} onChange={setFilters} showPeriod />
       <section className={styles.reportGrid2}>
         <Panel title="Output Monitor" meta={`${selectedMachines.length} machines`}>
           <ChartBox>
@@ -1003,18 +1236,20 @@ function GraphReportView({ defaultPeriod = "monthly", forcePeriod = false }) {
   );
 }
 
-function TableReportView({ defaultPeriod = "monthly" }) {
+function TableReportView({ defaultPeriod = "monthly", machines: sourceMachines = machines }) {
   const [filters, setFilters] = useReportFilters(defaultPeriod);
-  const selectedMachines = selectMmsReportMachines(reportMachines, filters).slice(0, 6);
+  const currentReportMachines = buildReportMachineRows(sourceMachines.length ? sourceMachines : machines);
+  const selectedMachines = selectMmsReportMachines(currentReportMachines, filters).slice(0, 6);
   const columns = buildMmsReportColumns(filters.graphPeriod, filters);
-  const rows = buildMmsReportMatrixRows(selectedMachines, columns, { machineType: filters.machineType });
+  const reportByMachine = useMmsReportsByMachine(filters, selectedMachines);
+  const rows = buildMmsReportMatrixRows(selectedMachines, columns, { machineType: filters.machineType, reportByMachine });
   const summary = buildMmsMachineTypeSummary(selectedMachines);
 
   const hasMachineTypeSummary = filters.machineType !== "All";
 
   return (
     <section className={styles.reportViewportLayout}>
-      <ReportFilterBar filters={filters} machines={reportMachines} onChange={setFilters} showPeriod />
+      <ReportFilterBar filters={filters} machines={currentReportMachines} onChange={setFilters} showPeriod />
       <div className={hasMachineTypeSummary ? styles.reportTableBodyWithSummary : styles.reportTableBody}>
         {hasMachineTypeSummary ? <MachineTypeSummary machineType={filters.machineType} summary={summary} /> : null}
         <div className={styles.reportTableMatrixSlot}>
@@ -1259,13 +1494,16 @@ function ReportMatrixTable({ columns, rows }) {
   );
 }
 
-function OverallMachineWorkingView() {
+function OverallMachineWorkingView({ areas: sourceAreas = areas, machines: sourceMachines = machines }) {
   const storageKey = "mms:overall-machine-working:filters";
+  const activeMachines = sourceMachines.length ? sourceMachines : machines;
+  const activeAreas = sourceAreas.length ? sourceAreas : areas;
+  const firstArea = activeAreas[0]?.area || activeMachines[0]?.area || "Line A";
   const defaultFilters = {
-    area: "Line A",
-    date: "2026-05-13",
+    area: firstArea,
+    date: getBangkokTodayText(),
     machineType: "All",
-    machineNos: machines.filter((machine) => machine.area === "Line A").slice(0, 4).map((machine) => machine.machineNo)
+    machineNos: activeMachines.filter((machine) => machine.area === firstArea).slice(0, 4).map((machine) => machine.machineNo)
   };
   const [filters, setFilters] = useState(defaultFilters);
   const [hydrated, setHydrated] = useState(false);
@@ -1296,21 +1534,21 @@ function OverallMachineWorkingView() {
     }
   }, [filters, hydrated]);
 
-  const areaOptions = ["All", ...areas.map((item) => item.area)];
-  const typeOptions = ["All", ...Array.from(new Set(machines.filter((machine) => filters.area === "All" || machine.area === filters.area).map((machine) => machine.machineType)))];
-  const machineOptions = machines.filter((machine) => {
+  const areaOptions = ["All", ...activeAreas.map((item) => item.area)];
+  const typeOptions = ["All", ...Array.from(new Set(activeMachines.filter((machine) => filters.area === "All" || machine.area === filters.area).map((machine) => machine.machineType)))];
+  const machineOptions = activeMachines.filter((machine) => {
     const areaMatched = filters.area === "All" || machine.area === filters.area;
     const typeMatched = filters.machineType === "All" || machine.machineType === filters.machineType;
     return areaMatched && typeMatched;
   });
-  const selectedMachines = selectOverallMmsMachines(machines, filters);
+  const selectedMachines = selectOverallMmsMachines(activeMachines, filters);
 
   function updateSelect(key) {
     return (event) => {
       const value = event.target.value;
       setFilters((current) => {
         const next = { ...current, [key]: value };
-        const nextOptions = machines.filter((machine) => {
+        const nextOptions = activeMachines.filter((machine) => {
           const areaMatched = key === "area" ? value === "All" || machine.area === value : next.area === "All" || machine.area === next.area;
           const typeMatched = key === "machineType" ? value === "All" || machine.machineType === value : next.machineType === "All" || machine.machineType === next.machineType;
           return areaMatched && typeMatched;
@@ -1409,7 +1647,16 @@ function OverallMachineWorkingView() {
 }
 
 function OverallMachineCard({ activeTab, date, machine }) {
-  const chartData = getMachineHourlyData(machine);
+  const report = useMmsReport({
+    area: machine.area,
+    date,
+    graphPeriod: "daily",
+    machineNo: machine.machineNo,
+    machineType: machine.machineType
+  }, Boolean(machine?.machineNo));
+  const chartData = buildHourlyRowsFromReport(report);
+  const statusSegments = buildStatusSegmentsFromReport(report);
+  const downtimeRows = buildDowntimeRowsFromReport(report);
 
   return (
     <article className={styles.overallCard}>
@@ -1461,15 +1708,15 @@ function OverallMachineCard({ activeTab, date, machine }) {
         </div>
       ) : (
         <div className={styles.overallStatusBlock}>
-          <MachineStatusTimeline />
+          <MachineStatusTimeline segments={statusSegments} />
           <ChartBox overall>
-            <BarChart data={downtimeBreakdown}>
+            <BarChart data={downtimeRows}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="status" tick={{ fontSize: 10 }} />
               <YAxis width={30} tick={{ fontSize: 10 }} />
               <Tooltip />
               <Bar dataKey="percent" name="Downtime %" fill="#64748b" isAnimationActive={false}>
-                {downtimeBreakdown.map((entry) => <Cell key={entry.status} fill={entry.fill} />)}
+                {downtimeRows.map((entry) => <Cell key={entry.status} fill={entry.fill} />)}
               </Bar>
             </BarChart>
           </ChartBox>
@@ -1479,9 +1726,30 @@ function OverallMachineCard({ activeTab, date, machine }) {
   );
 }
 
-function MachineWorkingView() {
-  const machine = machines[1];
+function MachineWorkingView({ machines: sourceMachines = machines }) {
+  const activeMachines = sourceMachines.length ? sourceMachines : machines;
   const [activeTab, setActiveTab] = useState("output");
+  const [filters, setFilters] = useState(() => ({
+    area: activeMachines[0]?.area || "Line A",
+    date: getBangkokTodayText(),
+    machineNo: activeMachines[0]?.machineNo || "CNV-A-002",
+    machineType: activeMachines[0]?.machineType || "Conveyor"
+  }));
+  const machine = activeMachines.find((row) => row.machineNo === filters.machineNo)
+    || activeMachines.find((row) => row.area === filters.area && row.machineType === filters.machineType)
+    || activeMachines[0]
+    || machines[1];
+  const date = filters.date || getBangkokTodayText();
+  const report = useMmsReport({
+    area: machine.area,
+    date,
+    graphPeriod: "daily",
+    machineNo: machine.machineNo,
+    machineType: machine.machineType
+  }, Boolean(machine?.machineNo));
+  const chartData = buildHourlyRowsFromReport(report);
+  const statusSegments = buildStatusSegmentsFromReport(report);
+  const downtimeRows = buildDowntimeRowsFromReport(report);
 
   useEffect(() => {
     const requestedTab = new URLSearchParams(window.location.search).get("tab");
@@ -1491,6 +1759,30 @@ function MachineWorkingView() {
     }
   }, []);
 
+  useEffect(() => {
+    function readFilters() {
+      try {
+        const saved = JSON.parse(localStorage.getItem("mms:machine-working:filters") || "{}");
+        setFilters((current) => ({
+          ...current,
+          ...saved
+        }));
+      } catch {
+        setFilters((current) => current);
+      }
+    }
+
+    function handleFilterEvent(event) {
+      if (event.detail?.view === "machine-working") {
+        setFilters((current) => ({ ...current, ...event.detail.filters }));
+      }
+    }
+
+    readFilters();
+    window.addEventListener("mms:global-filter-changed", handleFilterEvent);
+    return () => window.removeEventListener("mms:global-filter-changed", handleFilterEvent);
+  }, []);
+
   const changeTab = (tab) => {
     setActiveTab(tab);
     if (typeof window !== "undefined") localStorage.setItem("mmsMachineWorkingTab", tab);
@@ -1498,12 +1790,12 @@ function MachineWorkingView() {
 
   return (
     <>
-      <MachineWorkingSummary machine={machine} />
+      <MachineWorkingSummary date={date} machine={machine} />
       {activeTab === "output" ? (
         <section className={styles.machineWorkingChartGrid}>
           <Panel title="Output Monitor" meta="Actual / target / accum">
             <ChartBox tall>
-              <ComposedChart data={hourly}>
+              <ComposedChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="hour" />
                 <YAxis yAxisId="qty" />
@@ -1522,7 +1814,7 @@ function MachineWorkingView() {
             meta={<TabButton active={false} onClick={() => changeTab("status")}>Status</TabButton>}
           >
             <ChartBox tall>
-              <ComposedChart data={hourly}>
+              <ComposedChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="hour" />
                 <YAxis yAxisId="ct" />
@@ -1544,18 +1836,18 @@ function MachineWorkingView() {
         >
           <section className={styles.statusMonitorGrid}>
             <div className={styles.statusTimelinePanel}>
-              <MachineStatusTimeline />
+              <MachineStatusTimeline segments={statusSegments} />
             </div>
             <div className={styles.statusBreakdownPanel}>
               <h4>Downtime Breakdown (%)</h4>
               <ChartBox compact>
-                <BarChart data={downtimeBreakdown}>
+                <BarChart data={downtimeRows}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="status" />
                   <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} />
                   <Tooltip />
                   <Bar dataKey="percent" name="Downtime %" fill="#64748b" isAnimationActive={false}>
-                    {downtimeBreakdown.map((entry) => <Cell key={entry.status} fill={entry.fill} />)}
+                    {downtimeRows.map((entry) => <Cell key={entry.status} fill={entry.fill} />)}
                   </Bar>
                 </BarChart>
               </ChartBox>
@@ -1592,7 +1884,7 @@ function ChartLegend({ items }) {
   );
 }
 
-function MachineStatusTimeline() {
+function MachineStatusTimeline({ segments = machineStatusSegments }) {
   const [hovered, setHovered] = useState(null);
   let cursorPercent = 0;
 
@@ -1602,7 +1894,7 @@ function MachineStatusTimeline() {
         {["07:00", "11:00", "15:00", "19:00", "23:00", "03:00", "07:00"].map((time, index) => <span key={`${time}-${index}`}>{time}</span>)}
       </div>
       <div className={styles.statusTrack}>
-        {machineStatusSegments.map((segment) => {
+        {segments.map((segment) => {
           const left = cursorPercent + segment.percent / 2;
           cursorPercent += segment.percent;
           return (
@@ -1636,27 +1928,28 @@ function MachineStatusTimeline() {
 }
 
 function getMachineWorkingMetrics(machine) {
-  const availability = 92.4;
-  const performance = 87.8;
-  const quality = 98.6;
-  const oee = ((availability * performance * quality) / 10000).toFixed(1);
-  const okQty = machine.output;
-  const ngQty = machine.ng;
+  const okQty = Number(machine.outputOk ?? Math.max(0, Number(machine.output || 0) - Number(machine.ng || 0)));
+  const ngQty = Number(machine.outputNg ?? machine.ng ?? 0);
   const totalOutput = okQty + ngQty;
-  const mmsStatus = "RUN";
+  const target = Number(machine.targetOutput ?? machine.target ?? totalOutput ?? 0);
+  const availability = Number(machine.availability ?? 0);
+  const performance = Number(machine.performance ?? (target > 0 ? (totalOutput / target) * 100 : 0));
+  const quality = Number(machine.quality ?? (totalOutput > 0 ? (okQty / totalOutput) * 100 : 0));
+  const oee = Number(machine.oee ?? ((availability * performance * quality) / 10000));
+  const mmsStatus = machine.simMachineAlarm ? "ALARM" : machine.plcStatus || machine.status || "RUN";
 
   return {
-    achieve: machine.oee,
-    availability,
-    cycleTime: machine.ct,
+    achieve: target > 0 ? Number(((totalOutput / target) * 100).toFixed(1)) : 0,
+    availability: Number(availability.toFixed(1)),
+    cycleTime: machine.ct || machine.cycleTime,
     mmsStatus,
     model: machine.model || "MODEL-B",
     ngQty,
-    oee,
+    oee: Number(oee.toFixed(1)),
     okQty,
-    performance,
-    quality,
-    target: 900,
+    performance: Number(performance.toFixed(1)),
+    quality: Number(quality.toFixed(1)),
+    target,
     totalOutput
   };
 }
@@ -1734,10 +2027,10 @@ function getMachineHourlyData(machine) {
   });
 }
 
-function MachineWorkingSummary({ machine }) {
+function MachineWorkingSummary({ date, machine }) {
   return (
     <Panel title="Machine Working" meta="Live / history">
-      <MachineWorkingHeader machine={machine} />
+      <MachineWorkingHeader date={date} machine={machine} />
     </Panel>
   );
 }

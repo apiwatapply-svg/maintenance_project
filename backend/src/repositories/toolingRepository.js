@@ -283,6 +283,7 @@ async function getNextDocumentNo(resource, autoNumber) {
 }
 
 module.exports = {
+  ensureToolingSchema,
   listToolingResource,
   createToolingResource,
   updateToolingResource,

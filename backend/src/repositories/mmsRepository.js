@@ -1,7 +1,53 @@
-const { getPool } = require("../config/database");
+const { sql, getPool } = require("../config/database");
+
+function toBangkokDateText(now = new Date()) {
+  return new Date(now.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+async function ensureMmsReportSchema(pool) {
+  await pool.request().query(`
+    IF OBJECT_ID('dbo.tb_mms_machine_hourly', 'U') IS NULL
+    CREATE TABLE dbo.tb_mms_machine_hourly (
+      id INT IDENTITY(1,1) PRIMARY KEY,
+      work_date DATE NOT NULL,
+      shift_code NVARCHAR(20) NOT NULL,
+      hour_label NVARCHAR(20) NOT NULL,
+      machine_no NVARCHAR(80) NOT NULL,
+      status NVARCHAR(40) NOT NULL,
+      planned_seconds INT NOT NULL DEFAULT 0,
+      run_seconds INT NOT NULL DEFAULT 0,
+      stop_seconds INT NOT NULL DEFAULT 0,
+      alarm_seconds INT NOT NULL DEFAULT 0,
+      target_output INT NOT NULL DEFAULT 0,
+      output_ok INT NOT NULL DEFAULT 0,
+      output_ng INT NOT NULL DEFAULT 0,
+      cycle_time_sec DECIMAL(10,2) NOT NULL DEFAULT 0,
+      created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+      updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+
+    IF NOT EXISTS (
+      SELECT 1 FROM sys.indexes
+      WHERE name = 'UX_tb_mms_machine_hourly_work_hour_machine'
+        AND object_id = OBJECT_ID('dbo.tb_mms_machine_hourly')
+    )
+    CREATE UNIQUE INDEX UX_tb_mms_machine_hourly_work_hour_machine
+      ON dbo.tb_mms_machine_hourly (work_date, hour_label, machine_no);
+  `);
+}
 
 function mapMachine(row) {
   const activeJobNo = row.active_job_no || null;
+  const outputOk = Number(row.output_ok || 0);
+  const outputNg = Number(row.output_ng || 0);
+  const targetOutput = Number(row.target_output || 0);
+  const plannedSeconds = Number(row.planned_seconds || 0);
+  const runSeconds = Number(row.run_seconds || 0);
+  const totalOutput = outputOk + outputNg;
+  const availability = plannedSeconds > 0 ? Number(((runSeconds / plannedSeconds) * 100).toFixed(1)) : 0;
+  const performance = targetOutput > 0 ? Number(((totalOutput / targetOutput) * 100).toFixed(1)) : 0;
+  const quality = totalOutput > 0 ? Number(((outputOk / totalOutput) * 100).toFixed(1)) : 0;
+  const oee = Number(((availability * performance * quality) / 10000).toFixed(1));
 
   return {
     id: row.id,
@@ -16,15 +62,26 @@ function mapMachine(row) {
     activeJobStatus: row.active_job_status || null,
     jobRequestActive: Boolean(activeJobNo),
     eventStatus: activeJobNo ? row.active_job_status : "NONE",
-    plcStatus: "RUN",
-    cycleTime: 5,
-    model: "MODEL-A"
+    plcStatus: row.latest_status || "RUN",
+    cycleTime: Number(row.cycle_time_sec || 0) || 5,
+    model: "MODEL-A",
+    outputOk,
+    outputNg,
+    output: totalOutput,
+    targetOutput,
+    availability,
+    performance,
+    quality,
+    oee
   };
 }
 
 async function listSimulationMachines() {
   const pool = await getPool();
-  const result = await pool.request().query(`
+  await ensureMmsReportSchema(pool);
+  const result = await pool.request()
+    .input("today", sql.Date, toBangkokDateText())
+    .query(`
     SELECT
       mn.id,
       mn.machine_no,
@@ -35,7 +92,14 @@ async function listSimulationMachines() {
       mt.area_code,
       a.area_name,
       active_job.job_no AS active_job_no,
-      active_job.status AS active_job_status
+      active_job.status AS active_job_status,
+      mms.output_ok,
+      mms.output_ng,
+      mms.target_output,
+      mms.planned_seconds,
+      mms.run_seconds,
+      mms.cycle_time_sec,
+      latest.status AS latest_status
     FROM dbo.tbm_machine_no mn
     LEFT JOIN dbo.tbm_machine_type mt ON mt.machine_type_code = mn.machine_type_code
     LEFT JOIN dbo.tbm_area a ON a.area_code = mt.area_code
@@ -46,6 +110,34 @@ async function listSimulationMachines() {
         AND jr.status NOT IN ('COMPLETED', 'CANCELLED')
       ORDER BY jr.requested_at DESC
     ) active_job
+    OUTER APPLY (
+      SELECT
+        SUM(output_ok) AS output_ok,
+        SUM(output_ng) AS output_ng,
+        SUM(target_output) AS target_output,
+        SUM(planned_seconds) AS planned_seconds,
+        SUM(run_seconds) AS run_seconds,
+        AVG(cycle_time_sec) AS cycle_time_sec
+      FROM dbo.tb_mms_machine_hourly mh
+      WHERE mh.machine_no = mn.machine_no
+        AND mh.work_date = @today
+    ) mms
+    OUTER APPLY (
+      SELECT TOP 1 status
+      FROM dbo.tb_mms_machine_hourly mh
+      WHERE mh.machine_no = mn.machine_no
+        AND mh.work_date = @today
+      ORDER BY
+        CASE mh.hour_label
+          WHEN '07:00' THEN 1 WHEN '08:00' THEN 2 WHEN '09:00' THEN 3 WHEN '10:00' THEN 4
+          WHEN '11:00' THEN 5 WHEN '12:00' THEN 6 WHEN '13:00' THEN 7 WHEN '14:00' THEN 8
+          WHEN '15:00' THEN 9 WHEN '16:00' THEN 10 WHEN '17:00' THEN 11 WHEN '18:00' THEN 12
+          WHEN '19:00' THEN 13 WHEN '20:00' THEN 14 WHEN '21:00' THEN 15 WHEN '22:00' THEN 16
+          WHEN '23:00' THEN 17 WHEN '00:00' THEN 18 WHEN '01:00' THEN 19 WHEN '02:00' THEN 20
+          WHEN '03:00' THEN 21 WHEN '04:00' THEN 22 WHEN '05:00' THEN 23 WHEN '06:00' THEN 24
+          ELSE 99
+        END DESC
+    ) latest
     WHERE ISNULL(mn.status, 'active') = 'active'
     ORDER BY a.area_name, mt.machine_type_name, mn.machine_no;
   `);
@@ -53,7 +145,177 @@ async function listSimulationMachines() {
   return result.recordset.map(mapMachine);
 }
 
+function getDateFilter(period, query = {}) {
+  if (period === "yearly") {
+    return {
+      from: `${query.year || new Date().getUTCFullYear()}-01-01`,
+      to: `${query.year || new Date().getUTCFullYear()}-12-31`
+    };
+  }
+  if (period === "monthly") {
+    const month = query.month || toBangkokDateText().slice(0, 7);
+    const start = new Date(`${month}-01T00:00:00.000Z`);
+    const end = new Date(start);
+    end.setUTCMonth(end.getUTCMonth() + 1);
+    end.setUTCDate(end.getUTCDate() - 1);
+    return { from: month + "-01", to: end.toISOString().slice(0, 10) };
+  }
+  const date = query.date || toBangkokDateText();
+  return { from: date, to: date };
+}
+
+function getBucketExpression(period) {
+  if (period === "yearly") {
+    return {
+      label: "FORMAT(mh.work_date, 'MMM', 'en-US')",
+      sort: "MONTH(mh.work_date)"
+    };
+  }
+  if (period === "monthly") {
+    return {
+      label: "RIGHT('0' + CAST(DAY(mh.work_date) AS NVARCHAR(2)), 2)",
+      sort: "DAY(mh.work_date)"
+    };
+  }
+  return {
+    label: "mh.hour_label",
+    sort: `CASE mh.hour_label
+      WHEN '07:00' THEN 1 WHEN '08:00' THEN 2 WHEN '09:00' THEN 3 WHEN '10:00' THEN 4
+      WHEN '11:00' THEN 5 WHEN '12:00' THEN 6 WHEN '13:00' THEN 7 WHEN '14:00' THEN 8
+      WHEN '15:00' THEN 9 WHEN '16:00' THEN 10 WHEN '17:00' THEN 11 WHEN '18:00' THEN 12
+      WHEN '19:00' THEN 13 WHEN '20:00' THEN 14 WHEN '21:00' THEN 15 WHEN '22:00' THEN 16
+      WHEN '23:00' THEN 17 WHEN '00:00' THEN 18 WHEN '01:00' THEN 19 WHEN '02:00' THEN 20
+      WHEN '03:00' THEN 21 WHEN '04:00' THEN 22 WHEN '05:00' THEN 23 WHEN '06:00' THEN 24
+      ELSE 99
+    END`
+  };
+}
+
+function addReportFilters(request, query = {}) {
+  const clauses = ["mh.work_date BETWEEN @fromDate AND @toDate"];
+  if (query.area && query.area !== "All") {
+    request.input("area", sql.NVarChar(150), query.area);
+    clauses.push("ISNULL(a.area_name, a.area_code) = @area");
+  }
+  if (query.machineType && query.machineType !== "All") {
+    request.input("machineType", sql.NVarChar(150), query.machineType);
+    clauses.push("ISNULL(mt.machine_type_name, mt.machine_type_code) = @machineType");
+  }
+  if (query.machineNo && query.machineNo !== "All") {
+    request.input("machineNo", sql.NVarChar(80), query.machineNo);
+    clauses.push("mh.machine_no = @machineNo");
+  }
+  return clauses.join(" AND ");
+}
+
+function mapReportRow(row) {
+  const output = Number(row.output_ok || 0) + Number(row.output_ng || 0);
+  const plannedSeconds = Number(row.planned_seconds || 0);
+  const runSeconds = Number(row.run_seconds || 0);
+  const targetOutput = Number(row.target_output || 0);
+  const availability = plannedSeconds > 0 ? Number(((runSeconds / plannedSeconds) * 100).toFixed(1)) : 0;
+  const performance = targetOutput > 0 ? Number(((output / targetOutput) * 100).toFixed(1)) : 0;
+  const quality = output > 0 ? Number(((Number(row.output_ok || 0) / output) * 100).toFixed(1)) : 0;
+  const oee = Number(((availability * performance * quality) / 10000).toFixed(1));
+
+  return {
+    alarmHours: Number((Number(row.alarm_seconds || 0) / 3600).toFixed(2)),
+    availability,
+    ct: Number(row.cycle_time_sec || 0),
+    label: row.bucket_label,
+    ng: Number(row.output_ng || 0),
+    oee,
+    output,
+    performance,
+    quality,
+    rejectRate: output > 0 ? Number(((Number(row.output_ng || 0) / output) * 100).toFixed(2)) : 0,
+    runHours: Number((runSeconds / 3600).toFixed(2)),
+    sort: Number(row.bucket_sort || 0),
+    stopHours: Number((Number(row.stop_seconds || 0) / 3600).toFixed(2)),
+    target: targetOutput
+  };
+}
+
+async function listMmsReport(query = {}) {
+  const pool = await getPool();
+  await ensureMmsReportSchema(pool);
+  const period = ["daily", "monthly", "yearly"].includes(query.period || query.graphPeriod) ? (query.period || query.graphPeriod) : "daily";
+  const dateFilter = getDateFilter(period, query);
+  const bucket = getBucketExpression(period);
+  const request = pool.request()
+    .input("fromDate", sql.Date, dateFilter.from)
+    .input("toDate", sql.Date, dateFilter.to);
+  const whereClause = addReportFilters(request, query);
+
+  const result = await request.query(`
+    SELECT
+      ${bucket.label} AS bucket_label,
+      ${bucket.sort} AS bucket_sort,
+      SUM(mh.planned_seconds) AS planned_seconds,
+      SUM(mh.run_seconds) AS run_seconds,
+      SUM(mh.stop_seconds) AS stop_seconds,
+      SUM(mh.alarm_seconds) AS alarm_seconds,
+      SUM(mh.target_output) AS target_output,
+      SUM(mh.output_ok) AS output_ok,
+      SUM(mh.output_ng) AS output_ng,
+      AVG(mh.cycle_time_sec) AS cycle_time_sec
+    FROM dbo.tb_mms_machine_hourly mh
+    LEFT JOIN dbo.tbm_machine_no mn ON mn.machine_no = mh.machine_no
+    LEFT JOIN dbo.tbm_machine_type mt ON mt.machine_type_code = mn.machine_type_code
+    LEFT JOIN dbo.tbm_area a ON a.area_code = mt.area_code
+    WHERE ${whereClause}
+    GROUP BY ${bucket.label}, ${bucket.sort}
+    ORDER BY ${bucket.sort};
+  `);
+
+  const series = result.recordset.map(mapReportRow);
+  const totals = series.reduce((sum, row) => ({
+    alarmHours: sum.alarmHours + row.alarmHours,
+    ng: sum.ng + row.ng,
+    output: sum.output + row.output,
+    runHours: sum.runHours + row.runHours,
+    stopHours: sum.stopHours + row.stopHours,
+    target: sum.target + row.target
+  }), { alarmHours: 0, ng: 0, output: 0, runHours: 0, stopHours: 0, target: 0 });
+  const weighted = result.recordset.reduce((sum, row) => ({
+    outputNg: sum.outputNg + Number(row.output_ng || 0),
+    outputOk: sum.outputOk + Number(row.output_ok || 0),
+    plannedSeconds: sum.plannedSeconds + Number(row.planned_seconds || 0),
+    runSeconds: sum.runSeconds + Number(row.run_seconds || 0),
+    targetOutput: sum.targetOutput + Number(row.target_output || 0)
+  }), { outputNg: 0, outputOk: 0, plannedSeconds: 0, runSeconds: 0, targetOutput: 0 });
+  const totalOutput = weighted.outputOk + weighted.outputNg;
+  const availability = weighted.plannedSeconds > 0 ? Number(((weighted.runSeconds / weighted.plannedSeconds) * 100).toFixed(1)) : 0;
+  const performance = weighted.targetOutput > 0 ? Number(((totalOutput / weighted.targetOutput) * 100).toFixed(1)) : 0;
+  const quality = totalOutput > 0 ? Number(((weighted.outputOk / totalOutput) * 100).toFixed(1)) : 0;
+
+  return {
+    filters: {
+      ...query,
+      fromDate: dateFilter.from,
+      period,
+      toDate: dateFilter.to
+    },
+    series,
+    summary: {
+      alarmHours: Number(totals.alarmHours.toFixed(2)),
+      availability,
+      ng: totals.ng,
+      oee: Number(((availability * performance * quality) / 10000).toFixed(1)),
+      output: totals.output,
+      performance,
+      quality,
+      rejectRate: totalOutput > 0 ? Number(((weighted.outputNg / totalOutput) * 100).toFixed(2)) : 0,
+      runHours: Number(totals.runHours.toFixed(2)),
+      stopHours: Number(totals.stopHours.toFixed(2)),
+      target: totals.target
+    }
+  };
+}
+
 module.exports = {
+  ensureMmsReportSchema,
+  listMmsReport,
   listSimulationMachines,
   mapMachine
 };

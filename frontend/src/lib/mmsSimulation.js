@@ -264,14 +264,18 @@ export function buildMmsOverviewSummary(machines = []) {
 }
 
 export function getDefaultMmsReportFilters(defaultPeriod = "monthly") {
+  const today = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const month = today.slice(0, 7);
+  const year = today.slice(0, 4);
+
   return {
     area: "All",
-    date: "2026-05-13",
+    date: today,
     graphPeriod: defaultPeriod,
     machineNo: "All",
     machineType: "All",
-    month: "2026-05",
-    year: "2026"
+    month,
+    year
   };
 }
 
@@ -335,6 +339,47 @@ function getMetricValue(metric, columnIndex, machineIndex = 0) {
   return values[metric] ?? "-";
 }
 
+function normalizeReportLabel(label = "") {
+  const text = String(label);
+  const day = text.match(/^\d+/)?.[0];
+  return day ? day.padStart(2, "0") : text;
+}
+
+function findReportPoint(report, column = {}) {
+  const series = report?.series || [];
+  const label = String(column.label || "");
+  const normalizedLabel = normalizeReportLabel(label);
+
+  return series.find((row) => String(row.label) === label || String(row.label) === normalizedLabel) || null;
+}
+
+function getBackendMetricValue(metric, column, report) {
+  const point = findReportPoint(report, column);
+  if (!point) return null;
+
+  const output = Number(point.output || 0);
+  const target = Number(point.target || 0);
+  const ng = Number(point.ng || 0);
+  const ct = Number(point.ct || 0);
+  const rejectRate = Number(point.rejectRate || 0);
+  const values = {
+    "OEE": `${Number(point.oee || 0).toFixed(2)}%`,
+    "Output (Target)": target,
+    "Machine Output": output,
+    "Output": Math.max(0, output - ng),
+    "Availability (Target)": "90.00%",
+    "Cycle time (Target)": 3,
+    "Cycle time": ct.toFixed(3),
+    "Over Reject": rejectRate > 1 ? ng : 0,
+    "NG Qty": ng || "-",
+    "Availability": `${Number(point.availability || 0).toFixed(2)}%`,
+    "Performance": `${Number(point.performance || 0).toFixed(2)}%`,
+    "Quality": `${Number(point.quality || 0).toFixed(2)}%`
+  };
+
+  return values[metric] ?? null;
+}
+
 function getMetricNumber(value) {
   const number = Number(String(value).replace("%", "").replaceAll(",", ""));
   return Number.isFinite(number) ? number : null;
@@ -363,9 +408,9 @@ function calculateReportTotal(metric, cells = []) {
   return formatReportMetricValue(metric, numericCells);
 }
 
-function buildReportMetricRowsForMachine(machine, machineIndex, columns) {
+function buildReportMetricRowsForMachine(machine, machineIndex, columns, report = null) {
   return mmsReportMetricNames.map((metric, metricIndex) => {
-    const cells = columns.map((_column, columnIndex) => getMetricValue(metric, columnIndex, machineIndex));
+    const cells = columns.map((column, columnIndex) => getBackendMetricValue(metric, column, report) ?? getMetricValue(metric, columnIndex, machineIndex));
 
     return {
       cells,
@@ -412,7 +457,10 @@ function buildMachineTypeTotalRows(machineRowsByMachine = [], columns = [], opti
 }
 
 export function buildMmsReportMatrixRows(machines = [], columns = [], options = {}) {
-  const machineRowsByMachine = machines.map((machine, machineIndex) => buildReportMetricRowsForMachine(machine, machineIndex, columns));
+  const machineRowsByMachine = machines.map((machine, machineIndex) => {
+    const machineNo = machine.machineNo || machine.name;
+    return buildReportMetricRowsForMachine(machine, machineIndex, columns, options.reportByMachine?.[machineNo]);
+  });
   const machineRows = machineRowsByMachine.flat();
   return [
     ...machineRows,
@@ -441,7 +489,55 @@ export function buildMmsMachineTypeSummary(machines = []) {
   };
 }
 
-export function buildMmsGraphReportSeries(period = "monthly", filters = {}) {
+function buildBackendGraphReportSeries(series = []) {
+  let outputAccum = 0;
+  let targetAccum = 0;
+  const output = series.map((row) => {
+    const outputActual = Number(row.output || 0);
+    const outputTarget = Number(row.target || 0);
+    outputAccum += outputActual;
+    targetAccum += outputTarget;
+    return {
+      label: row.label,
+      outputAccum,
+      outputActual,
+      outputTarget,
+      outputTargetAccum: targetAccum
+    };
+  });
+  const ctAvailability = series.map((row) => ({
+    availabilityActual: Number(row.availability || 0),
+    availabilityTarget: 90,
+    cycleTimeActual: Number(row.ct || 0),
+    cycleTimeTarget: 3,
+    label: row.label
+  }));
+  const oee = series.map((row) => ({
+    availability: Number(row.availability || 0),
+    label: row.label,
+    oee: Number(row.oee || 0),
+    performance: Number(row.performance || 0),
+    quality: Number(row.quality || 0)
+  }));
+  const ngReject = series.map((row) => ({
+    label: row.label,
+    ngQty: Number(row.ng || 0),
+    overReject: Number(row.rejectRate || 0) > 1 ? Number(row.ng || 0) : 0
+  }));
+
+  return {
+    ctAvailability,
+    ngReject,
+    oee,
+    output
+  };
+}
+
+export function buildMmsGraphReportSeries(period = "monthly", filters = {}, backendSeries = null) {
+  if (Array.isArray(backendSeries) && backendSeries.length > 0) {
+    return buildBackendGraphReportSeries(backendSeries);
+  }
+
   const columns = buildMmsReportColumns(period, filters);
   let accum = 0;
   let targetAccum = 0;

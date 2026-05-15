@@ -245,15 +245,16 @@ test("mms overview summary gives control room totals", () => {
 });
 
 test("mms report filter defaults support graph and table report tabs", () => {
+  const today = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
   assert.equal(mmsReportsFilterStorageKey, "mms:reports:filters");
   assert.deepEqual(getDefaultMmsReportFilters("daily"), {
     area: "All",
-    date: "2026-05-13",
+    date: today,
     graphPeriod: "daily",
     machineNo: "All",
     machineType: "All",
-    month: "2026-05",
-    year: "2026"
+    month: today.slice(0, 7),
+    year: today.slice(0, 4)
   });
   assert.equal(getDefaultMmsReportFilters("monthly").graphPeriod, "monthly");
 });
@@ -361,4 +362,25 @@ test("mms graph report series exposes output CT OEE and NG datasets", () => {
   assert.equal(series.ctAvailability[0].hasOwnProperty("cycleTimeActual"), true);
   assert.equal(series.oee[0].hasOwnProperty("quality"), true);
   assert.equal(series.ngReject[0].hasOwnProperty("ngQty"), true);
+});
+
+test("mms report helpers can render backend MSSQL report series", () => {
+  const backendSeries = [
+    { availability: 90, ct: 2.5, label: "01", ng: 2, oee: 84.2, output: 100, performance: 92, quality: 98, rejectRate: 2, target: 110 },
+    { availability: 88, ct: 2.7, label: "02", ng: 0, oee: 80.1, output: 95, performance: 89, quality: 99, rejectRate: 0, target: 108 }
+  ];
+  const graph = buildMmsGraphReportSeries("monthly", { month: "2026-05" }, backendSeries);
+  const columns = buildMmsReportColumns("monthly", { month: "2026-05" }).slice(0, 2);
+  const rows = buildMmsReportMatrixRows([
+    { area: "Line A", machineNo: "CNV-A-001", machineType: "Conveyor" }
+  ], columns, {
+    reportByMachine: {
+      "CNV-A-001": { series: backendSeries }
+    }
+  });
+
+  assert.equal(graph.output[0].outputActual, 100);
+  assert.equal(graph.output[1].outputAccum, 195);
+  assert.equal(rows.find((row) => row.metric === "Machine Output").cells[0], 100);
+  assert.equal(rows.find((row) => row.metric === "NG Qty").cells[0], 2);
 });
