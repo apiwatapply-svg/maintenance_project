@@ -33,6 +33,7 @@ import {
   selectOverallMmsMachines
 } from "@/lib/mmsSimulation";
 import api from "@/lib/api";
+import { createMmsSocket } from "@/lib/mmsRealtime";
 
 const navGroups = [
   {
@@ -96,153 +97,6 @@ const mmsStatusLegend = [
   { label: "STOP", status: "STOP" }
 ];
 
-const areas = [
-  { area: "Line A", run: 24, alarm: 1, stop: 2, output: 18420, oee: 86 },
-  { area: "Line B", run: 28, alarm: 0, stop: 2, output: 21980, oee: 91 },
-  { area: "Packing", run: 18, alarm: 1, stop: 1, output: 14760, oee: 82 },
-  { area: "Utility", run: 19, alarm: 0, stop: 1, output: 9920, oee: 88 }
-];
-
-const machineTypeByPrefix = {
-  BLR: "Boiler",
-  CHL: "Chiller",
-  CMP: "Compressor",
-  CNV: "Conveyor",
-  FIL: "Filling",
-  LBL: "Labeler",
-  MIX: "Mixer",
-  PKG: "Packing Machine",
-  RBT: "Robot Arm",
-  SEA: "Sealer",
-  WGH: "Weigher"
-};
-
-const machineOverrides = {
-  "CNV-A-002": {
-    activeJobStatus: "WAIT_MM",
-    jobNo: "JOB-20260514-011",
-    responsible: "Production / PRD-014"
-  },
-  "FIL-A-003": {
-    plcStatus: "MM_REPAIR",
-    activeJobStatus: "MM_REPAIR",
-    jobNo: "JOB-20260514-009",
-    responsible: "MM-006 Narin"
-  },
-  "LBL-B-002": {
-    alarmName: "Sensor abnormal",
-    plcStatus: "RUN",
-    simMachineAlarm: true,
-    responsible: "MM standby"
-  },
-  "MIX-B-001": {
-    plcStatus: "QC",
-    activeJobStatus: "WAIT_QC",
-    jobNo: "JOB-20260514-008",
-    responsible: "QC-003 Narin"
-  },
-  "SEA-P-002": {
-    plcStatus: "WAIT_PART",
-    activeJobStatus: "MM_REPAIR",
-    jobNo: "JOB-20260514-006",
-    responsible: "MM-002 Kanda"
-  },
-  "WGH-P-001": {
-    plcStatus: "WAIT_PART",
-    responsible: "Tooling Store"
-  }
-};
-
-const machines = [
-  "CNV-A-001", "CNV-A-002", "CNV-A-003", "FIL-A-001", "FIL-A-002", "FIL-A-003",
-  "RBT-A-001", "RBT-A-002", "LBL-B-001", "LBL-B-002", "MIX-B-001", "MIX-B-002",
-  "PKG-B-001", "PKG-B-002", "SEA-P-001", "SEA-P-002", "WGH-P-001", "BLR-U-001"
-].map((name, index) => {
-  const override = machineOverrides[name] || {};
-  const plcStatus = override.plcStatus || "RUN";
-  const status = override.simMachineAlarm ? "ALARM" : plcStatus === "WAIT_PART" ? "WAIT" : plcStatus;
-
-  return {
-    name,
-    machineNo: name,
-    area: index < 8 ? "Line A" : index < 14 ? "Line B" : index < 17 ? "Packing" : "Utility",
-    machineType: machineTypeByPrefix[name.split("-")[0]] || name.split("-")[0],
-    type: machineTypeByPrefix[name.split("-")[0]] || name.split("-")[0],
-    status,
-    plcStatus,
-    output: 720 + index * 46,
-    ng: index % 5,
-    ct: 1 + (index % 3),
-    oee: 78 + (index % 14),
-    ...override,
-    jobRequestActive: Boolean(override.activeJobStatus)
-  };
-});
-
-const reportMachines = machines.map((machine, index) => {
-  const prefix = machine.machineNo.split("-")[0];
-  return {
-    ...machine,
-    machineType: prefix,
-    modelName: index % 3 === 0 ? "C4G, 12630" : machine.model || "MODEL-A",
-    modelType: "-",
-    process: machine.area || "-"
-  };
-});
-
-const shiftHourLabels = Array.from({ length: 24 }, (_item, index) => {
-  const hour = (7 + index) % 24;
-  return `${String(hour).padStart(2, "0")}:00`;
-});
-
-const hourly = shiftHourLabels.map((hour, index) => ({
-  hour,
-  target: 520 + index * 8,
-  output: 490 + index * 10 + (index % 4) * 22,
-  ct: 2.1 + (index % 4) * 0.18,
-  ctTarget: 2.4,
-  availability: 88 + (index % 6),
-  availabilityTarget: 90,
-  performance: 84 + (index % 7),
-  quality: 96 + (index % 3),
-  oee: 82 + (index % 6)
-})).map((item, index, rows) => ({
-  ...item,
-  accum: rows.slice(0, index + 1).reduce((sum, row) => sum + row.output, 0),
-  targetAccum: rows.slice(0, index + 1).reduce((sum, row) => sum + row.target, 0)
-}));
-
-const machineStatusSegments = [
-  { start: "07:00", end: "07:20", label: "WARM UP", status: "WARM_UP", percent: 1.4 },
-  { start: "07:20", end: "09:20", label: "RUN", status: "RUN", percent: 8.3 },
-  { start: "09:20", end: "10:05", label: "WAIT PART", status: "WAIT_PART", percent: 3.1 },
-  { start: "10:05", end: "12:20", label: "RUN", status: "RUN", percent: 9.4 },
-  { start: "12:20", end: "12:55", label: "MM REPAIR", status: "MM_REPAIR", percent: 2.4 },
-  { start: "12:55", end: "13:25", label: "MM PREVENTIVE", status: "MM_PREVENTIVE", percent: 2.1 },
-  { start: "13:25", end: "15:00", label: "BRAKE TIME", status: "BRAKE_TIME", percent: 6.6 },
-  { start: "15:00", end: "17:55", label: "RUN", status: "RUN", percent: 12.2 },
-  { start: "17:55", end: "18:25", label: "QC", status: "QC", percent: 2.1 },
-  { start: "18:25", end: "19:05", label: "ALARM", status: "ALARM", percent: 2.8 },
-  { start: "19:05", end: "23:00", label: "RUN", status: "RUN", percent: 16.3 },
-  { start: "23:00", end: "23:45", label: "CLEANING", status: "CLEANING", percent: 3.1 },
-  { start: "23:45", end: "00:10", label: "PLAN STOP", status: "PLAN_STOP", percent: 1.7 },
-  { start: "00:10", end: "00:35", label: "STOP", status: "STOP", percent: 1.7 },
-  { start: "00:35", end: "07:00", label: "RUN", status: "RUN", percent: 26.8 }
-];
-
-const downtimeBreakdown = [
-  { status: "WAIT PART", minute: 45, percent: 10, fill: statusColors.WAIT_PART },
-  { status: "WARM UP", minute: 20, percent: 5, fill: statusColors.WARM_UP },
-  { status: "MM REPAIR", minute: 35, percent: 10, fill: statusColors.MM_REPAIR },
-  { status: "MM PM", minute: 30, percent: 6, fill: statusColors.MM_PREVENTIVE },
-  { status: "QC", minute: 30, percent: 6, fill: statusColors.QC },
-  { status: "BRAKE TIME", minute: 95, percent: 22, fill: statusColors.BRAKE_TIME },
-  { status: "PLAN STOP", minute: 25, percent: 6, fill: statusColors.PLAN_STOP },
-  { status: "ALARM", minute: 40, percent: 13, fill: statusColors.ALARM },
-  { status: "CLEANING", minute: 45, percent: 12, fill: statusColors.CLEANING },
-  { status: "STOP", minute: 25, percent: 10, fill: statusColors.STOP }
-];
-
 const operatorAvatar = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Crect width='80' height='80' rx='16' fill='%230f172a'/%3E%3Ccircle cx='40' cy='28' r='14' fill='%23bfdbfe'/%3E%3Cpath d='M16 72c4-18 16-28 24-28s20 10 24 28' fill='%230ea5e9'/%3E%3Cpath d='M24 22h32v10H24z' fill='%23fbbf24'/%3E%3C/svg%3E";
 
 function classNames(...classes) {
@@ -289,7 +143,7 @@ function normalizeBackendMmsMachine(machine = {}, index = 0) {
   const outputOk = Number(machine.outputOk ?? machine.output_ok ?? machine.output ?? 0);
   const outputNg = Number(machine.outputNg ?? machine.output_ng ?? machine.ng ?? 0);
   const output = Number(machine.output ?? outputOk + outputNg);
-  const machineType = machine.machineType || machine.machine_type || machine.type || machine.machineTypeCode || machine.machine_type_code || machineTypeByPrefix[machineNo.split("-")[0]] || "Unknown";
+  const machineType = machine.machineType || machine.machine_type || machine.type || machine.machineTypeCode || machine.machine_type_code || machineNo.split("-")[0] || "Unknown";
   const plcStatus = machine.plcStatus || machine.plc_status || machine.status || "RUN";
 
   return {
@@ -362,7 +216,7 @@ function buildMmsReportParams(filters = {}) {
   };
 }
 
-function useMmsReport(filters = {}, enabled = true) {
+function useMmsReport(filters = {}, enabled = true, refreshKey = 0) {
   const [report, setReport] = useState(null);
   const params = buildMmsReportParams(filters);
   const paramsKey = JSON.stringify(params);
@@ -385,12 +239,12 @@ function useMmsReport(filters = {}, enabled = true) {
     return () => {
       alive = false;
     };
-  }, [enabled, paramsKey]);
+  }, [enabled, paramsKey, refreshKey]);
 
   return report;
 }
 
-function useMmsReportsByMachine(filters = {}, selectedMachines = []) {
+function useMmsReportsByMachine(filters = {}, selectedMachines = [], refreshKey = 0) {
   const [reports, setReports] = useState({});
   const machineNos = selectedMachines.map((machine) => machine.machineNo).filter(Boolean);
   const params = buildMmsReportParams(filters);
@@ -413,7 +267,7 @@ function useMmsReportsByMachine(filters = {}, selectedMachines = []) {
     return () => {
       alive = false;
     };
-  }, [paramsKey]);
+  }, [paramsKey, refreshKey]);
 
   return reports;
 }
@@ -423,7 +277,7 @@ function buildHourlyRowsFromReport(report) {
   let outputAccum = 0;
   let targetAccum = 0;
 
-  if (!rows.length) return hourly;
+  if (!rows.length) return [];
 
   return rows.map((row) => {
     const output = Number(row.output || 0);
@@ -449,7 +303,7 @@ function buildHourlyRowsFromReport(report) {
 
 function buildStatusSegmentsFromReport(report) {
   const rows = report?.series || [];
-  if (!rows.length) return machineStatusSegments;
+  if (!rows.length) return [];
 
   return rows.map((row) => {
     const status = Number(row.alarmHours || 0) > 0 ? "ALARM" : Number(row.stopHours || 0) > 0.5 ? "STOP" : "RUN";
@@ -465,7 +319,7 @@ function buildStatusSegmentsFromReport(report) {
 
 function buildDowntimeRowsFromReport(report) {
   const rows = report?.series || [];
-  if (!rows.length) return downtimeBreakdown;
+  if (!rows.length) return [];
 
   const alarm = rows.reduce((sum, row) => sum + Number(row.alarmHours || 0), 0);
   const stop = rows.reduce((sum, row) => sum + Math.max(0, Number(row.stopHours || 0) - Number(row.alarmHours || 0)), 0);
@@ -650,30 +504,50 @@ const styles = {
 export default function MmsDashboardShell({ view = "overview" }) {
   const [collapsed, setCollapsed] = useState(false);
   const [backendMachines, setBackendMachines] = useState([]);
+  const [realtimeRefreshKey, setRealtimeRefreshKey] = useState(0);
   const activeView = getMmsDashboardViewKey(view);
   const title = getTitle(activeView);
   const backHref = activeView === "overview" ? "/" : "/mms-dashboard";
-  const dashboardMachines = backendMachines.length ? backendMachines : machines;
-  const dashboardAreas = backendMachines.length ? buildAreaRows(dashboardMachines) : areas;
+  const dashboardMachines = backendMachines;
+  const dashboardAreas = buildAreaRows(dashboardMachines);
 
   useEffect(() => {
     const saved = localStorage.getItem("mms:sidebar:collapsed");
     if (saved === "1") setCollapsed(true);
   }, []);
 
-  useEffect(() => {
-    let alive = true;
+  function loadDashboardMachines(aliveRef = { current: true }) {
     api.get("/mms/simulation/machines")
       .then((response) => {
         const rows = Array.isArray(response.data?.data) ? response.data.data : [];
-        if (alive) setBackendMachines(rows.map(normalizeBackendMmsMachine));
+        if (aliveRef.current) setBackendMachines(rows.map(normalizeBackendMmsMachine));
       })
       .catch(() => {
-        if (alive) setBackendMachines([]);
+        if (aliveRef.current) setBackendMachines([]);
       });
+  }
+
+  useEffect(() => {
+    const aliveRef = { current: true };
+    loadDashboardMachines(aliveRef);
 
     return () => {
-      alive = false;
+      aliveRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const socket = createMmsSocket(({ eventName } = {}) => {
+      if (String(eventName || "").startsWith("mms:") || String(eventName || "").startsWith("job")) {
+        loadDashboardMachines();
+        setRealtimeRefreshKey((current) => current + 1);
+      }
+    });
+
+    return () => {
+      socket.emit("realtime:leave", { feature: "mms", scope: "all" });
+      socket.emit("realtime:leave", { feature: "job-request", scope: "all" });
+      socket.disconnect();
     };
   }, []);
 
@@ -734,7 +608,7 @@ export default function MmsDashboardShell({ view = "overview" }) {
 
           <section className={styles.content}>
              {shouldShowGlobalFilter(activeView) ? <FilterBar machines={dashboardMachines} view={activeView} /> : null}
-             {renderView(activeView, { areas: dashboardAreas, machines: dashboardMachines })}
+             {renderView(activeView, { areas: dashboardAreas, machines: dashboardMachines, refreshKey: realtimeRefreshKey })}
           </section>
           {!["overview", "table-report", "machine-working", "graph-report", "overall-machine-working"].includes(activeView) ? <div className={styles.footer}>MMS Dashboard | Factory Management System</div> : null}
         </section>
@@ -773,7 +647,7 @@ function getSubtitle(view) {
 
 function FilterBar({ machines: filterMachines = [], view }) {
   const isSingleMachine = view === "machine-working";
-  const sourceMachines = filterMachines.length ? filterMachines : machines;
+  const sourceMachines = filterMachines;
   const storageKey = `mms:${view}:filters`;
   const defaults = {
     area: isSingleMachine ? sourceMachines[0]?.area || "Line A" : "All",
@@ -852,10 +726,10 @@ function FilterBar({ machines: filterMachines = [], view }) {
 
 function renderView(view, data = {}) {
   if (view === "overview") return <DashboardView areas={data.areas} machines={data.machines} />;
-  if (view === "overall-machine-working") return <OverallMachineWorkingView areas={data.areas} machines={data.machines} />;
-  if (view === "machine-working") return <MachineWorkingView machines={data.machines} />;
-  if (view === "graph-report") return <GraphReportView defaultPeriod="monthly" machines={data.machines} />;
-  if (view === "table-report") return <TableReportView defaultPeriod="monthly" machines={data.machines} />;
+  if (view === "overall-machine-working") return <OverallMachineWorkingView areas={data.areas} machines={data.machines} refreshKey={data.refreshKey} />;
+  if (view === "machine-working") return <MachineWorkingView machines={data.machines} refreshKey={data.refreshKey} />;
+  if (view === "graph-report") return <GraphReportView defaultPeriod="monthly" machines={data.machines} refreshKey={data.refreshKey} />;
+  if (view === "table-report") return <TableReportView defaultPeriod="monthly" machines={data.machines} refreshKey={data.refreshKey} />;
   return <DashboardView areas={data.areas} machines={data.machines} />;
 }
 
@@ -880,7 +754,7 @@ function Kpis() {
   );
 }
 
-function DashboardView({ areas: viewAreas = areas, machines: viewMachines = machines }) {
+function DashboardView({ areas: viewAreas = [], machines: viewMachines = [] }) {
   const [overviewFilters, setOverviewFilters] = useState(getDefaultMmsOverviewFilters());
   const [layoutScale, setLayoutScale] = useState(0.85);
   const [hydrated, setHydrated] = useState(false);
@@ -1159,11 +1033,11 @@ function OverviewKpi({ color, label, note, value }) {
   );
 }
 
-function GraphReportView({ defaultPeriod = "monthly", forcePeriod = false, machines: sourceMachines = machines }) {
+function GraphReportView({ defaultPeriod = "monthly", forcePeriod = false, machines: sourceMachines = [], refreshKey = 0 }) {
   const [filters, setFilters] = useReportFilters(defaultPeriod, forcePeriod);
-  const currentReportMachines = buildReportMachineRows(sourceMachines.length ? sourceMachines : machines);
+  const currentReportMachines = buildReportMachineRows(sourceMachines);
   const selectedMachines = selectMmsReportMachines(currentReportMachines, filters);
-  const report = useMmsReport(filters);
+  const report = useMmsReport(filters, true, refreshKey);
   const series = buildMmsGraphReportSeries(filters.graphPeriod, filters, report?.series);
 
   return (
@@ -1236,12 +1110,12 @@ function GraphReportView({ defaultPeriod = "monthly", forcePeriod = false, machi
   );
 }
 
-function TableReportView({ defaultPeriod = "monthly", machines: sourceMachines = machines }) {
+function TableReportView({ defaultPeriod = "monthly", machines: sourceMachines = [], refreshKey = 0 }) {
   const [filters, setFilters] = useReportFilters(defaultPeriod);
-  const currentReportMachines = buildReportMachineRows(sourceMachines.length ? sourceMachines : machines);
+  const currentReportMachines = buildReportMachineRows(sourceMachines);
   const selectedMachines = selectMmsReportMachines(currentReportMachines, filters).slice(0, 6);
   const columns = buildMmsReportColumns(filters.graphPeriod, filters);
-  const reportByMachine = useMmsReportsByMachine(filters, selectedMachines);
+  const reportByMachine = useMmsReportsByMachine(filters, selectedMachines, refreshKey);
   const rows = buildMmsReportMatrixRows(selectedMachines, columns, { machineType: filters.machineType, reportByMachine });
   const summary = buildMmsMachineTypeSummary(selectedMachines);
 
@@ -1494,10 +1368,10 @@ function ReportMatrixTable({ columns, rows }) {
   );
 }
 
-function OverallMachineWorkingView({ areas: sourceAreas = areas, machines: sourceMachines = machines }) {
+function OverallMachineWorkingView({ areas: sourceAreas = [], machines: sourceMachines = [], refreshKey = 0 }) {
   const storageKey = "mms:overall-machine-working:filters";
-  const activeMachines = sourceMachines.length ? sourceMachines : machines;
-  const activeAreas = sourceAreas.length ? sourceAreas : areas;
+  const activeMachines = sourceMachines;
+  const activeAreas = sourceAreas;
   const firstArea = activeAreas[0]?.area || activeMachines[0]?.area || "Line A";
   const defaultFilters = {
     area: firstArea,
@@ -1637,7 +1511,7 @@ function OverallMachineWorkingView({ areas: sourceAreas = areas, machines: sourc
       </section>
       <section className={styles.overallMachineGrid}>
         {selectedMachines.length ? selectedMachines.map((machine) => (
-          <OverallMachineCard activeTab={activeTab} date={filters.date} key={machine.machineNo} machine={machine} />
+          <OverallMachineCard activeTab={activeTab} date={filters.date} key={machine.machineNo} machine={machine} refreshKey={refreshKey} />
         )) : (
           <article className={styles.overallEmpty}>Select at least one machine number.</article>
         )}
@@ -1646,21 +1520,21 @@ function OverallMachineWorkingView({ areas: sourceAreas = areas, machines: sourc
   );
 }
 
-function OverallMachineCard({ activeTab, date, machine }) {
+function OverallMachineCard({ activeTab, date, machine, refreshKey = 0 }) {
   const report = useMmsReport({
     area: machine.area,
     date,
     graphPeriod: "daily",
     machineNo: machine.machineNo,
     machineType: machine.machineType
-  }, Boolean(machine?.machineNo));
+  }, Boolean(machine?.machineNo), refreshKey);
   const chartData = buildHourlyRowsFromReport(report);
   const statusSegments = buildStatusSegmentsFromReport(report);
   const downtimeRows = buildDowntimeRowsFromReport(report);
 
   return (
     <article className={styles.overallCard}>
-      <OverallMachineHeader date={date} machine={machine} />
+      <OverallMachineHeader date={date} machine={machine} report={report} />
       {activeTab === "output" ? (
         <div className={styles.overallChartRow}>
           <div className={styles.overallChartCell}>
@@ -1726,8 +1600,8 @@ function OverallMachineCard({ activeTab, date, machine }) {
   );
 }
 
-function MachineWorkingView({ machines: sourceMachines = machines }) {
-  const activeMachines = sourceMachines.length ? sourceMachines : machines;
+function MachineWorkingView({ machines: sourceMachines = [], refreshKey = 0 }) {
+  const activeMachines = sourceMachines;
   const [activeTab, setActiveTab] = useState("output");
   const [filters, setFilters] = useState(() => ({
     area: activeMachines[0]?.area || "Line A",
@@ -1738,7 +1612,7 @@ function MachineWorkingView({ machines: sourceMachines = machines }) {
   const machine = activeMachines.find((row) => row.machineNo === filters.machineNo)
     || activeMachines.find((row) => row.area === filters.area && row.machineType === filters.machineType)
     || activeMachines[0]
-    || machines[1];
+    || { area: "", machineNo: "", machineType: "" };
   const date = filters.date || getBangkokTodayText();
   const report = useMmsReport({
     area: machine.area,
@@ -1746,7 +1620,7 @@ function MachineWorkingView({ machines: sourceMachines = machines }) {
     graphPeriod: "daily",
     machineNo: machine.machineNo,
     machineType: machine.machineType
-  }, Boolean(machine?.machineNo));
+  }, Boolean(machine?.machineNo), refreshKey);
   const chartData = buildHourlyRowsFromReport(report);
   const statusSegments = buildStatusSegmentsFromReport(report);
   const downtimeRows = buildDowntimeRowsFromReport(report);
@@ -1790,7 +1664,7 @@ function MachineWorkingView({ machines: sourceMachines = machines }) {
 
   return (
     <>
-      <MachineWorkingSummary date={date} machine={machine} />
+      <MachineWorkingSummary date={date} machine={machine} report={report} />
       {activeTab === "output" ? (
         <section className={styles.machineWorkingChartGrid}>
           <Panel title="Output Monitor" meta="Actual / target / accum">
@@ -1884,7 +1758,7 @@ function ChartLegend({ items }) {
   );
 }
 
-function MachineStatusTimeline({ segments = machineStatusSegments }) {
+function MachineStatusTimeline({ segments = [] }) {
   const [hovered, setHovered] = useState(null);
   let cursorPercent = 0;
 
@@ -1927,21 +1801,32 @@ function MachineStatusTimeline({ segments = machineStatusSegments }) {
   );
 }
 
-function getMachineWorkingMetrics(machine) {
-  const okQty = Number(machine.outputOk ?? Math.max(0, Number(machine.output || 0) - Number(machine.ng || 0)));
-  const ngQty = Number(machine.outputNg ?? machine.ng ?? 0);
+function getMachineWorkingMetrics(machine = {}, report = null) {
+  const hasReportRows = Array.isArray(report?.series) && report.series.length > 0;
+  const reportSummary = hasReportRows ? report.summary || {} : {};
+  const totalFromReport = Number(reportSummary.output || 0);
+  const ngFromReport = Number(reportSummary.ng || 0);
+  const okQty = hasReportRows
+    ? Math.max(0, totalFromReport - ngFromReport)
+    : 0;
+  const ngQty = hasReportRows
+    ? ngFromReport
+    : 0;
   const totalOutput = okQty + ngQty;
-  const target = Number(machine.targetOutput ?? machine.target ?? totalOutput ?? 0);
-  const availability = Number(machine.availability ?? 0);
-  const performance = Number(machine.performance ?? (target > 0 ? (totalOutput / target) * 100 : 0));
-  const quality = Number(machine.quality ?? (totalOutput > 0 ? (okQty / totalOutput) * 100 : 0));
-  const oee = Number(machine.oee ?? ((availability * performance * quality) / 10000));
+  const target = hasReportRows ? Number(reportSummary.target || 0) : 0;
+  const availability = hasReportRows ? Number(reportSummary.availability || 0) : 0;
+  const performance = hasReportRows ? Number(reportSummary.performance || 0) : 0;
+  const quality = hasReportRows ? Number(reportSummary.quality || 0) : 0;
+  const oee = hasReportRows ? Number(reportSummary.oee || 0) : 0;
+  const averageCycleTime = hasReportRows
+    ? report.series.reduce((sum, row) => sum + Number(row.ct || 0), 0) / report.series.length
+    : 0;
   const mmsStatus = machine.simMachineAlarm ? "ALARM" : machine.plcStatus || machine.status || "RUN";
 
   return {
     achieve: target > 0 ? Number(((totalOutput / target) * 100).toFixed(1)) : 0,
     availability: Number(availability.toFixed(1)),
-    cycleTime: machine.ct || machine.cycleTime,
+    cycleTime: Number(averageCycleTime.toFixed(3)),
     mmsStatus,
     model: machine.model || "MODEL-B",
     ngQty,
@@ -1954,8 +1839,8 @@ function getMachineWorkingMetrics(machine) {
   };
 }
 
-function OverallMachineHeader({ date = "2026-05-13", machine }) {
-  const metrics = getMachineWorkingMetrics(machine);
+function OverallMachineHeader({ date = "2026-05-13", machine, report }) {
+  const metrics = getMachineWorkingMetrics(machine, report);
   const kpis = [
     ["Date", formatCardDate(date), ""],
     ["Output", `${metrics.totalOutput}/${metrics.target}`, ""],
@@ -2012,31 +1897,16 @@ function formatCardDate(value) {
   return month && day ? `${month}/${day}` : value;
 }
 
-function getMachineHourlyData(machine) {
-  const ratio = Math.max(0.55, Math.min(1.35, (machine.output || 720) / 766));
-  return hourly.map((row, index, rows) => {
-    const output = Math.round(row.output * ratio);
-    const target = Math.round(row.target * ratio);
-    return {
-      ...row,
-      output,
-      target,
-      accum: rows.slice(0, index + 1).reduce((sum, item) => sum + Math.round(item.output * ratio), 0),
-      targetAccum: rows.slice(0, index + 1).reduce((sum, item) => sum + Math.round(item.target * ratio), 0)
-    };
-  });
-}
-
-function MachineWorkingSummary({ date, machine }) {
+function MachineWorkingSummary({ date, machine, report }) {
   return (
     <Panel title="Machine Working" meta="Live / history">
-      <MachineWorkingHeader date={date} machine={machine} />
+      <MachineWorkingHeader date={date} machine={machine} report={report} />
     </Panel>
   );
 }
 
-function MachineWorkingHeader({ compact = false, date = "2026-05-13", machine }) {
-  const metrics = getMachineWorkingMetrics(machine);
+function MachineWorkingHeader({ compact = false, date = "2026-05-13", machine = {}, report }) {
+  const metrics = getMachineWorkingMetrics(machine, report);
 
   return (
       <div className={compact ? styles.machineSummaryTableCompact : styles.machineSummaryTable}>

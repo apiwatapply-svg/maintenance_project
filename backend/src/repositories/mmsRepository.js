@@ -4,6 +4,51 @@ function toBangkokDateText(now = new Date()) {
   return new Date(now.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
+function getMmsWorkSlot(now = new Date()) {
+  const bangkokDate = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  const localHour = bangkokDate.getUTCHours();
+  const workDate = new Date(bangkokDate);
+
+  if (localHour < 7) {
+    workDate.setUTCDate(workDate.getUTCDate() - 1);
+  }
+
+  return {
+    hourLabel: `${String(localHour).padStart(2, "0")}:00`,
+    shiftCode: localHour >= 7 && localHour < 15 ? "A" : localHour >= 15 && localHour < 23 ? "B" : "C",
+    workDate: workDate.toISOString().slice(0, 10)
+  };
+}
+
+function normalizeMmsStatus(payload = {}) {
+  if (payload.simMachineAlarm) return "ALARM";
+  return payload.effectiveStatus || payload.plcStatus || payload.status || "RUN";
+}
+
+function mapMmsRealtimePayloadToHourlyRow(payload = {}, slot = getMmsWorkSlot()) {
+  const cycleTime = Math.max(1, Number(payload.cycleTime ?? payload.ct ?? 5) || 5);
+  const status = normalizeMmsStatus(payload);
+  const plannedSeconds = 3600;
+  const stopSeconds = status === "RUN" ? 0 : plannedSeconds;
+  const alarmSeconds = status === "ALARM" ? plannedSeconds : 0;
+
+  return {
+    alarm_seconds: alarmSeconds,
+    cycle_time_sec: cycleTime,
+    hour_label: slot.hourLabel,
+    machine_no: payload.machineNo || payload.machine_no,
+    output_ng: Math.max(0, Math.floor(Number(payload.outputNg ?? payload.output_ng ?? 0) || 0)),
+    output_ok: Math.max(0, Math.floor(Number(payload.outputOk ?? payload.output_ok ?? payload.output ?? 0) || 0)),
+    planned_seconds: plannedSeconds,
+    run_seconds: Math.max(0, plannedSeconds - stopSeconds),
+    shift_code: slot.shiftCode,
+    status,
+    stop_seconds: stopSeconds,
+    target_output: Math.floor(plannedSeconds / cycleTime),
+    work_date: slot.workDate
+  };
+}
+
 async function ensureMmsReportSchema(pool) {
   await pool.request().query(`
     IF OBJECT_ID('dbo.tb_mms_machine_hourly', 'U') IS NULL
@@ -313,9 +358,83 @@ async function listMmsReport(query = {}) {
   };
 }
 
+async function upsertMmsRealtimePayload(payload = {}, now = new Date()) {
+  const machineNo = payload.machineNo || payload.machine_no;
+  if (!machineNo) return null;
+
+  const pool = await getPool();
+  await ensureMmsReportSchema(pool);
+
+  const row = mapMmsRealtimePayloadToHourlyRow(payload, getMmsWorkSlot(now));
+  const totals = await pool.request()
+    .input("work_date", sql.Date, row.work_date)
+    .input("hour_label", sql.NVarChar(20), row.hour_label)
+    .input("machine_no", sql.NVarChar(80), row.machine_no)
+    .query(`
+      SELECT
+        SUM(output_ok) AS previous_output_ok,
+        SUM(output_ng) AS previous_output_ng
+      FROM dbo.tb_mms_machine_hourly
+      WHERE work_date = @work_date
+        AND machine_no = @machine_no
+        AND hour_label <> @hour_label;
+    `);
+  const previousOk = Number(totals.recordset[0]?.previous_output_ok || 0);
+  const previousNg = Number(totals.recordset[0]?.previous_output_ng || 0);
+  const hourOutputOk = Math.max(0, row.output_ok - previousOk);
+  const hourOutputNg = Math.max(0, row.output_ng - previousNg);
+
+  await pool.request()
+    .input("work_date", sql.Date, row.work_date)
+    .input("shift_code", sql.NVarChar(20), row.shift_code)
+    .input("hour_label", sql.NVarChar(20), row.hour_label)
+    .input("machine_no", sql.NVarChar(80), row.machine_no)
+    .input("status", sql.NVarChar(40), row.status)
+    .input("planned_seconds", sql.Int, row.planned_seconds)
+    .input("run_seconds", sql.Int, row.run_seconds)
+    .input("stop_seconds", sql.Int, row.stop_seconds)
+    .input("alarm_seconds", sql.Int, row.alarm_seconds)
+    .input("target_output", sql.Int, row.target_output)
+    .input("output_ok", sql.Int, hourOutputOk)
+    .input("output_ng", sql.Int, hourOutputNg)
+    .input("cycle_time_sec", sql.Decimal(10, 2), row.cycle_time_sec)
+    .query(`
+      MERGE dbo.tb_mms_machine_hourly AS target
+      USING (SELECT @work_date AS work_date, @hour_label AS hour_label, @machine_no AS machine_no) AS source
+        ON target.work_date = source.work_date
+          AND target.hour_label = source.hour_label
+          AND target.machine_no = source.machine_no
+      WHEN MATCHED THEN
+        UPDATE SET
+          shift_code = @shift_code,
+          status = @status,
+          planned_seconds = @planned_seconds,
+          run_seconds = @run_seconds,
+          stop_seconds = @stop_seconds,
+          alarm_seconds = @alarm_seconds,
+          target_output = @target_output,
+          output_ok = @output_ok,
+          output_ng = @output_ng,
+          cycle_time_sec = @cycle_time_sec,
+          updated_at = SYSUTCDATETIME()
+      WHEN NOT MATCHED THEN
+        INSERT (work_date, shift_code, hour_label, machine_no, status, planned_seconds, run_seconds, stop_seconds, alarm_seconds, target_output, output_ok, output_ng, cycle_time_sec)
+        VALUES (@work_date, @shift_code, @hour_label, @machine_no, @status, @planned_seconds, @run_seconds, @stop_seconds, @alarm_seconds, @target_output, @output_ok, @output_ng, @cycle_time_sec);
+    `);
+
+  return {
+    ...row,
+    output_ng: hourOutputNg,
+    output_ok: hourOutputOk
+  };
+}
+
 module.exports = {
   ensureMmsReportSchema,
+  getMmsWorkSlot,
   listMmsReport,
   listSimulationMachines,
-  mapMachine
+  mapMachine,
+  mapMmsRealtimePayloadToHourlyRow,
+  upsertMmsRealtimePayload
 };

@@ -13,7 +13,7 @@ const {
   mmsWorkingShifts,
   normalizeMachineStatus
 } = require("../src/config/mmsSimulationConfig");
-const { mapMachine } = require("../src/repositories/mmsRepository");
+const { getMmsWorkSlot, mapMachine, mapMmsRealtimePayloadToHourlyRow } = require("../src/repositories/mmsRepository");
 
 test("mms simulation statuses include production and stop states", () => {
   assert.deepEqual(mmsMachineStatuses, [
@@ -73,6 +73,38 @@ test("mms working day follows local 07:00 to 07:00 with three shifts", () => {
     { code: "B", startLocal: "15:00", endLocal: "23:00" },
     { code: "C", startLocal: "23:00", endLocal: "07:00" }
   ]);
+});
+
+test("mms repository maps realtime socket payload into current local working slot", () => {
+  const slot = getMmsWorkSlot(new Date("2026-05-15T18:30:00.000Z"));
+  const row = mapMmsRealtimePayloadToHourlyRow({
+    cycleTime: 4,
+    machineNo: "CNV-A-001",
+    outputNg: 2,
+    outputOk: 120,
+    plcStatus: "RUN"
+  }, slot);
+
+  assert.deepEqual(slot, { hourLabel: "01:00", shiftCode: "C", workDate: "2026-05-15" });
+  assert.equal(row.machine_no, "CNV-A-001");
+  assert.equal(row.output_ok, 120);
+  assert.equal(row.target_output, 900);
+  assert.equal(row.status, "RUN");
+  assert.equal(row.work_date, "2026-05-15");
+});
+
+test("mms repository treats realtime alarm payload as blocked output status", () => {
+  const row = mapMmsRealtimePayloadToHourlyRow({
+    cycleTime: 5,
+    machineNo: "CNV-A-002",
+    outputOk: 10,
+    simMachineAlarm: true
+  }, { hourLabel: "09:00", shiftCode: "A", workDate: "2026-05-16" });
+
+  assert.equal(row.status, "ALARM");
+  assert.equal(row.run_seconds, 0);
+  assert.equal(row.stop_seconds, 3600);
+  assert.equal(row.alarm_seconds, 3600);
 });
 
 test("mms repository maps active job requests into machine simulation state", () => {

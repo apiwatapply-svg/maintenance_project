@@ -1,5 +1,6 @@
 const { Server } = require("socket.io");
 const { mmsSocketEvents } = require("./config/mmsSimulationConfig");
+const { upsertMmsRealtimePayload } = require("./repositories/mmsRepository");
 
 const sectionRooms = {
   production: "production_room",
@@ -45,15 +46,27 @@ function createSocketServer(httpServer) {
     });
 
     Object.values(mmsSocketEvents).forEach((eventName) => {
-      socket.on(eventName, (payload = {}) => {
+      socket.on(eventName, async (payload = {}) => {
         const machineNo = payload.machineNo || payload.machine_no || "unknown";
         const areaScope = payload.area || "all";
+        const timestampUtc = new Date().toISOString();
         const enrichedPayload = {
           ...payload,
           feature: "mms",
           machineNo,
-          timestampUtc: payload.timestampUtc || new Date().toISOString()
+          timestampUtc
         };
+
+        try {
+          await upsertMmsRealtimePayload(enrichedPayload, new Date(timestampUtc));
+        } catch (error) {
+          socket.emit("mms:persist-error", {
+            eventName,
+            machineNo,
+            message: error.message
+          });
+          return;
+        }
 
         io.to(getFeatureRoom("mms", "all")).emit(eventName, enrichedPayload);
         io.to(getFeatureRoom("mms", machineNo)).emit(eventName, enrichedPayload);

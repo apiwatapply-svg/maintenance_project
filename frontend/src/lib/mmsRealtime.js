@@ -1,4 +1,5 @@
 import { io } from "socket.io-client";
+import { mmsSocketEvents } from "@/lib/mmsSimulation";
 
 function getSocketBaseUrl() {
   return (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "");
@@ -27,6 +28,10 @@ export function createMmsSocket(onJobRequestEvent) {
     "job_completed",
     "job-updated"
   ].forEach((eventName) => {
+    socket.on(eventName, (payload) => onJobRequestEvent?.({ eventName, payload }));
+  });
+
+  Object.values(mmsSocketEvents).forEach((eventName) => {
     socket.on(eventName, (payload) => onJobRequestEvent?.({ eventName, payload }));
   });
 

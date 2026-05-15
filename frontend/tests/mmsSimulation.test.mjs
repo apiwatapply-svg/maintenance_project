@@ -333,8 +333,8 @@ test("mms report matrix rows append machine type total rows when type filter is 
   assert.equal(totalRows[0].rowType, "summary");
   assert.equal(totalRows[0].isFirstMetric, true);
   assert.equal(totalRows[0].modelType, "TOTAL");
-  assert.equal(totalRows.find((row) => row.metric === "Output (Target)").cells[0], "54,720");
-  assert.match(totalRows.find((row) => row.metric === "OEE").cells[0], /%$/);
+  assert.equal(totalRows.find((row) => row.metric === "Output (Target)").cells[0], "-");
+  assert.equal(totalRows.find((row) => row.metric === "OEE").cells[0], "-");
 });
 
 test("mms machine type summary aggregates selected machines for report header", () => {
