@@ -17,7 +17,7 @@ import {
   mmsMachineStatuses,
   mmsSocketEvents
 } from "@/lib/mmsSimulation";
-import { createMmsSocket } from "@/lib/mmsRealtime";
+import { createMmsSocket, mmsSnapshotRequestEvent } from "@/lib/mmsRealtime";
 
 function classNames(...classes) {
   return classes.filter(Boolean).join(" ");
@@ -125,6 +125,7 @@ export default function MmsSimulationShell() {
   const [loadError, setLoadError] = useState("");
   const [lastEvent, setLastEvent] = useState(null);
   const socketRef = useRef(null);
+  const machinesRef = useRef([]);
 
   const selectedMachine = machines.find((machine) => machine.machineNo === selectedMachineNo);
   const areas = useMemo(() => ["All", ...new Set(machines.map((machine) => machine.area).filter(Boolean))], [machines]);
@@ -150,7 +151,10 @@ export default function MmsSimulationShell() {
   async function loadMachines() {
     try {
       const response = await api.get("/mms/simulation/machines");
-      setMachines((response.data?.data || []).map(hydrateMmsMachine));
+      const hydratedMachines = (response.data?.data || []).map(hydrateMmsMachine);
+      machinesRef.current = hydratedMachines;
+      setMachines(hydratedMachines);
+      broadcastMmsSnapshots(hydratedMachines, "machine-load");
       setLoadError("");
     } catch (error) {
       setMachines([]);
@@ -163,17 +167,29 @@ export default function MmsSimulationShell() {
   }, []);
 
   useEffect(() => {
+    machinesRef.current = machines;
+  }, [machines]);
+
+  useEffect(() => {
     const socket = createMmsSocket(({ payload, source } = {}) => {
       if (source === "mms") {
-        setMachines((current) => applyMmsRealtimePayloadToMachines(current, payload));
+        setMachines((current) => {
+          const next = applyMmsRealtimePayloadToMachines(current, payload);
+          machinesRef.current = next;
+          return next;
+        });
         return;
       }
 
       loadMachines();
     });
     socketRef.current = socket;
+    socket.on(mmsSnapshotRequestEvent, () => {
+      broadcastMmsSnapshots(machinesRef.current, "snapshot-request");
+    });
 
     return () => {
+      socket.off(mmsSnapshotRequestEvent);
       socket.emit("realtime:leave", { feature: "mms", scope: "all" });
       socket.emit("realtime:leave", { feature: "job-request", scope: "all" });
       socket.disconnect();
@@ -183,27 +199,39 @@ export default function MmsSimulationShell() {
 
   useEffect(() => {
     const timer = window.setInterval(() => {
+      broadcastMmsSnapshots(machinesRef.current, "snapshot-interval");
+    }, 5000);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
       const now = Date.now();
       const payloads = [];
 
-      setMachines((current) => current.map((machine) => {
-        if (!canMmsMachineProduce(machine)) {
-          return machine;
-        }
+      setMachines((current) => {
+        const next = current.map((machine) => {
+          if (!canMmsMachineProduce(machine)) {
+            return machine;
+          }
 
-        const cycleTimeMs = Number(machine.cycleTime || 5) * 1000;
-        if (now - Number(machine.lastCycleAt || 0) < cycleTimeMs) {
-          return machine;
-        }
+          const cycleTimeMs = Number(machine.cycleTime || 5) * 1000;
+          if (now - Number(machine.lastCycleAt || 0) < cycleTimeMs) {
+            return machine;
+          }
 
-        const updatedMachine = {
-          ...machine,
-          outputOk: Number(machine.outputOk || 0) + 1,
-          lastCycleAt: now
-        };
-        payloads.push(buildMmsPayload(updatedMachine));
-        return updatedMachine;
-      }));
+          const updatedMachine = {
+            ...machine,
+            outputOk: Number(machine.outputOk || 0) + 1,
+            lastCycleAt: now
+          };
+          payloads.push(buildMmsPayload(updatedMachine));
+          return updatedMachine;
+        });
+        machinesRef.current = next;
+        return next;
+      });
 
       payloads.forEach((payload) => emitMmsEvent(mmsSocketEvents.outputChanged, payload));
     }, 1000);
@@ -214,6 +242,19 @@ export default function MmsSimulationShell() {
   function emitMmsEvent(eventName, payload) {
     socketRef.current?.emit(eventName, payload);
     setLastEvent({ eventName, payload, time: new Date().toLocaleTimeString() });
+  }
+
+  function broadcastMmsSnapshots(sourceMachines = machinesRef.current, reason = "snapshot") {
+    const socket = socketRef.current;
+    if (!socket?.connected || !sourceMachines.length) return;
+
+    sourceMachines.forEach((machine) => {
+      socket.emit(mmsSocketEvents.statusChanged, {
+        ...buildMmsPayload(machine),
+        snapshotReason: reason
+      });
+    });
+    setLastEvent({ eventName: `snapshot:${reason}`, payload: { count: sourceMachines.length }, time: new Date().toLocaleTimeString() });
   }
 
   function updateMachine(machineNo, updater, eventName = mmsSocketEvents.statusChanged, payloadExtra = {}) {

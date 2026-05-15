@@ -32,7 +32,7 @@ import {
   mmsAlarmNames,
   summarizeMmsAreas
 } from "../src/lib/mmsSimulation.js";
-import { isMmsRealtimeEvent, mmsRealtimeJobRequestEvents } from "../src/lib/mmsRealtime.js";
+import { isMmsRealtimeEvent, mmsRealtimeJobRequestEvents, mmsSnapshotRequestEvent } from "../src/lib/mmsRealtime.js";
 
 test("mms simulation separates base status buttons from panel status buttons", () => {
   assert.deepEqual(mmsBaseControlStatuses, ["RUN", "WAIT_PART", "BRAKE_TIME", "PLAN_STOP", "WARM_UP", "STOP"]);
@@ -122,6 +122,7 @@ test("mms realtime listens to job request events that change active machine over
 test("mms realtime identifies native MMS telemetry events", () => {
   assert.equal(isMmsRealtimeEvent("mms:machine-output-changed"), true);
   assert.equal(isMmsRealtimeEvent("job_request_updated"), false);
+  assert.equal(mmsSnapshotRequestEvent, "mms:snapshot-request");
 });
 
 test("mms realtime payload merge updates all telemetry values for the matching machine only", () => {

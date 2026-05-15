@@ -14,7 +14,7 @@ const {
   normalizeMachineStatus
 } = require("../src/config/mmsSimulationConfig");
 const { getCurrentMmsWorkDate, getMmsHourSort, getMmsWorkSlot, mapMachine, mapMmsRealtimePayloadToHourlyRow } = require("../src/repositories/mmsRepository");
-const { createMmsHourlyBuffer, flushClosedMmsHourlyBuffers, getMmsHourlyBufferKey, queueMmsHourlyPayload } = require("../src/socket");
+const { createMmsHourlyBuffer, flushClosedMmsHourlyBuffers, getMmsHourlyBufferKey, mmsSnapshotRequestEvent, queueMmsHourlyPayload } = require("../src/socket");
 
 test("mms simulation statuses include production and stop states", () => {
   assert.deepEqual(mmsMachineStatuses, [
@@ -65,6 +65,7 @@ test("mms socket events define status output and alarm channels", () => {
     "mms:machine-output-changed",
     "mms:machine-alarm-changed"
   ]);
+  assert.equal(mmsSnapshotRequestEvent, "mms:snapshot-request");
 });
 
 test("mms working day follows local 07:00 to 07:00 with three shifts", () => {

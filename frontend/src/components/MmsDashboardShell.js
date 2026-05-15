@@ -1862,21 +1862,23 @@ function MachineStatusTimeline({ segments = [] }) {
 function getMachineWorkingMetrics(machine = {}, report = null) {
   const hasReportRows = Array.isArray(report?.series) && report.series.length > 0;
   const reportSummary = hasReportRows ? report.summary || {} : {};
+  const liveOk = Number(machine.outputOk ?? machine.output_ok);
+  const liveNg = Number(machine.outputNg ?? machine.output_ng ?? machine.ng);
+  const hasLiveOutput = Number.isFinite(liveOk) || Number.isFinite(liveNg);
   const totalFromReport = Number(reportSummary.output || 0);
   const ngFromReport = Number(reportSummary.ng || 0);
-  const okQty = hasReportRows
-    ? Math.max(0, totalFromReport - ngFromReport)
-    : 0;
-  const ngQty = hasReportRows
-    ? ngFromReport
-    : 0;
+  const okQty = hasLiveOutput ? Math.max(0, liveOk || 0) : hasReportRows ? Math.max(0, totalFromReport - ngFromReport) : 0;
+  const ngQty = hasLiveOutput ? Math.max(0, liveNg || 0) : hasReportRows ? ngFromReport : 0;
   const totalOutput = okQty + ngQty;
   const target = hasReportRows ? Number(reportSummary.target || 0) : 0;
   const availability = hasReportRows ? Number(reportSummary.availability || 0) : 0;
   const performance = hasReportRows ? Number(reportSummary.performance || 0) : 0;
   const quality = hasReportRows ? Number(reportSummary.quality || 0) : 0;
   const oee = hasReportRows ? Number(reportSummary.oee || 0) : 0;
-  const averageCycleTime = hasReportRows
+  const liveCycleTime = Number(machine.cycleTime ?? machine.ct ?? machine.cycle_time_sec);
+  const averageCycleTime = Number.isFinite(liveCycleTime) && liveCycleTime > 0
+    ? liveCycleTime
+    : hasReportRows
     ? report.series.reduce((sum, row) => sum + Number(row.ct || 0), 0) / report.series.length
     : 0;
   const mmsStatus = machine.simMachineAlarm ? "ALARM" : machine.plcStatus || machine.status || "RUN";

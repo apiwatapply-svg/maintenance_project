@@ -2,6 +2,8 @@ const { Server } = require("socket.io");
 const { mmsSocketEvents } = require("./config/mmsSimulationConfig");
 const { getMmsWorkSlot, upsertMmsRealtimePayload } = require("./repositories/mmsRepository");
 
+const mmsSnapshotRequestEvent = "mms:snapshot-request";
+
 const sectionRooms = {
   production: "production_room",
   maintenance: "maintenance_room",
@@ -108,6 +110,14 @@ function createSocketServer(httpServer) {
       socket.leave(getFeatureRoom(feature, scope));
     });
 
+    socket.on(mmsSnapshotRequestEvent, (payload = {}) => {
+      socket.to(getFeatureRoom("mms", "all")).emit(mmsSnapshotRequestEvent, {
+        ...payload,
+        feature: "mms",
+        requestedAt: new Date().toISOString()
+      });
+    });
+
     Object.values(mmsSocketEvents).forEach((eventName) => {
       socket.on(eventName, async (payload = {}) => {
         const machineNo = payload.machineNo || payload.machine_no || "unknown";
@@ -178,6 +188,7 @@ module.exports = {
   flushClosedMmsHourlyBuffers,
   getFeatureRoom,
   getMmsHourlyBufferKey,
+  mmsSnapshotRequestEvent,
   queueMmsHourlyPayload,
   sectionRooms
 };
