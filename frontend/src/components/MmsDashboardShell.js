@@ -288,10 +288,10 @@ const styles = {
   backButton: "inline-flex h-10 items-center justify-center rounded-xl bg-white px-5 text-sm font-black text-slate-950 shadow-sm transition hover:bg-slate-100",
   brand: "mb-6 flex items-center gap-3",
   brandText: "[&_h1]:m-0 [&_h1]:text-lg [&_h1]:font-black [&_h1]:leading-tight [&_p]:m-0 [&_p]:mt-1 [&_p]:text-sm [&_p]:font-bold [&_p]:text-slate-400",
-  chartBox: "h-[235px] min-w-0 overflow-hidden",
+  chartBox: "h-full min-h-0 min-w-0 overflow-hidden",
   chartBoxCompact: "h-[150px] min-h-0 min-w-0 overflow-hidden",
   chartBoxOverall: "h-full min-h-0 min-w-0 overflow-hidden",
-  chartBoxTall: "h-[392px] min-h-[392px] overflow-hidden",
+  chartBoxTall: "h-[calc(100vh-508px)] min-h-[260px] overflow-hidden",
   chartTabButton: "inline-flex h-8 items-center justify-center rounded-lg border border-blue-600 bg-white px-5 text-xs font-black text-blue-700 shadow-sm transition hover:bg-blue-50",
   chartTabButtonActive: "inline-flex h-8 items-center justify-center rounded-lg border border-blue-700 bg-blue-700 px-5 text-xs font-black text-white shadow-sm transition hover:bg-blue-700",
   collapseButton: "mb-5 h-11 w-full rounded-xl border border-white/10 bg-white/10 text-sm font-black text-white transition hover:bg-white/15",
@@ -355,7 +355,7 @@ const styles = {
   overviewHeroGrid: "grid grid-cols-[1.25fr_0.75fr] gap-3 max-[1100px]:grid-cols-1",
   overviewKpi: "rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm [&_small]:block [&_small]:text-[10px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.12em] [&_small]:text-slate-500 [&_span]:mt-1 [&_span]:block [&_span]:text-xs [&_span]:font-bold [&_span]:text-slate-500 [&_strong]:mt-1 [&_strong]:block [&_strong]:text-2xl [&_strong]:font-black [&_strong]:text-slate-950",
   overviewKpiStrip: "grid grid-cols-6 gap-3 max-[1400px]:grid-cols-3 max-[760px]:grid-cols-2",
-  overviewLayout: "grid h-[calc(100vh-172px)] min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2 overflow-hidden",
+  overviewLayout: "grid h-[calc(100vh-16px)] min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2 overflow-hidden",
   overviewMachineCard: "grid h-[126px] min-w-0 content-between overflow-hidden rounded-xl border-2 p-1.5 shadow-sm",
   overviewMachineGate: "mt-1 flex min-w-0 items-center justify-between gap-1 [&_b]:min-w-0 [&_b]:truncate [&_b]:rounded-md [&_b]:border [&_b]:border-violet-200 [&_b]:bg-violet-50 [&_b]:px-1.5 [&_b]:py-0.5 [&_b]:text-[7px] [&_b]:font-black [&_b]:text-violet-800 [&_span]:shrink-0 [&_span]:rounded-md [&_span]:border [&_span]:px-1.5 [&_span]:py-0.5 [&_span]:text-[7px] [&_span]:font-black",
   overviewMachineGrid: "grid grid-cols-[repeat(auto-fill,minmax(146px,1fr))] auto-rows-[126px] gap-1.5",
@@ -369,7 +369,7 @@ const styles = {
   overviewQuickFilters: "col-span-full flex flex-wrap gap-2 border-t border-slate-200 pt-2 max-[760px]:col-span-1 [&_button]:h-9 [&_button]:rounded-lg [&_button]:border [&_button]:border-slate-300 [&_button]:bg-white [&_button]:px-3 [&_button]:text-xs [&_button]:font-black [&_button]:text-slate-700 [&_button]:shadow-sm [&_button]:transition [&_button:hover]:bg-slate-50",
   overviewQuickFilterActive: "!border-slate-950 !bg-slate-950 !text-white",
   overviewTypeBlock: "rounded-lg border border-slate-200 bg-slate-50 p-1.5 [&_h5]:mb-1 [&_h5]:text-[10px] [&_h5]:font-black [&_h5]:text-slate-700",
-  overallCard: "flex h-[286px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm",
+  overallCard: "flex h-[calc((100vh-236px)/2)] min-h-[260px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm",
   overallChartCell: "grid min-h-0 grid-rows-[minmax(0,1fr)_22px]",
   overallChartLegend: "flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 overflow-hidden px-1 text-[8px] font-bold leading-none text-slate-600 [&_i]:inline-block [&_i]:h-2 [&_i]:w-2 [&_i]:rounded-sm [&_span]:inline-flex [&_span]:items-center [&_span]:gap-1",
   overallChartRow: "grid flex-1 grid-cols-2 gap-1.5 p-1.5 max-[800px]:grid-cols-1",
@@ -388,14 +388,14 @@ const styles = {
   overallMiniTopLine: "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-2 py-1",
   overallStatusBlock: "grid flex-1 grid-rows-[72px_minmax(0,1fr)] gap-1.5 p-1.5",
   overallTabSwitch: "flex h-11 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1",
-  panel: "rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm",
+  panel: "grid min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm",
   panelActionButton: "inline-flex h-8 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-black text-slate-800 shadow-sm transition hover:bg-slate-50",
   panelActionButtonPrimary: "inline-flex h-8 items-center justify-center rounded-lg border border-slate-900 bg-slate-950 px-3 text-xs font-black text-white shadow-sm transition hover:bg-slate-800",
   panelActions: "flex flex-wrap items-center justify-end gap-2",
   panelControlHeader: "mb-3 flex flex-wrap items-center justify-between gap-3 [&_h3]:m-0 [&_h3]:text-lg [&_h3]:font-black [&_p]:m-0 [&_p]:text-xs [&_p]:font-black [&_p]:text-slate-500",
   panelHeader: "mb-2 flex items-center justify-between gap-3 [&_h3]:m-0 [&_h3]:text-base [&_h3]:font-black [&_span]:text-xs [&_span]:font-black [&_span]:text-slate-500",
   reportFilterPanel: "grid grid-cols-[1fr_1fr_1fr_120px_160px_auto] items-end gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm max-[1300px]:grid-cols-3 max-[760px]:grid-cols-1",
-  reportGrid2: "grid min-h-0 grid-cols-2 gap-2 max-[1100px]:grid-cols-1",
+  reportGrid2: "grid h-full min-h-0 grid-cols-2 grid-rows-2 gap-2 max-[1100px]:grid-cols-1",
   reportDateBodyPanel: "min-w-0 overflow-x-auto overflow-y-hidden",
   reportDateHeaderPanel: "min-w-0 overflow-hidden bg-slate-800",
   reportDateTable: "min-w-[1550px] border-separate border-spacing-0 text-[11px] text-slate-950 [&_td]:h-9 [&_td]:border-b [&_td]:border-r [&_td]:border-slate-300 [&_td]:px-2.5 [&_td]:py-1.5 [&_td]:text-center [&_td]:align-middle [&_td]:font-bold",
@@ -404,9 +404,9 @@ const styles = {
   reportFixedPanel: "w-[628px] shrink-0 overflow-hidden border-r-2 border-slate-700 bg-white",
   reportFixedTable: "w-full table-fixed border-separate border-spacing-0 text-[11px] text-slate-950 [&_td]:h-9 [&_td]:border-b [&_td]:border-r [&_td]:border-slate-300 [&_td]:px-2.5 [&_td]:py-1.5 [&_td]:text-center [&_td]:align-middle [&_td]:font-bold [&_tr>*:first-child]:border-l",
   reportFixedTableHeader: "w-full table-fixed border-separate border-spacing-0 text-[11px] text-white [&_th]:h-10 [&_th]:border-b [&_th]:border-r [&_th]:border-slate-600 [&_th]:bg-slate-800 [&_th]:px-2.5 [&_th]:py-2 [&_th]:text-center [&_th]:align-middle [&_th]:text-[10px] [&_th]:font-black [&_th]:leading-tight [&_th]:text-white [&_tr>*:first-child]:border-l",
-  reportMatrixBody: "max-h-[calc(100vh-290px)] overflow-y-auto overflow-x-hidden overscroll-contain",
+  reportMatrixBody: "min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain",
   reportMatrixHeader: "sticky top-0 z-30 flex min-w-0 border-b-2 border-slate-700 bg-slate-800",
-  reportMatrixPanel: "overflow-hidden rounded-xl border border-slate-500 bg-white shadow-sm",
+  reportMatrixPanel: "grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-xl border border-slate-500 bg-white shadow-sm",
   reportMatrixSplit: "flex min-w-0",
   reportMetricCell: "border-l-2 border-l-slate-500 bg-slate-50 text-left font-black",
   reportMergedCell: "border-b-2 border-l border-slate-500 bg-slate-50 text-center font-black text-slate-950",
@@ -415,6 +415,10 @@ const styles = {
   reportTotalCell: "border-l-2 border-l-slate-500 bg-amber-100 font-black text-amber-950",
   reportPrimaryButton: "inline-flex h-11 items-center justify-center rounded-xl bg-emerald-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700",
   reportTabHeader: "flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm [&_h3]:m-0 [&_h3]:text-lg [&_h3]:font-black [&_p]:m-0 [&_p]:text-xs [&_p]:font-bold [&_p]:text-slate-500",
+  reportTableBody: "grid h-full min-h-0 grid-rows-[minmax(0,1fr)] gap-2",
+  reportTableBodyWithSummary: "grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2",
+  reportTableMatrixSlot: "min-h-0",
+  reportViewportLayout: "grid h-[calc(100vh-130px)] min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden",
   reportCards: "grid grid-cols-[1.2fr_.8fr] gap-3 max-[1100px]:grid-cols-1",
   screen: "min-h-screen text-slate-950",
   shiftScale: "grid grid-cols-7 px-2 text-center text-[9px] font-black text-slate-500",
@@ -513,7 +517,7 @@ export default function MmsDashboardShell({ view = "overview" }) {
              {shouldShowGlobalFilter(activeView) ? <FilterBar view={activeView} /> : null}
              {renderView(activeView)}
           </section>
-          {!["overview", "table-report", "machine-working"].includes(activeView) ? <div className={styles.footer}>MMS Dashboard | Factory Management System</div> : null}
+          {!["overview", "table-report", "machine-working", "graph-report", "overall-machine-working"].includes(activeView) ? <div className={styles.footer}>MMS Dashboard | Factory Management System</div> : null}
         </section>
       </div>
     </main>
@@ -930,7 +934,7 @@ function GraphReportView({ defaultPeriod = "monthly", forcePeriod = false }) {
   const series = buildMmsGraphReportSeries(filters.graphPeriod, filters);
 
   return (
-    <section className={styles.overviewLayout}>
+    <section className={styles.reportViewportLayout}>
       <ReportFilterBar filters={filters} machines={reportMachines} onChange={setFilters} showPeriod />
       <section className={styles.reportGrid2}>
         <Panel title="Output Monitor" meta={`${selectedMachines.length} machines`}>
@@ -1006,11 +1010,17 @@ function TableReportView({ defaultPeriod = "monthly" }) {
   const rows = buildMmsReportMatrixRows(selectedMachines, columns, { machineType: filters.machineType });
   const summary = buildMmsMachineTypeSummary(selectedMachines);
 
+  const hasMachineTypeSummary = filters.machineType !== "All";
+
   return (
-    <section className={styles.overviewLayout}>
+    <section className={styles.reportViewportLayout}>
       <ReportFilterBar filters={filters} machines={reportMachines} onChange={setFilters} showPeriod />
-      {filters.machineType !== "All" ? <MachineTypeSummary machineType={filters.machineType} summary={summary} /> : null}
-      <ReportMatrixTable columns={columns} rows={rows} />
+      <div className={hasMachineTypeSummary ? styles.reportTableBodyWithSummary : styles.reportTableBody}>
+        {hasMachineTypeSummary ? <MachineTypeSummary machineType={filters.machineType} summary={summary} /> : null}
+        <div className={styles.reportTableMatrixSlot}>
+          <ReportMatrixTable columns={columns} rows={rows} />
+        </div>
+      </div>
     </section>
   );
 }
