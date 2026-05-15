@@ -338,7 +338,7 @@ const styles = {
   operatorCell: "flex items-center gap-3 bg-slate-100 [&_img]:h-14 [&_img]:w-14 [&_img]:rounded-xl [&_img]:ring-2 [&_img]:ring-sky-200 [&_span]:grid [&_span]:min-w-0 [&_span]:gap-0.5 [&_span_b]:truncate [&_span_strong]:truncate",
   overviewCommandBar: "grid grid-cols-[minmax(280px,.95fr)_minmax(0,1.5fr)] gap-3 rounded-2xl border border-slate-800 bg-slate-950 p-3 text-white shadow-sm max-[1200px]:grid-cols-1",
   overviewCommandCopy: "grid content-between gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-4 [&_h3]:m-0 [&_h3]:text-2xl [&_h3]:font-black [&_p]:m-0 [&_p]:text-sm [&_p]:font-bold [&_p]:text-slate-300",
-  overviewCommandHeader: "flex items-start justify-between gap-3 [&_a]:inline-flex [&_a]:h-9 [&_a]:shrink-0 [&_a]:items-center [&_a]:justify-center [&_a]:rounded-lg [&_a]:bg-white [&_a]:px-3 [&_a]:text-xs [&_a]:font-black [&_a]:text-slate-950 [&_a]:no-underline [&_a]:shadow-sm",
+  overviewCommandHeader: "flex items-start justify-between gap-3",
   overviewCommandKpis: "grid grid-cols-4 gap-2 max-[1200px]:grid-cols-4 max-[760px]:grid-cols-2",
   overviewCommandKpi: "rounded-xl border border-white/10 bg-white/[0.06] p-3 [&_small]:block [&_small]:text-[10px] [&_small]:font-black [&_small]:uppercase [&_small]:tracking-[0.12em] [&_small]:text-slate-400 [&_span]:mt-1 [&_span]:block [&_span]:text-[11px] [&_span]:font-bold [&_span]:text-slate-400 [&_strong]:mt-1 [&_strong]:block [&_strong]:text-2xl [&_strong]:font-black",
   overviewCommandMeta: "flex flex-wrap gap-2 [&_span]:inline-flex [&_span]:items-center [&_span]:gap-2 [&_span]:rounded-full [&_span]:border [&_span]:border-white/10 [&_span]:bg-white/[0.06] [&_span]:px-3 [&_span]:py-1.5 [&_span]:text-xs [&_span]:font-black [&_i]:h-2 [&_i]:w-2 [&_i]:rounded-full",
@@ -764,7 +764,6 @@ function OverviewCommandBar({ filteredSummary, summary }) {
             <h3>MMS Dashboard Overview</h3>
             <p>Factory control room status board for the 07:00-07:00 working day.</p>
           </div>
-          <Link href="/">Back</Link>
         </div>
         <div className={styles.overviewCommandMeta}>
           <span><i style={{ backgroundColor: "#22c55e" }} />Live</span>
