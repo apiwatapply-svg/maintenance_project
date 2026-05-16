@@ -372,10 +372,12 @@ test("mms report columns support daily monthly and yearly periods", () => {
   assert.deepEqual(buildMmsReportColumns("yearly", { year: "2026" }).map((column) => column.label), ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]);
 });
 
-test("mms current-day report columns and graph series hide future hours", () => {
+test("mms current-day report columns and graph series keep future labels with zero values", () => {
   const now = "2026-05-16T02:30:00.000Z";
   const filters = { date: "2026-05-16", now };
-  assert.deepEqual(buildMmsReportColumns("daily", filters).map((column) => column.label), ["07:00"]);
+  const columns = buildMmsReportColumns("daily", filters);
+  assert.deepEqual(columns.map((column) => column.label), ["07:00", "11:00", "15:00", "19:00", "23:00", "03:00", "07:00"]);
+  assert.deepEqual(columns.map((column) => column.isFuture), [false, true, true, true, true, true, true]);
 
   const graph = buildMmsGraphReportSeries("daily", filters, [
     { label: "07:00", output: 10, target: 20 },
@@ -384,8 +386,21 @@ test("mms current-day report columns and graph series hide future hours", () => 
     { label: "10:00", output: 16, target: 20 },
     { label: "11:00", output: 18, target: 20 }
   ]);
-  assert.deepEqual(graph.output.map((row) => row.label), ["07:00", "08:00", "09:00"]);
-  assert.equal(graph.output.at(-1).outputAccum, 36);
+  assert.deepEqual(graph.output.map((row) => row.label), ["07:00", "11:00", "15:00", "19:00", "23:00", "03:00", "07:00"]);
+  assert.equal(graph.output[0].outputAccum, 10);
+  assert.equal(graph.output[1].outputActual, 0);
+  assert.equal(graph.output[1].outputTarget, 20);
+  assert.equal(graph.output[1].outputAccum, 0);
+  assert.equal(graph.output[1].outputTargetAccum, 40);
+
+  const sparseReport = {
+    series: [
+      { label: "07:00", output: 10, target: 25, ng: 0, ct: 3, availability: 90, performance: 90, quality: 99, oee: 80 }
+    ]
+  };
+  const sparseMachine = { area: "Line A", machineNo: "M-01", machineType: "Control Panel", modelName: "MODEL-A" };
+  const sparseRows = buildMmsReportMatrixRows([sparseMachine], columns, { reportByMachine: { "M-01": sparseReport } });
+  assert.equal(sparseRows.find((row) => row.metric === "Output (Target)").cells[1], 25);
 });
 
 test("mms report machine filter narrows area type and machine number", () => {

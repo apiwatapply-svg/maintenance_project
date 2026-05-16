@@ -76,18 +76,55 @@ function isCurrentReportDate(filters = {}, now = new Date()) {
   return !filters.date || filters.date === getMmsCurrentWorkDateText(now);
 }
 
-function filterFutureDailyColumns(columns = [], filters = {}) {
+function markFutureDailyColumns(columns = [], filters = {}) {
   const now = filters.now ? new Date(filters.now) : new Date();
-  if (!isCurrentReportDate(filters, now)) return columns;
+  if (!isCurrentReportDate(filters, now)) return columns.map((column) => ({ ...column, isFuture: false }));
   const currentIndex = getCurrentReportHourIndex(now);
-  return columns.filter((column, index) => getReportColumnHourIndex(column, index) <= currentIndex);
+  return columns.map((column, index) => ({
+    ...column,
+    isFuture: getReportColumnHourIndex(column, index) > currentIndex
+  }));
 }
 
-function filterFutureDailySeries(series = [], period = "monthly", filters = {}) {
-  const now = filters.now ? new Date(filters.now) : new Date();
-  if (period !== "daily" || !isCurrentReportDate(filters, now)) return series;
-  const currentIndex = getCurrentReportHourIndex(now);
-  return series.filter((row) => getReportHourIndex(row.label) <= currentIndex);
+function buildZeroReportPoint(label, source = {}) {
+  const sourcePoint = source || {};
+  return {
+    alarmHours: 0,
+    availability: 0,
+    ct: 0,
+    isFuture: true,
+    label,
+    ng: 0,
+    oee: 0,
+    output: 0,
+    performance: 0,
+    quality: 0,
+    rejectRate: 0,
+    runHours: 0,
+    stopHours: 0,
+    target: Number(sourcePoint.target || 0)
+  };
+}
+
+function getFallbackReportTarget(series = []) {
+  const targets = series
+    .map((row) => Number(row?.target || 0))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  return targets[targets.length - 1] || 0;
+}
+
+function buildDailySeriesWithFutureZeroes(series = [], period = "monthly", filters = {}) {
+  if (period !== "daily") return series;
+  const columns = buildMmsReportColumns(period, filters);
+  if (!isCurrentReportDate(filters, filters.now ? new Date(filters.now) : new Date())) return series;
+  const fallbackTarget = getFallbackReportTarget(series);
+
+  return columns.map((column) => {
+    const sourcePoint = findReportPoint({ series }, column);
+    const targetSource = sourcePoint?.target ? sourcePoint : { target: fallbackTarget };
+    if (column.isFuture) return buildZeroReportPoint(column.label, targetSource);
+    return sourcePoint || buildZeroReportPoint(column.label, { target: fallbackTarget });
+  });
 }
 
 export const mmsReportMetricNames = [
@@ -464,7 +501,7 @@ export function buildMmsReportColumns(period = "monthly", filters = {}) {
       key: `h${index}`,
       label
     }));
-    return filterFutureDailyColumns(columns, filters);
+    return markFutureDailyColumns(columns, filters);
   }
 
   if (period === "yearly") {
@@ -499,6 +536,26 @@ function findReportPoint(report, column = {}) {
 }
 
 function getBackendMetricValue(metric, column, report) {
+  if (column.isFuture) {
+    const point = findReportPoint(report, column) || {};
+    const target = Number(point.target || 0) || getFallbackReportTarget(report?.series || []);
+    const zeroValues = {
+      "OEE": "0.00%",
+      "Output (Target)": target,
+      "Machine Output": 0,
+      "Output": 0,
+      "Availability (Target)": "90.00%",
+      "Cycle time (Target)": 3,
+      "Cycle time": "0.000",
+      "Over Reject": 0,
+      "NG Qty": 0,
+      "Availability": "0.00%",
+      "Performance": "0.00%",
+      "Quality": "0.00%"
+    };
+    return zeroValues[metric] ?? 0;
+  }
+
   const point = findReportPoint(report, column);
   if (!point) return null;
 
@@ -636,17 +693,17 @@ export function buildMmsMachineTypeSummary(machines = []) {
 }
 
 function buildBackendGraphReportSeries(series = [], period = "monthly", filters = {}) {
-  const visibleSeries = filterFutureDailySeries(series, period, filters);
+  const visibleSeries = buildDailySeriesWithFutureZeroes(series, period, filters);
   let outputAccum = 0;
   let targetAccum = 0;
   const output = visibleSeries.map((row) => {
     const outputActual = Number(row.output || 0);
     const outputTarget = Number(row.target || 0);
-    outputAccum += outputActual;
     targetAccum += outputTarget;
+    if (!row.isFuture) outputAccum += outputActual;
     return {
       label: row.label,
-      outputAccum,
+      outputAccum: row.isFuture ? 0 : outputAccum,
       outputActual,
       outputTarget,
       outputTargetAccum: targetAccum

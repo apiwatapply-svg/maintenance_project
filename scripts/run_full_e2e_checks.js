@@ -806,52 +806,57 @@ function getFutureReportLabels() {
   return ["11:00", "15:00", "19:00", "23:00", "03:00"].filter((label) => getReportHourIndex(label) > currentIndex);
 }
 
-async function browserMmsNoFutureReportWorkflow() {
+async function browserMmsFutureReportZeroWorkflow() {
   const { chromium } = require(path.join(rootDir, "frontend", "node_modules", "playwright"));
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const futureLabels = getFutureReportLabels();
-  await page.addInitScript((todayValue) => {
-    localStorage.setItem("mms:overall-machine-working:filters", JSON.stringify({
-      area: "Line A",
-      date: todayValue,
-      machineNos: ["PNL-A-001"],
-      machineType: "Control Panel"
-    }));
-    localStorage.setItem("mms:machine-working:filters", JSON.stringify({
-      area: "Line A",
-      date: todayValue,
-      machineNo: "PNL-A-001",
-      machineType: "Control Panel"
-    }));
-    localStorage.setItem("mms:reports:filters", JSON.stringify({
-      area: "Line A",
-      date: todayValue,
-      graphPeriod: "daily",
-      machineNo: "PNL-A-001",
-      machineType: "Control Panel",
-      month: todayValue.slice(0, 7),
-      year: todayValue.slice(0, 4)
-    }));
-  }, today());
+  try {
+    await page.addInitScript((todayValue) => {
+      localStorage.setItem("mms:overall-machine-working:filters", JSON.stringify({
+        area: "Line A",
+        date: todayValue,
+        machineNos: ["PNL-A-001"],
+        machineType: "Control Panel"
+      }));
+      localStorage.setItem("mms:machine-working:filters", JSON.stringify({
+        area: "Line A",
+        date: todayValue,
+        machineNo: "PNL-A-001",
+        machineType: "Control Panel"
+      }));
+      localStorage.setItem("mms:overall-machine-working:tab", "output");
+      localStorage.setItem("mmsMachineWorkingTab", "output");
+      localStorage.setItem("mms:reports:filters", JSON.stringify({
+        area: "Line A",
+        date: todayValue,
+        graphPeriod: "daily",
+        machineNo: "PNL-A-001",
+        machineType: "Control Panel",
+        month: todayValue.slice(0, 7),
+        year: todayValue.slice(0, 4)
+      }));
+    }, today());
 
-  for (const [route, selector] of [
-    ["/mms-dashboard/overall-machine-working", '[data-testid="mms-overall-machine-card"][data-machine-no="PNL-A-001"]'],
-    ["/mms-dashboard/machine-working", '[data-testid="mms-machine-working-summary"][data-machine-no="PNL-A-001"]'],
-    ["/mms-dashboard/table-report", "body"],
-    ["/mms-dashboard/graph-report", "body"]
-  ]) {
-    await page.goto(`${WEB}${route}`, { waitUntil: "networkidle", timeout: 30000 });
-    const locator = page.locator(selector).first();
-    await locator.waitFor({ timeout: 10000 });
-    const text = await page.locator("body").innerText();
-    for (const label of futureLabels) {
-      assert.equal(text.includes(label), false, `${route} should not render future hour ${label}`);
+    for (const [route, selector] of [
+      ["/mms-dashboard/overall-machine-working", '[data-testid="mms-overall-machine-card"][data-machine-no="PNL-A-001"]'],
+      ["/mms-dashboard/machine-working", '[data-testid="mms-machine-working-summary"][data-machine-no="PNL-A-001"]'],
+      ["/mms-dashboard/table-report", "body"],
+      ["/mms-dashboard/graph-report", "body"]
+    ]) {
+      await page.goto(`${WEB}${route}`, { waitUntil: "networkidle", timeout: 30000 });
+      const locator = page.locator(selector).first();
+      await locator.waitFor({ timeout: 10000 });
+      const text = await page.locator("body").evaluate((element) => element.textContent || "");
+      for (const label of futureLabels) {
+        assert.equal(text.includes(label), true, `${route} should keep future hour label ${label}`);
+      }
     }
+  } finally {
+    await browser.close().catch(() => {});
   }
 
-  await browser.close();
-  return futureLabels.length ? `future labels hidden: ${futureLabels.join(", ")}` : "no future labels left in current working day";
+  return futureLabels.length ? `future labels kept with zero values: ${futureLabels.join(", ")}` : "all report labels are already in the past/current hour";
 }
 
 async function assertLocatorContains(locator, expectedTexts) {
@@ -908,7 +913,7 @@ function writeReports() {
   await step("MMS report daily monthly yearly calculations", mmsReportCalculationWorkflow);
   await step("Frontend source mock data scan", sourceMockScanWorkflow);
   await step("Responsive UI guardrails and sidebar collapse", browserUiGuardrailWorkflow);
-  await step("MMS reports hide future hours", browserMmsNoFutureReportWorkflow);
+  await step("MMS reports show future hours as zero", browserMmsFutureReportZeroWorkflow);
   await runCleanup();
   writeReports();
 

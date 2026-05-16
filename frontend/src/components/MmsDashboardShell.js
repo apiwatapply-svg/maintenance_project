@@ -103,6 +103,8 @@ const mmsStatusLegend = [
 
 const operatorAvatar = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Crect width='80' height='80' rx='16' fill='%230f172a'/%3E%3Ccircle cx='40' cy='28' r='14' fill='%23bfdbfe'/%3E%3Cpath d='M16 72c4-18 16-28 24-28s20 10 24 28' fill='%230ea5e9'/%3E%3Cpath d='M24 22h32v10H24z' fill='%23fbbf24'/%3E%3C/svg%3E";
 
+const mmsChartHourTicks = ["07:00", "11:00", "15:00", "19:00", "23:00", "03:00", "06:00"];
+
 function classNames(...classes) {
   return classes.filter(Boolean).join(" ");
 }
@@ -424,10 +426,48 @@ function isCurrentMmsReportDate(date) {
   return !date || date === getBangkokTodayText();
 }
 
-function filterFutureMmsReportRows(rows = [], date, now = new Date()) {
+function getMmsWorkdayHourLabels() {
+  return Array.from({ length: 24 }, (_item, index) => `${String((7 + index) % 24).padStart(2, "0")}:00`);
+}
+
+function buildZeroMmsReportRow(label, isFuture = false, source = {}) {
+  return {
+    alarmHours: 0,
+    availability: 0,
+    ct: 0,
+    isFuture,
+    label,
+    ng: 0,
+    oee: 0,
+    output: 0,
+    performance: 0,
+    quality: 0,
+    rejectRate: 0,
+    runHours: 0,
+    stopHours: 0,
+    target: Number(source.target || 0)
+  };
+}
+
+function getFallbackHourlyTarget(rows = []) {
+  const targets = rows
+    .map((row) => Number(row?.target || 0))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  return targets[targets.length - 1] || 0;
+}
+
+function buildMmsReportRowsWithFutureZeroes(rows = [], date, now = new Date()) {
   if (!isCurrentMmsReportDate(date)) return rows;
   const currentIndex = getCurrentMmsReportHourIndex(now);
-  return rows.filter((row) => getMmsReportHourIndex(row.label) <= currentIndex);
+  const rowByLabel = new Map(rows.map((row) => [String(row.label), row]));
+  const fallbackTarget = getFallbackHourlyTarget(rows);
+  return getMmsWorkdayHourLabels().map((label) => {
+    const isFuture = getMmsReportHourIndex(label) > currentIndex;
+    const source = rowByLabel.get(label);
+    return isFuture
+      ? buildZeroMmsReportRow(label, true, source || { target: fallbackTarget })
+      : source || buildZeroMmsReportRow(label, false, { target: fallbackTarget });
+  });
 }
 
 function getLiveMachineOutput(machine = {}) {
@@ -473,6 +513,14 @@ function recalculateHourlyAccum(rows = []) {
   let targetAccum = 0;
 
   return rows.map((row) => {
+    if (row.isFuture) {
+      targetAccum += Number(row.target || 0);
+      return {
+        ...row,
+        accum: 0,
+        targetAccum
+      };
+    }
     outputAccum += Number(row.output || 0);
     targetAccum += Number(row.target || 0);
     return {
@@ -489,12 +537,27 @@ function overlayLiveCurrentHour(rows = [], machine = {}, date, now = new Date())
   const currentIndex = getMmsReportHourIndex(currentLabel);
   const pastRows = rows.filter((row) => getMmsReportHourIndex(row.hour) < currentIndex);
   const currentRow = buildLiveCurrentHourRow(machine, pastRows, now);
-  const nextRows = rows.filter((row) => getMmsReportHourIndex(row.hour) < currentIndex);
-  return recalculateHourlyAccum([...nextRows, currentRow]);
+  return recalculateHourlyAccum(rows.map((row) => {
+    const rowIndex = getMmsReportHourIndex(row.hour);
+    if (rowIndex < currentIndex) return row;
+    if (rowIndex === currentIndex) return currentRow;
+    return {
+      ...row,
+      accum: 0,
+      availability: 0,
+      ct: 0,
+      isFuture: true,
+      oee: 0,
+      output: 0,
+      performance: 0,
+      quality: 0,
+      targetAccum: 0
+    };
+  }));
 }
 
 function buildHourlyRowsFromReport(report, machine = null, date = null) {
-  const rows = filterFutureMmsReportRows(report?.series || [], date);
+  const rows = buildMmsReportRowsWithFutureZeroes(report?.series || [], date);
   let outputAccum = 0;
   let targetAccum = 0;
 
@@ -509,6 +572,7 @@ function buildHourlyRowsFromReport(report, machine = null, date = null) {
     targetAccum += target;
     return {
       hour: row.label,
+      isFuture: Boolean(row.isFuture),
       target,
       output,
       ct: Number(row.ct || 0),
@@ -527,8 +591,17 @@ function buildHourlyRowsFromReport(report, machine = null, date = null) {
 }
 
 function buildStatusSegmentsFromReport(report, machine = null, date = null) {
-  const rows = filterFutureMmsReportRows(report?.series || [], date);
+  const rows = buildMmsReportRowsWithFutureZeroes(report?.series || [], date);
   const segments = rows.map((row) => {
+    if (row.isFuture) {
+      return {
+        start: row.label,
+        end: row.label,
+        label: "0",
+        status: "STOP",
+        percent: 1
+      };
+    }
     const status = Number(row.alarmHours || 0) > 0 ? "ALARM" : Number(row.stopHours || 0) > 0.5 ? "STOP" : "RUN";
     return {
       start: row.label,
@@ -552,7 +625,7 @@ function buildStatusSegmentsFromReport(report, machine = null, date = null) {
 }
 
 function buildDowntimeRowsFromReport(report, machine = null, date = null) {
-  const rows = filterFutureMmsReportRows(report?.series || [], date);
+  const rows = buildMmsReportRowsWithFutureZeroes(report?.series || [], date).filter((row) => !row.isFuture);
   if (!rows.length) return [];
 
   const alarm = rows.reduce((sum, row) => sum + Number(row.alarmHours || 0), 0);
@@ -1797,7 +1870,7 @@ function OverallMachineCard({ activeTab, date, machine, refreshKey = 0 }) {
             <ChartBox overall>
               <ComposedChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="hour" interval={3} tick={{ fontSize: 10 }} />
+                <XAxis dataKey="hour" ticks={mmsChartHourTicks} interval={0} tick={{ fontSize: 10 }} />
                 <YAxis yAxisId="qty" width={34} tick={{ fontSize: 10 }} />
                 <YAxis yAxisId="accum" orientation="right" width={42} tick={{ fontSize: 10 }} />
                 <Tooltip />
@@ -1818,7 +1891,7 @@ function OverallMachineCard({ activeTab, date, machine, refreshKey = 0 }) {
             <ChartBox overall>
               <ComposedChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="hour" interval={3} tick={{ fontSize: 10 }} />
+                <XAxis dataKey="hour" ticks={mmsChartHourTicks} interval={0} tick={{ fontSize: 10 }} />
                 <YAxis yAxisId="ct" width={32} tick={{ fontSize: 10 }} />
                 <YAxis yAxisId="percent" orientation="right" width={34} domain={[0, 120]} tick={{ fontSize: 10 }} />
                 <Tooltip />
@@ -1945,7 +2018,7 @@ function MachineWorkingView({ machines: sourceMachines = [], refreshKey = 0 }) {
             <ChartBox tall>
               <ComposedChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="hour" />
+                <XAxis dataKey="hour" ticks={mmsChartHourTicks} interval={0} />
                 <YAxis yAxisId="qty" />
                 <YAxis yAxisId="accum" orientation="right" />
                 <Tooltip />
@@ -1964,7 +2037,7 @@ function MachineWorkingView({ machines: sourceMachines = [], refreshKey = 0 }) {
             <ChartBox tall>
               <ComposedChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="hour" />
+                <XAxis dataKey="hour" ticks={mmsChartHourTicks} interval={0} />
                 <YAxis yAxisId="ct" />
                 <YAxis yAxisId="percent" orientation="right" domain={[0, 120]} />
                 <Tooltip />
