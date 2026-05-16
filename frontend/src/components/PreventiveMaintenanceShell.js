@@ -20,6 +20,7 @@ import Swal from "sweetalert2";
 import AppFooter from "@/components/AppFooter";
 import SearchableDropdown from "@/components/SearchableDropdown";
 import api from "@/lib/api";
+import { downloadHtmlExcel } from "@/lib/excelExport";
 import { pmStatuses } from "@/lib/preventiveConfig";
 import { createPreventiveSocket } from "@/lib/preventiveRealtime";
 import { clearSession, getSessionConfig, getStoredSession } from "@/lib/session";
@@ -81,6 +82,65 @@ function statusBadge(status) {
 
 function statusLabel(status) {
   return pmStatuses[status]?.label || status;
+}
+
+function exportPreventiveHistoryReport(history = []) {
+  const okCount = history.filter((item) => item.result === "OK").length;
+  const ngCount = history.filter((item) => item.result === "NG").length;
+  return downloadHtmlExcel({
+    filename: `preventive-history-report-${new Date().toISOString().slice(0, 10)}`,
+    title: "Preventive Maintenance History Report",
+    subtitle: "PM inspection history with result summary",
+    filters: [
+      { label: "Generated At", value: new Date().toLocaleString() },
+      { label: "Total Records", value: history.length },
+      { label: "OK", value: okCount },
+      { label: "NG", value: ngCount }
+    ],
+    sections: [
+      {
+        title: "Summary",
+        columns: [
+          { key: "label", label: "Metric", width: 150 },
+          { key: "value", label: "Value", width: 100 }
+        ],
+        rows: [
+          { label: "Total Record", value: history.length, _excelType: "summary" },
+          { label: "OK", value: okCount },
+          { label: "NG", value: ngCount }
+        ]
+      },
+      {
+        title: "History / Report",
+        columns: [
+          { key: "no", label: "No", width: 48 },
+          { key: "date", label: "Date", width: 92 },
+          { key: "time", label: "Time", width: 116 },
+          { key: "duration", label: "Duration", width: 88 },
+          { key: "pmNo", label: "PM No", width: 112 },
+          { key: "machineCode", label: "Machine", width: 112 },
+          { key: "pmType", label: "PM Type", width: 150 },
+          { key: "inspector", label: "Inspector", width: 140 },
+          { key: "checker", label: "Checker", width: 140 },
+          { key: "result", label: "Result", width: 76 },
+          { key: "remark", label: "Remark", width: 220 }
+        ],
+        rows: history.map((row, index) => ({
+          no: index + 1,
+          date: row.date,
+          time: `${row.startTime || "-"} - ${row.endTime || "-"}`,
+          duration: `${row.durationMin || 0} min`,
+          pmNo: row.pmNo,
+          machineCode: row.machineCode,
+          pmType: row.pmType,
+          inspector: row.inspector,
+          checker: row.checker,
+          result: row.result,
+          remark: row.remark
+        }))
+      }
+    ]
+  });
 }
 
 function ShellButton({ children, className = "", variant = "primary", ...props }) {
@@ -914,7 +974,7 @@ function ReportsPage({ onOpenAction }) {
         <Field label="Date To"><TextInput defaultValue="2026-05-31" type="date" /></Field>
         <Field label="Machine"><DropdownInput options={["", ...machines.map((item) => item.code)].map((item) => ({ value: item, label: item || "All machine" }))} placeholder="All machine" /></Field>
         <Field label="Result"><DropdownInput options={[{ value: "", label: "All result" }, "OK", "NG"]} /></Field>
-        <div className="flex items-end"><ShellButton variant="warning" className="w-full">Export Excel</ShellButton></div>
+        <div className="flex items-end"><ShellButton variant="warning" className="w-full" onClick={() => exportPreventiveHistoryReport(history)}>Export Excel</ShellButton></div>
       </section>
       <section className="grid grid-cols-3 gap-3 max-[760px]:grid-cols-1">
         <StatCard label="Total Record" value={history.length} />

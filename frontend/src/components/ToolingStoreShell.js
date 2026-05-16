@@ -7,6 +7,7 @@ import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveCo
 import Swal from "sweetalert2";
 import AppFooter from "@/components/AppFooter";
 import api from "@/lib/api";
+import { downloadHtmlExcel } from "@/lib/excelExport";
 import { clearSession, getSessionConfig, getStoredSession } from "@/lib/session";
 import { buildConfirmAlert, buildSuccessAlert } from "@/lib/swalHelpers";
 import {
@@ -814,6 +815,39 @@ function ToolingModulePage({ activePage, filters, lookups, page, pageNumbers, pa
   );
 }
 
+function exportToolingTable(page = {}, rows = []) {
+  return downloadHtmlExcel({
+    filename: `tooling-${page.key || "report"}-${new Date().toISOString().slice(0, 10)}`,
+    title: `Tooling & Store - ${page.title || "Report"}`,
+    subtitle: page.description || "Tooling and store operational report",
+    filters: [
+      { label: "Generated At", value: new Date().toLocaleString() },
+      { label: "Page", value: page.title || "-" },
+      { label: "Rows", value: rows.length }
+    ],
+    sections: [
+      {
+        title: page.title || "Report",
+        columns: [
+          { key: "no", label: "No", width: 48 },
+          ...(page.columns || []).map((column) => ({
+            key: column.key,
+            label: column.label,
+            width: column.key.includes("description") || column.key.includes("remark") ? 220 : 130
+          }))
+        ],
+        rows: rows.map((row, index) => ({
+          no: index + 1,
+          ...(page.columns || []).reduce((record, column) => ({
+            ...record,
+            [column.key]: row[column.key] ?? "-"
+          }), {})
+        }))
+      }
+    ]
+  });
+}
+
 function ToolingPlaceholder({ page }) {
   return (
     <section className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -894,6 +928,13 @@ function ToolingTable({ filters, lookups = {}, page, pageNumbers, pagination, ro
       </div>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        {page.key === "reports" ? (
+          <div className="mb-3 flex justify-end">
+            <button className="h-10 rounded-xl bg-amber-500 px-4 text-sm font-black text-slate-950 shadow-sm transition hover:bg-amber-400" onClick={() => exportToolingTable(page, rows)} type="button">
+              Export Excel
+            </button>
+          </div>
+        ) : null}
         <div className="overflow-auto">
           <table className="w-full min-w-[860px] border-collapse">
             <thead>

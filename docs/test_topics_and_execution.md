@@ -25,7 +25,7 @@ This document is the project-wide test map for unit and end-to-end coverage. It 
 | Preventive Maintenance | PM schema, PM type/checklist config, machine-to-multiple-PM mapping, UTC timestamps, pagination, status tones | PM type CRUD, checklist builder, machine mapping, plan creation, inspection submit, history, reports, shared PM master values in Admin where needed |
 | MMS Dashboard and Simulation | Status gate, payload shape, current working day, current-hour initialization from closed MSSQL history, hourly buffer flush, report matrix, overview filters, graph/table helper calculations | Simulation opens from MSSQL machine master, initializes from closed-hour MSSQL history plus current-hour elapsed production, emits all telemetry via Socket.IO, dashboard opened later receives snapshot, graph/table/machine-working use MSSQL history plus live socket values |
 | MMS realtime and Socket.IO | MMS event names, snapshot request event, feature rooms, hourly buffer, closed-hour flush, job-request event listener list | Change output/status/alarm/model/CT in Simulation and verify Dashboard, Overall Working, Machine Working, Graph Report, Table Report update without page refresh |
-| Reports and calculations | Availability, performance, quality, OEE, NG rate, target/output accumulation, date period columns | Verify daily/monthly/yearly reports against seeded MSSQL rows and current working day boundary 07:00-07:00 |
+| Reports and calculations | Availability, performance, quality, OEE, NG rate, target/output accumulation, date period columns, Excel workbook layout helper | Verify daily/monthly/yearly reports against seeded MSSQL rows, current working day boundary 07:00-07:00, and Excel export downloads with formatted workbook HTML |
 | SweetAlert and common UI helpers | Success auto-close, confirm dialog labels, reusable query builders, pagination helpers | Destructive actions show confirm, successful mutations auto-close, errors display backend messages |
 | Backend health and infrastructure | DB config reset, health route, CI command parity, seed scripts | Backend health returns ok, e2e seed command prepares deterministic data, CI-equivalent local test/build passes |
 
@@ -52,7 +52,7 @@ This document is the project-wide test map for unit and end-to-end coverage. It 
 | 17 | Frontend SweetAlert helpers | `cd frontend && node --test tests/swalHelpers.test.mjs` | Passed 2026-05-16, 4 tests |
 | 18 | Frontend tooling config | `cd frontend && node --test tests/toolingResources.test.mjs` | Passed 2026-05-16, 14 tests |
 | 19 | Full backend unit suite | `cd backend && npm test` | Passed 2026-05-16, 64 tests |
-| 20 | Full frontend unit suite | `cd frontend && npm test` | Passed 2026-05-16, 70 tests |
+| 20 | Full frontend unit suite | `cd frontend && npm test` | Passed 2026-05-16, 75 tests |
 | 21 | Frontend production build | `cd frontend && npm run build` | Passed 2026-05-16 |
 
 ## E2E Execution Topics
@@ -63,7 +63,7 @@ This document is the project-wide test map for unit and end-to-end coverage. It 
 | 2 | Frontend route smoke for all App Router pages | `GET http://localhost:3000/<route>` for public and protected routes | Passed 2026-05-16, 27 routes; `/job-request` returns expected redirect 307 |
 | 3 | MMS Socket.IO telemetry smoke | Socket client emits MMS payload and listener receives all telemetry fields | Passed 2026-05-16, received machine/status/output/NG/CT/model/canProduceOutput |
 | 4 | MMS snapshot smoke | Simulation page receives a value, Dashboard opened later receives it through `mms:snapshot-request` | Passed 2026-05-16, Dashboard received `MODEL-D`, `OK 444,444`, `NG 55` |
-| 5 | Full feature E2E workflow | `node scripts/run_full_e2e_checks.js` against local backend/frontend/MSSQL | Passed 2026-05-16, 11/11 topics |
+| 5 | Full feature E2E workflow | `node scripts/run_full_e2e_checks.js` against local backend/frontend/MSSQL | Passed 2026-05-16, 12/12 topics including MMS Excel export |
 | 6 | Frontend source mock scan | `rg "mock\|Mock\|demo\|dummy\|fixture"` against `frontend/src` | Passed 2026-05-16, no frontend source mock data remains |
 | 7 | CI parity | Backend suite, frontend suite, frontend build | Passed 2026-05-16 |
 | 8 | Manual CI full E2E | GitHub Actions `workflow_dispatch` full-e2e job with MSSQL secrets | Added 2026-05-16, gated behind manual dispatch |
@@ -75,7 +75,8 @@ This document is the project-wide test map for unit and end-to-end coverage. It 
 - Route smoke covered home, admin, job request, MMS dashboard, preventive maintenance, and tooling store pages.
 - MMS Socket.IO telemetry smoke confirmed live payload propagation without using MSSQL as the realtime state store.
 - MMS snapshot smoke confirmed a dashboard opened after the simulator still receives current simulator values through `mms:snapshot-request`.
-- Full feature E2E passed 11/11 topics: health, role matrix, MMS MSSQL API, admin CRUD, tooling stock/borrow/calibration, job request workflow, preventive workflow, MMS realtime payload, protected frontend routes, browser-created Job Request, and MMS realtime DOM updates.
+- Full feature E2E passed 12/12 topics: health, role matrix, MMS MSSQL API, admin CRUD, tooling stock/borrow/calibration, job request workflow, preventive workflow, MMS realtime payload, protected frontend routes, browser-created Job Request, MMS realtime DOM updates, and MMS Excel export downloads.
+- Excel export coverage includes MMS Graph/Table report download validation, workbook title/filter/content checks, and formatted HTML workbook layout checks.
 - Frontend connected source no longer carries `mock*` tooling data. Preventive uses empty initial state until `/api/preventive/bootstrap` returns backend data.
 - Manual GitHub Actions full E2E is available for environments that provide MSSQL secrets. Normal push/PR CI remains unit/build only so it does not fail on missing external database access.
 

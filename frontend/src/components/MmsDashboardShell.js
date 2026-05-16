@@ -35,6 +35,7 @@ import {
   selectOverallMmsMachines
 } from "@/lib/mmsSimulation";
 import api from "@/lib/api";
+import { downloadHtmlExcel } from "@/lib/excelExport";
 import { createMmsSocket } from "@/lib/mmsRealtime";
 
 const navGroups = [
@@ -234,6 +235,122 @@ function buildMmsReportParams(filters = {}) {
     period: filters.graphPeriod || "daily",
     year: filters.year
   };
+}
+
+function getMmsReportPeriodValue(filters = {}) {
+  if (filters.graphPeriod === "daily") return filters.date;
+  if (filters.graphPeriod === "yearly") return filters.year;
+  return filters.month;
+}
+
+function buildMmsReportFilterRows(filters = {}, selectedMachines = []) {
+  return [
+    { label: "Period", value: filters.graphPeriod || "daily" },
+    { label: "Date / Month / Year", value: getMmsReportPeriodValue(filters) },
+    { label: "Area", value: filters.area || "All" },
+    { label: "Machine Type", value: filters.machineType || "All" },
+    { label: "Machine No", value: filters.machineNo || "All" },
+    { label: "Machine Count", value: selectedMachines.length }
+  ];
+}
+
+function exportMmsGraphReport(filters = {}, series = {}, selectedMachines = []) {
+  const periodValue = getMmsReportPeriodValue(filters);
+  return downloadHtmlExcel({
+    filename: `mms-graph-report-${filters.graphPeriod || "daily"}-${periodValue || "all"}`,
+    title: "MMS Graph Report",
+    subtitle: "Machine Monitoring System output, cycle time, availability, OEE, and reject trend",
+    filters: buildMmsReportFilterRows(filters, selectedMachines),
+    sections: [
+      {
+        title: "Output Monitor",
+        meta: "Actual, target, and accumulative output",
+        columns: [
+          { key: "label", label: "Period", width: 82 },
+          { key: "outputActual", label: "Output Actual", type: "number", width: 112 },
+          { key: "outputTarget", label: "Output Target", type: "number", width: 112 },
+          { key: "outputAccum", label: "Output Accum", type: "number", width: 112 },
+          { key: "outputTargetAccum", label: "Target Accum", type: "number", width: 112 }
+        ],
+        rows: series.output || []
+      },
+      {
+        title: "CT & Availability Monitor",
+        meta: "Cycle time and availability compared with target",
+        columns: [
+          { key: "label", label: "Period", width: 82 },
+          { key: "cycleTimeActual", label: "Cycle Time Actual", type: "number", width: 120 },
+          { key: "cycleTimeTarget", label: "Cycle Time Target", type: "number", width: 120 },
+          { key: "availabilityActual", label: "Availability Actual (%)", type: "percent", width: 132 },
+          { key: "availabilityTarget", label: "Availability Target (%)", type: "percent", width: 132 }
+        ],
+        rows: series.ctAvailability || []
+      },
+      {
+        title: "OEE Performance Trend",
+        meta: "Availability, performance, quality, and OEE",
+        columns: [
+          { key: "label", label: "Period", width: 82 },
+          { key: "availability", label: "Availability (%)", type: "percent", width: 118 },
+          { key: "performance", label: "Performance (%)", type: "percent", width: 118 },
+          { key: "quality", label: "Quality (%)", type: "percent", width: 108 },
+          { key: "oee", label: "OEE (%)", type: "percent", width: 92 }
+        ],
+        rows: series.oee || []
+      },
+      {
+        title: "NG / Reject Trend",
+        meta: "NG quantity and over reject quantity",
+        columns: [
+          { key: "label", label: "Period", width: 82 },
+          { key: "ngQty", label: "NG Qty", type: "number", width: 100 },
+          { key: "overReject", label: "Over Reject", type: "number", width: 110 }
+        ],
+        rows: series.ngReject || []
+      }
+    ]
+  });
+}
+
+function exportMmsTableReport(filters = {}, columns = [], rows = [], selectedMachines = []) {
+  const periodValue = getMmsReportPeriodValue(filters);
+  const fixedColumns = [
+    { key: "machineNo", label: "MC No", width: 96 },
+    { key: "modelType", label: "Model", width: 82 },
+    { key: "modelName", label: "Model Name", width: 120 },
+    { key: "process", label: "Area", width: 100 },
+    { key: "metric", label: "Metric", width: 170 },
+    { key: "total", label: "Total", width: 108 }
+  ];
+  const reportColumns = [
+    ...fixedColumns,
+    ...columns.map((column) => ({ key: column.key, label: column.label, width: 76 }))
+  ];
+  const reportRows = rows.map((row) => ({
+    ...columns.reduce((cells, column, index) => ({ ...cells, [column.key]: row.cells?.[index] ?? "-" }), {}),
+    machineNo: row.isFirstMetric ? row.machineNo : "",
+    modelName: row.isFirstMetric ? row.modelName : "",
+    modelType: row.isFirstMetric ? row.modelType : "",
+    process: row.isFirstMetric ? row.process : "",
+    metric: row.metric,
+    total: row.total,
+    _excelType: row.rowType
+  }));
+
+  return downloadHtmlExcel({
+    filename: `mms-table-report-${filters.graphPeriod || "daily"}-${periodValue || "all"}`,
+    title: "MMS Table Report",
+    subtitle: "Machine Monitoring System matrix report from MSSQL history",
+    filters: buildMmsReportFilterRows(filters, selectedMachines),
+    sections: [
+      {
+        title: "Report Matrix",
+        meta: `${rows.length} metric rows`,
+        columns: reportColumns,
+        rows: reportRows
+      }
+    ]
+  });
 }
 
 function useMmsReport(filters = {}, enabled = true, refreshKey = 0) {
@@ -1077,10 +1194,11 @@ function GraphReportView({ defaultPeriod = "monthly", forcePeriod = false, machi
   const selectedMachines = selectMmsReportMachines(currentReportMachines, filters);
   const report = useMmsReport(filters, true, refreshKey);
   const series = buildMmsGraphReportSeries(filters.graphPeriod, filters, report?.series);
+  const handleExport = () => exportMmsGraphReport(filters, series, selectedMachines);
 
   return (
     <section className={styles.reportViewportLayout}>
-      <ReportFilterBar filters={filters} machines={currentReportMachines} onChange={setFilters} showPeriod />
+      <ReportFilterBar filters={filters} machines={currentReportMachines} onChange={setFilters} onExport={handleExport} showPeriod />
       <section className={styles.reportGrid2}>
         <Panel title="Output Monitor" meta={`${selectedMachines.length} machines`}>
           <ChartBox>
@@ -1156,12 +1274,13 @@ function TableReportView({ defaultPeriod = "monthly", machines: sourceMachines =
   const reportByMachine = useMmsReportsByMachine(filters, selectedMachines, refreshKey);
   const rows = buildMmsReportMatrixRows(selectedMachines, columns, { machineType: filters.machineType, reportByMachine });
   const summary = buildMmsMachineTypeSummary(selectedMachines);
+  const handleExport = () => exportMmsTableReport(filters, columns, rows, selectedMachines);
 
   const hasMachineTypeSummary = filters.machineType !== "All";
 
   return (
     <section className={styles.reportViewportLayout}>
-      <ReportFilterBar filters={filters} machines={currentReportMachines} onChange={setFilters} showPeriod />
+      <ReportFilterBar filters={filters} machines={currentReportMachines} onChange={setFilters} onExport={handleExport} showPeriod />
       <div className={hasMachineTypeSummary ? styles.reportTableBodyWithSummary : styles.reportTableBody}>
         {hasMachineTypeSummary ? <MachineTypeSummary machineType={filters.machineType} summary={summary} /> : null}
         <div className={styles.reportTableMatrixSlot}>
@@ -1238,7 +1357,7 @@ function useReportFilters(defaultPeriod, forcePeriod = false) {
   return [filters, setFilters];
 }
 
-function ReportFilterBar({ filters, machines, onChange, showPeriod = false }) {
+function ReportFilterBar({ filters, machines, onChange, onExport, showPeriod = false }) {
   const selectedArea = filters.area || "All";
   const areaOptions = ["All", ...uniqueValues(machines.map((machine) => machine.area || machine.areaName))];
   const typeOptions = ["All", ...uniqueValues(machines
@@ -1292,7 +1411,7 @@ function ReportFilterBar({ filters, machines, onChange, showPeriod = false }) {
         <label>{dateField}</label>
         <input type={dateType} value={filters[dateField]} onChange={update(dateField)} />
       </div>
-      <button className={styles.reportPrimaryButton} type="button">Export Excel</button>
+      <button className={styles.reportPrimaryButton} data-testid="mms-export-excel" onClick={onExport} type="button">Export Excel</button>
     </section>
   );
 }

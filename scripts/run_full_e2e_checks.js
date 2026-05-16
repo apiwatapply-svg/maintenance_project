@@ -561,6 +561,49 @@ async function browserMmsRealtimeDomWorkflow() {
   return "Overview, Overall Working, and Machine Working DOM updated from Socket.IO payload";
 }
 
+async function browserExcelExportWorkflow() {
+  const { chromium } = require(path.join(rootDir, "frontend", "node_modules", "playwright"));
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ acceptDownloads: true, viewport: { width: 1440, height: 900 } });
+  await page.addInitScript((todayValue) => {
+    localStorage.setItem("mms:reports:filters", JSON.stringify({
+      area: "Line A",
+      date: todayValue,
+      graphPeriod: "daily",
+      machineNo: "PNL-A-001",
+      machineType: "Control Panel",
+      month: todayValue.slice(0, 7),
+      year: todayValue.slice(0, 4)
+    }));
+  }, today());
+
+  const downloads = [];
+  for (const [route, expectedTitle, expectedFile] of [
+    ["/mms-dashboard/table-report", "MMS Table Report", "mms-table-report"],
+    ["/mms-dashboard/graph-report", "MMS Graph Report", "mms-graph-report"]
+  ]) {
+    await page.goto(`${WEB}${route}`, { waitUntil: "networkidle", timeout: 30000 });
+    const [download] = await Promise.all([
+      page.waitForEvent("download", { timeout: 10000 }),
+      page.getByTestId("mms-export-excel").click()
+    ]);
+    const filename = download.suggestedFilename();
+    assert.ok(filename.includes(expectedFile), `${filename} should include ${expectedFile}`);
+    assert.ok(filename.endsWith(".xls"), `${filename} should be an xls file`);
+    const exportPath = path.join(resultDir, filename);
+    await download.saveAs(exportPath);
+    const content = fs.readFileSync(exportPath, "utf8");
+    assert.match(content, new RegExp(expectedTitle));
+    assert.match(content, /border-collapse: collapse/);
+    assert.match(content, /mso-page-orientation: landscape/);
+    assert.match(content, /PNL-A-001|Machine Count/);
+    downloads.push(filename);
+  }
+
+  await browser.close();
+  return downloads.join(", ");
+}
+
 async function assertLocatorContains(locator, expectedTexts) {
   const deadline = Date.now() + 10000;
   let lastText = "";
@@ -609,6 +652,7 @@ function writeReports() {
   await step("Frontend protected routes and MMS pages", frontendRouteWorkflow);
   await step("Job Request browser create workflow", browserJobRequestCreateWorkflow);
   await step("MMS realtime browser DOM workflow", browserMmsRealtimeDomWorkflow);
+  await step("MMS Excel export browser workflow", browserExcelExportWorkflow);
   await runCleanup();
   writeReports();
 
