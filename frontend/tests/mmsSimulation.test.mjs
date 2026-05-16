@@ -372,6 +372,22 @@ test("mms report columns support daily monthly and yearly periods", () => {
   assert.deepEqual(buildMmsReportColumns("yearly", { year: "2026" }).map((column) => column.label), ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]);
 });
 
+test("mms current-day report columns and graph series hide future hours", () => {
+  const now = "2026-05-16T02:30:00.000Z";
+  const filters = { date: "2026-05-16", now };
+  assert.deepEqual(buildMmsReportColumns("daily", filters).map((column) => column.label), ["07:00"]);
+
+  const graph = buildMmsGraphReportSeries("daily", filters, [
+    { label: "07:00", output: 10, target: 20 },
+    { label: "08:00", output: 12, target: 20 },
+    { label: "09:00", output: 14, target: 20 },
+    { label: "10:00", output: 16, target: 20 },
+    { label: "11:00", output: 18, target: 20 }
+  ]);
+  assert.deepEqual(graph.output.map((row) => row.label), ["07:00", "08:00", "09:00"]);
+  assert.equal(graph.output.at(-1).outputAccum, 36);
+});
+
 test("mms report machine filter narrows area type and machine number", () => {
   const rows = [
     { area: "Line A", machineType: "ABR", machineNo: "ABR-001" },

@@ -57,6 +57,39 @@ export function getMmsCurrentHourProgress(now = new Date()) {
   };
 }
 
+function getReportHourIndex(label = "") {
+  const hour = Number(String(label).slice(0, 2));
+  if (!Number.isFinite(hour)) return -1;
+  return hour >= 7 ? hour : hour + 24;
+}
+
+function getCurrentReportHourIndex(now = new Date()) {
+  return getReportHourIndex(getMmsCurrentHourProgress(now).hourLabel);
+}
+
+function getReportColumnHourIndex(column = {}, index = 0) {
+  const baseIndex = getReportHourIndex(column.label);
+  return String(column.label) === "07:00" && index > 0 ? 31 : baseIndex;
+}
+
+function isCurrentReportDate(filters = {}, now = new Date()) {
+  return !filters.date || filters.date === getMmsCurrentWorkDateText(now);
+}
+
+function filterFutureDailyColumns(columns = [], filters = {}) {
+  const now = filters.now ? new Date(filters.now) : new Date();
+  if (!isCurrentReportDate(filters, now)) return columns;
+  const currentIndex = getCurrentReportHourIndex(now);
+  return columns.filter((column, index) => getReportColumnHourIndex(column, index) <= currentIndex);
+}
+
+function filterFutureDailySeries(series = [], period = "monthly", filters = {}) {
+  const now = filters.now ? new Date(filters.now) : new Date();
+  if (period !== "daily" || !isCurrentReportDate(filters, now)) return series;
+  const currentIndex = getCurrentReportHourIndex(now);
+  return series.filter((row) => getReportHourIndex(row.label) <= currentIndex);
+}
+
 export const mmsReportMetricNames = [
   "OEE",
   "Output (Target)",
@@ -427,10 +460,11 @@ export function selectMmsReportMachines(machines = [], filters = {}) {
 
 export function buildMmsReportColumns(period = "monthly", filters = {}) {
   if (period === "daily") {
-    return ["07:00", "11:00", "15:00", "19:00", "23:00", "03:00", "07:00"].map((label, index) => ({
+    const columns = ["07:00", "11:00", "15:00", "19:00", "23:00", "03:00", "07:00"].map((label, index) => ({
       key: `h${index}`,
       label
     }));
+    return filterFutureDailyColumns(columns, filters);
   }
 
   if (period === "yearly") {
@@ -601,10 +635,11 @@ export function buildMmsMachineTypeSummary(machines = []) {
   };
 }
 
-function buildBackendGraphReportSeries(series = []) {
+function buildBackendGraphReportSeries(series = [], period = "monthly", filters = {}) {
+  const visibleSeries = filterFutureDailySeries(series, period, filters);
   let outputAccum = 0;
   let targetAccum = 0;
-  const output = series.map((row) => {
+  const output = visibleSeries.map((row) => {
     const outputActual = Number(row.output || 0);
     const outputTarget = Number(row.target || 0);
     outputAccum += outputActual;
@@ -617,21 +652,21 @@ function buildBackendGraphReportSeries(series = []) {
       outputTargetAccum: targetAccum
     };
   });
-  const ctAvailability = series.map((row) => ({
+  const ctAvailability = visibleSeries.map((row) => ({
     availabilityActual: Number(row.availability || 0),
     availabilityTarget: 90,
     cycleTimeActual: Number(row.ct || 0),
     cycleTimeTarget: 3,
     label: row.label
   }));
-  const oee = series.map((row) => ({
+  const oee = visibleSeries.map((row) => ({
     availability: Number(row.availability || 0),
     label: row.label,
     oee: Number(row.oee || 0),
     performance: Number(row.performance || 0),
     quality: Number(row.quality || 0)
   }));
-  const ngReject = series.map((row) => ({
+  const ngReject = visibleSeries.map((row) => ({
     label: row.label,
     ngQty: Number(row.ng || 0),
     overReject: Number(row.rejectRate || 0) > 1 ? Number(row.ng || 0) : 0
@@ -647,7 +682,7 @@ function buildBackendGraphReportSeries(series = []) {
 
 export function buildMmsGraphReportSeries(period = "monthly", filters = {}, backendSeries = null) {
   if (Array.isArray(backendSeries) && backendSeries.length > 0) {
-    return buildBackendGraphReportSeries(backendSeries);
+    return buildBackendGraphReportSeries(backendSeries, period, filters);
   }
 
   const columns = buildMmsReportColumns(period, filters);

@@ -25,6 +25,7 @@ import {
   buildMmsReportMatrixRows,
   getDefaultMmsOverviewFilters,
   getDefaultMmsReportFilters,
+  getMmsCurrentHourProgress,
   getMmsCurrentWorkDateText,
   getMmsDashboardViewKey,
   mmsMachineStatuses,
@@ -409,14 +410,99 @@ function useMmsReportsByMachine(filters = {}, selectedMachines = [], refreshKey 
   return reports;
 }
 
-function buildHourlyRowsFromReport(report) {
-  const rows = report?.series || [];
+function getMmsReportHourIndex(label = "") {
+  const hour = Number(String(label).slice(0, 2));
+  if (!Number.isFinite(hour)) return -1;
+  return hour >= 7 ? hour : hour + 24;
+}
+
+function getCurrentMmsReportHourIndex(now = new Date()) {
+  return getMmsReportHourIndex(getMmsCurrentHourProgress(now).hourLabel);
+}
+
+function isCurrentMmsReportDate(date) {
+  return !date || date === getBangkokTodayText();
+}
+
+function filterFutureMmsReportRows(rows = [], date, now = new Date()) {
+  if (!isCurrentMmsReportDate(date)) return rows;
+  const currentIndex = getCurrentMmsReportHourIndex(now);
+  return rows.filter((row) => getMmsReportHourIndex(row.label) <= currentIndex);
+}
+
+function getLiveMachineOutput(machine = {}) {
+  const output = Number(machine.output);
+  if (Number.isFinite(output) && output >= 0) return output;
+  return Math.max(0, Number(machine.outputOk || 0) + Number(machine.outputNg || machine.ng || 0));
+}
+
+function buildLiveCurrentHourRow(machine = {}, previousRows = [], now = new Date()) {
+  const progress = getMmsCurrentHourProgress(now);
+  const liveTotalOutput = getLiveMachineOutput(machine);
+  const previousOutput = previousRows.reduce((sum, row) => sum + Number(row.output || 0), 0);
+  const output = Math.max(0, liveTotalOutput - previousOutput);
+  const cycleTime = Math.max(0.1, Number(machine.cycleTime || machine.ct || machine.cycle_time_sec || 3));
+  const fullHourTarget = Math.round(3600 / cycleTime);
+  const elapsedTarget = Math.max(1, Math.round(progress.elapsedSeconds / cycleTime));
+  const outputOk = Math.max(0, Number(machine.outputOk || 0));
+  const outputNg = Math.max(0, Number(machine.outputNg ?? machine.ng ?? 0));
+  const quality = outputOk + outputNg > 0 ? Number(((outputOk / (outputOk + outputNg)) * 100).toFixed(1)) : 100;
+  const running = (machine.effectiveStatus || machine.plcStatus || machine.status || "RUN") === "RUN" && !machine.simMachineAlarm;
+  const availability = running ? 100 : 0;
+  const performance = elapsedTarget > 0 ? Number(((output / elapsedTarget) * 100).toFixed(1)) : 0;
+  const oee = Number(((availability * performance * quality) / 10000).toFixed(1));
+
+  return {
+    hour: progress.hourLabel,
+    target: fullHourTarget,
+    output,
+    ct: Number(cycleTime.toFixed(3)),
+    ctTarget: 3,
+    availability,
+    availabilityTarget: 90,
+    performance,
+    quality,
+    oee,
+    accum: 0,
+    targetAccum: 0
+  };
+}
+
+function recalculateHourlyAccum(rows = []) {
   let outputAccum = 0;
   let targetAccum = 0;
 
-  if (!rows.length) return [];
-
   return rows.map((row) => {
+    outputAccum += Number(row.output || 0);
+    targetAccum += Number(row.target || 0);
+    return {
+      ...row,
+      accum: outputAccum,
+      targetAccum
+    };
+  });
+}
+
+function overlayLiveCurrentHour(rows = [], machine = {}, date, now = new Date()) {
+  if (!isCurrentMmsReportDate(date) || !machine?.machineNo) return rows;
+  const currentLabel = getMmsCurrentHourProgress(now).hourLabel;
+  const currentIndex = getMmsReportHourIndex(currentLabel);
+  const pastRows = rows.filter((row) => getMmsReportHourIndex(row.hour) < currentIndex);
+  const currentRow = buildLiveCurrentHourRow(machine, pastRows, now);
+  const nextRows = rows.filter((row) => getMmsReportHourIndex(row.hour) < currentIndex);
+  return recalculateHourlyAccum([...nextRows, currentRow]);
+}
+
+function buildHourlyRowsFromReport(report, machine = null, date = null) {
+  const rows = filterFutureMmsReportRows(report?.series || [], date);
+  let outputAccum = 0;
+  let targetAccum = 0;
+
+  if (!rows.length && machine?.machineNo) {
+    return overlayLiveCurrentHour([], machine, date);
+  }
+
+  const reportRows = rows.map((row) => {
     const output = Number(row.output || 0);
     const target = Number(row.target || 0);
     outputAccum += output;
@@ -436,13 +522,13 @@ function buildHourlyRowsFromReport(report) {
       targetAccum
     };
   });
+
+  return overlayLiveCurrentHour(reportRows, machine, date);
 }
 
-function buildStatusSegmentsFromReport(report) {
-  const rows = report?.series || [];
-  if (!rows.length) return [];
-
-  return rows.map((row) => {
+function buildStatusSegmentsFromReport(report, machine = null, date = null) {
+  const rows = filterFutureMmsReportRows(report?.series || [], date);
+  const segments = rows.map((row) => {
     const status = Number(row.alarmHours || 0) > 0 ? "ALARM" : Number(row.stopHours || 0) > 0.5 ? "STOP" : "RUN";
     return {
       start: row.label,
@@ -452,10 +538,21 @@ function buildStatusSegmentsFromReport(report) {
       percent: 1
     };
   });
+
+  if (isCurrentMmsReportDate(date) && machine?.machineNo) {
+    const currentLabel = getMmsCurrentHourProgress().hourLabel;
+    const currentStatus = machine.simMachineAlarm ? "ALARM" : machine.plcStatus || machine.status || "RUN";
+    const existingIndex = segments.findIndex((segment) => segment.start === currentLabel);
+    const currentSegment = { start: currentLabel, end: currentLabel, label: currentStatus, status: currentStatus, percent: 1 };
+    if (existingIndex >= 0) segments[existingIndex] = currentSegment;
+    else segments.push(currentSegment);
+  }
+
+  return segments;
 }
 
-function buildDowntimeRowsFromReport(report) {
-  const rows = report?.series || [];
+function buildDowntimeRowsFromReport(report, machine = null, date = null) {
+  const rows = filterFutureMmsReportRows(report?.series || [], date);
   if (!rows.length) return [];
 
   const alarm = rows.reduce((sum, row) => sum + Number(row.alarmHours || 0), 0);
@@ -1687,9 +1784,9 @@ function OverallMachineCard({ activeTab, date, machine, refreshKey = 0 }) {
     machineNo: machine.machineNo,
     machineType: machine.machineType
   }, Boolean(machine?.machineNo), refreshKey);
-  const chartData = buildHourlyRowsFromReport(report);
-  const statusSegments = buildStatusSegmentsFromReport(report);
-  const downtimeRows = buildDowntimeRowsFromReport(report);
+  const chartData = buildHourlyRowsFromReport(report, machine, date);
+  const statusSegments = buildStatusSegmentsFromReport(report, machine, date);
+  const downtimeRows = buildDowntimeRowsFromReport(report, machine, date);
 
   return (
     <article className={styles.overallCard} data-machine-no={machine.machineNo} data-testid="mms-overall-machine-card">
@@ -1784,9 +1881,9 @@ function MachineWorkingView({ machines: sourceMachines = [], refreshKey = 0 }) {
     machineNo: machine.machineNo,
     machineType: machine.machineType
   }, Boolean(machine?.machineNo), refreshKey);
-  const chartData = buildHourlyRowsFromReport(report);
-  const statusSegments = buildStatusSegmentsFromReport(report);
-  const downtimeRows = buildDowntimeRowsFromReport(report);
+  const chartData = buildHourlyRowsFromReport(report, machine, date);
+  const statusSegments = buildStatusSegmentsFromReport(report, machine, date);
+  const downtimeRows = buildDowntimeRowsFromReport(report, machine, date);
 
   useEffect(() => {
     const requestedTab = new URLSearchParams(window.location.search).get("tab");
