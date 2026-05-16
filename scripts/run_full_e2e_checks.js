@@ -604,6 +604,193 @@ async function browserExcelExportWorkflow() {
   return downloads.join(", ");
 }
 
+async function browserAllRoutesWorkflow() {
+  const { chromium } = require(path.join(rootDir, "frontend", "node_modules", "playwright"));
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await seedBrowserSession(page);
+
+  const routes = [
+    "/",
+    "/admin/login",
+    "/admin",
+    "/admin/users",
+    "/admin/departments",
+    "/admin/areas",
+    "/admin/machine-types",
+    "/admin/machine-nos",
+    "/admin/employees",
+    "/job-request/login",
+    "/job-request",
+    "/job-request/dashboard",
+    "/job-request/production",
+    "/job-request/maintenance",
+    "/job-request/qc",
+    "/job-request/handover",
+    "/preventive-maintenance/login",
+    "/preventive-maintenance",
+    "/preventive-maintenance/plans",
+    "/preventive-maintenance/setup",
+    "/preventive-maintenance/setup/checklist",
+    "/preventive-maintenance/inspection",
+    "/preventive-maintenance/reports",
+    "/tooling-store/login",
+    "/tooling-store",
+    "/tooling-store/master-data",
+    "/tooling-store/tool-borrowing",
+    "/tooling-store/spare-part-stock",
+    "/tooling-store/calibration",
+    "/tooling-store/history",
+    "/tooling-store/tools",
+    "/tooling-store/stock-items",
+    "/tooling-store/categories",
+    "/tooling-store/locations",
+    "/tooling-store/units",
+    "/tooling-store/borrow-issue",
+    "/tooling-store/return-tool",
+    "/tooling-store/overdue-borrow",
+    "/tooling-store/stock-in",
+    "/tooling-store/stock-out",
+    "/tooling-store/stock-balance",
+    "/tooling-store/movement-history",
+    "/tooling-store/calibration-list",
+    "/tooling-store/calibration-due-soon",
+    "/tooling-store/calibration-expired",
+    "/tooling-store/reports",
+    "/mms-dashboard",
+    "/mms-dashboard/overall-machine-working",
+    "/mms-dashboard/machine-working",
+    "/mms-dashboard/graph-report",
+    "/mms-dashboard/table-report",
+    "/mms-dashboard/mms-simulation"
+  ];
+
+  const checked = [];
+  for (const route of routes) {
+    await page.goto(`${WEB}${route}`, { waitUntil: "networkidle", timeout: 30000 });
+    await page.waitForTimeout(150);
+    const bodyText = await page.locator("body").innerText({ timeout: 10000 });
+    assert.equal(bodyText.includes("Cannot connect") || bodyText.includes("Application error"), false, `${route} rendered an error`);
+    assert.ok(bodyText.length > 80, `${route} body is too short`);
+    checked.push(route);
+  }
+
+  await browser.close();
+  return `${checked.length} routes rendered`;
+}
+
+async function browserJobRequestMmsOverlayWorkflow() {
+  const { chromium } = require(path.join(rootDir, "frontend", "node_modules", "playwright"));
+  const created = await api("POST", "/job-requests", {
+    area: "Line A",
+    machineType: "Control Panel",
+    machineName: "PNL-A-001",
+    machineCode: "PNL-A-001",
+    machineNo: "PNL-A-001",
+    productionLine: "Line A",
+    problem: "E2E MMS overlay",
+    priority: "High",
+    requestBy: "prodadmin",
+    description: `${runId} active MMS overlay`
+  }, 201);
+  cleanupTasks.push(() => completeJobRequest(created.jobNo).catch(() => Promise.resolve()));
+
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await page.addInitScript(() => {
+    localStorage.setItem("mms:overview:filters", JSON.stringify({
+      area: "Line A",
+      jobStatus: "All",
+      machineNo: "PNL-A-001",
+      machineType: "Control Panel",
+      mmsStatus: "All"
+    }));
+  });
+
+  await page.goto(`${WEB}/mms-dashboard`, { waitUntil: "networkidle", timeout: 30000 });
+  const card = page.locator('[data-testid="mms-overview-machine-card"][data-machine-no="PNL-A-001"]');
+  await card.waitFor({ timeout: 10000 });
+  await assertLocatorContains(card, [created.jobNo, "RUN"]);
+  const text = await card.innerText();
+  assert.match(text, /Job\s+WAIT|WAIT_MM|Job Request/);
+  assert.equal(/ALARM|STOP/.test(text), false, "Active job overlay must not override PLC/GOT RUN status");
+
+  await browser.close();
+  await completeJobRequest(created.jobNo);
+  return `${created.jobNo} appears on MMS while machine remains RUN`;
+}
+
+async function mmsReportCalculationWorkflow() {
+  const machineNo = "PNL-A-001";
+  const daily = await api("GET", `/mms/reports/history?period=daily&machineNo=${encodeURIComponent(machineNo)}&date=${today()}`);
+  const monthly = await api("GET", `/mms/reports/history?period=monthly&machineNo=${encodeURIComponent(machineNo)}&month=${today().slice(0, 7)}`);
+  const yearly = await api("GET", `/mms/reports/history?period=yearly&machineNo=${encodeURIComponent(machineNo)}&year=${today().slice(0, 4)}`);
+
+  for (const [period, report] of [["daily", daily], ["monthly", monthly], ["yearly", yearly]]) {
+    assert.ok(Array.isArray(report.data?.series), `${period} report must return series`);
+    assert.ok(report.data.series.length > 0, `${period} report must have rows`);
+    const first = report.data.series[0];
+    assert.ok(Number.isFinite(Number(first.output)), `${period} output should be numeric`);
+    assert.ok(Number.isFinite(Number(first.oee)), `${period} OEE should be numeric`);
+  }
+
+  return `${machineNo} daily/monthly/yearly report series verified`;
+}
+
+async function sourceMockScanWorkflow() {
+  const sourceDir = path.join(rootDir, "frontend", "src");
+  const hits = [];
+  const blocked = /\b(mock|dummy|fixture)\b/i;
+
+  function scan(filePath) {
+    const stat = fs.statSync(filePath);
+    if (stat.isDirectory()) {
+      for (const child of fs.readdirSync(filePath)) scan(path.join(filePath, child));
+      return;
+    }
+    if (!/\.(js|mjs|jsx|ts|tsx)$/.test(filePath)) return;
+    const text = fs.readFileSync(filePath, "utf8");
+    if (blocked.test(text)) hits.push(path.relative(rootDir, filePath));
+  }
+
+  scan(sourceDir);
+  assert.deepEqual(hits, []);
+  return "frontend/src has no mock/dummy/fixture connected source data";
+}
+
+async function browserUiGuardrailWorkflow() {
+  const { chromium } = require(path.join(rootDir, "frontend", "node_modules", "playwright"));
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await seedBrowserSession(page);
+
+  const routes = [
+    "/mms-dashboard",
+    "/mms-dashboard/overall-machine-working",
+    "/mms-dashboard/machine-working",
+    "/mms-dashboard/graph-report",
+    "/mms-dashboard/table-report",
+    "/job-request/production",
+    "/preventive-maintenance",
+    "/tooling-store"
+  ];
+
+  for (const route of routes) {
+    await page.goto(`${WEB}${route}`, { waitUntil: "networkidle", timeout: 30000 });
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    assert.ok(overflow <= 2, `${route} has horizontal overflow ${overflow}px`);
+  }
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${WEB}/mms-dashboard`, { waitUntil: "networkidle", timeout: 30000 });
+  await page.getByRole("button", { name: /Collapse|Expand sidebar/ }).first().click();
+  const collapsed = await page.evaluate(() => localStorage.getItem("mms:sidebar:collapsed"));
+  assert.equal(collapsed, "1");
+
+  await browser.close();
+  return `${routes.length} responsive pages checked with MMS sidebar collapse`;
+}
+
 async function assertLocatorContains(locator, expectedTexts) {
   const deadline = Date.now() + 10000;
   let lastText = "";
@@ -653,6 +840,11 @@ function writeReports() {
   await step("Job Request browser create workflow", browserJobRequestCreateWorkflow);
   await step("MMS realtime browser DOM workflow", browserMmsRealtimeDomWorkflow);
   await step("MMS Excel export browser workflow", browserExcelExportWorkflow);
+  await step("Frontend all App Router routes", browserAllRoutesWorkflow);
+  await step("Job Request to MMS active overlay", browserJobRequestMmsOverlayWorkflow);
+  await step("MMS report daily monthly yearly calculations", mmsReportCalculationWorkflow);
+  await step("Frontend source mock data scan", sourceMockScanWorkflow);
+  await step("Responsive UI guardrails and sidebar collapse", browserUiGuardrailWorkflow);
   await runCleanup();
   writeReports();
 

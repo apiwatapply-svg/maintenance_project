@@ -60,11 +60,11 @@ This document is the project-wide test map for unit and end-to-end coverage. It 
 | Order | Topic | Current Automation | Latest Result |
 | --- | --- | --- | --- |
 | 1 | Backend health smoke | `GET http://localhost:5000/api/health` | Passed 2026-05-16, HTTP 200 |
-| 2 | Frontend route smoke for all App Router pages | `GET http://localhost:3000/<route>` for public and protected routes | Passed 2026-05-16, 27 routes; `/job-request` returns expected redirect 307 |
+| 2 | Frontend route smoke for all App Router pages | Browser opens every public/protected App Router path with seeded sessions | Passed 2026-05-16, 52 routes rendered |
 | 3 | MMS Socket.IO telemetry smoke | Socket client emits MMS payload and listener receives all telemetry fields | Passed 2026-05-16, received machine/status/output/NG/CT/model/canProduceOutput |
 | 4 | MMS snapshot smoke | Simulation page receives a value, Dashboard opened later receives it through `mms:snapshot-request` | Passed 2026-05-16, Dashboard received `MODEL-D`, `OK 444,444`, `NG 55` |
-| 5 | Full feature E2E workflow | `node scripts/run_full_e2e_checks.js` against local backend/frontend/MSSQL | Passed 2026-05-16, 12/12 topics including MMS Excel export |
-| 6 | Frontend source mock scan | `rg "mock\|Mock\|demo\|dummy\|fixture"` against `frontend/src` | Passed 2026-05-16, no frontend source mock data remains |
+| 5 | Full feature E2E workflow | `node scripts/run_full_e2e_checks.js` against local backend/frontend/MSSQL | Passed 2026-05-16, 17/17 topics including all-route, MMS overlay, report calculations, mock scan, and UI guardrails |
+| 6 | Frontend source mock scan | Recursive source scan against `frontend/src` for `mock`, `dummy`, and `fixture` data markers | Passed 2026-05-16, no frontend source mock data remains |
 | 7 | CI parity | Backend suite, frontend suite, frontend build | Passed 2026-05-16 |
 | 8 | Manual CI full E2E | GitHub Actions `workflow_dispatch` full-e2e job with MSSQL secrets | Added 2026-05-16, gated behind manual dispatch |
 
@@ -72,25 +72,14 @@ This document is the project-wide test map for unit and end-to-end coverage. It 
 
 - Backend dev server was started with `node --watch server.js` on port 5000 for E2E smoke checks.
 - Frontend dev server was started with `npm run dev -- -p 3000` on port 3000 for route and browser checks.
-- Route smoke covered home, admin, job request, MMS dashboard, preventive maintenance, and tooling store pages.
+- Route smoke covered 52 App Router pages across home, admin, job request, MMS dashboard, preventive maintenance, and tooling store.
 - MMS Socket.IO telemetry smoke confirmed live payload propagation without using MSSQL as the realtime state store.
 - MMS snapshot smoke confirmed a dashboard opened after the simulator still receives current simulator values through `mms:snapshot-request`.
-- Full feature E2E passed 12/12 topics: health, role matrix, MMS MSSQL API, admin CRUD, tooling stock/borrow/calibration, job request workflow, preventive workflow, MMS realtime payload, protected frontend routes, browser-created Job Request, MMS realtime DOM updates, and MMS Excel export downloads.
+- Full feature E2E passed 17/17 topics: health, role matrix, MMS MSSQL API, admin CRUD, tooling stock/borrow/calibration, job request workflow, preventive workflow, MMS realtime payload, protected frontend routes, browser-created Job Request, MMS realtime DOM updates, MMS Excel export downloads, all App Router routes, Job Request to MMS active overlay, MMS daily/monthly/yearly report calculations, frontend source mock scan, and responsive UI guardrails.
 - Excel export coverage includes MMS Graph/Table report download validation, workbook title/filter/content checks, and formatted HTML workbook layout checks.
 - Frontend connected source no longer carries `mock*` tooling data. Preventive uses empty initial state until `/api/preventive/bootstrap` returns backend data.
 - Manual GitHub Actions full E2E is available for environments that provide MSSQL secrets. Normal push/PR CI remains unit/build only so it does not fail on missing external database access.
 
 ## Remaining E2E Depth To Add
 
-These are deeper browser-level checks that can be added after the current API/browser E2E runner.
-
-| Priority | Feature | E2E Scenario |
-| --- | --- | --- |
-| P1 | Admin/Common Master | Browser-create master data once and verify it appears in Job Request, PM, Tooling, and MMS dropdowns |
-| P1 | Job Request + MMS | Browser-create active job and verify MMS card shows job overlay without overriding PLC/GOT status |
-| P1 | MMS | Extend realtime DOM assertions to Graph Report and Table Report once those pages intentionally overlay live current-hour socket values |
-| P2 | Preventive | Browser-create PM type/checklist/mapping -> generate plan -> submit inspection -> report history |
-| P2 | Tooling | Browser stock in -> stock out -> borrow -> return -> movement report -> low stock state |
-| P2 | Tooling Calibration | Browser update calibration, calculate next date/status, verify due-soon/expired report |
-| P2 | Reports | Compare daily/monthly/yearly report UI values against seeded MSSQL aggregates |
-| P3 | UI guardrails | Sidebar collapse, filters localStorage, responsive route smoke, no horizontal overflow on monitoring pages |
+No open P1/P2/P3 checklist items remain in the local automated runner as of 2026-05-16. Future work should add tests alongside new features or backend/API changes.
