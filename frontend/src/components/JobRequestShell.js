@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import AppFooter from "@/components/AppFooter";
 import api from "@/lib/api";
+import { startJobRequestAlertSound, stopAllJobRequestAlertSounds } from "@/lib/jobRequestAlertSound";
 import { createJobRequestSocket } from "@/lib/jobRequestRealtime";
 import { buildConfirmAlert, buildSuccessAlert } from "@/lib/swalHelpers";
 import {
@@ -132,6 +133,13 @@ export default function JobRequestShell({ sectionKey = "production" }) {
   const subtitle = activeSection?.subtitle || jobRequestSections[0].subtitle;
 
   useEffect(() => {
+    return () => {
+      stopAllJobRequestAlertSounds();
+      closeJobRequestAlertDialogs();
+    };
+  }, []);
+
+  useEffect(() => {
     const storedSession = getStoredSession("job");
 
     if (!storedSession) {
@@ -205,13 +213,22 @@ export default function JobRequestShell({ sectionKey = "production" }) {
     }
 
     const sections = session.user.adminScope === "all" ? ["production", "maintenance", "qc"] : session.user.adminScope;
+    let isActive = true;
     const socket = createJobRequestSocket(sections, async (event) => {
+      if (!isActive) {
+        return;
+      }
+
       setLastRealtimeEvent(event);
       if (sectionKey === "handover") {
         return;
       }
 
       const result = await notifyJobRequestEvent(event, lastNotificationRef, sectionKey);
+      if (!isActive) {
+        return;
+      }
+
       if (result?.action === "open" && result.job && sectionKey !== "dashboard") {
         setActiveJob(sectionKey === "handover" ? { ...result.job, __viewOnly: true } : result.job);
         setIsModalOpen(true);
@@ -219,6 +236,8 @@ export default function JobRequestShell({ sectionKey = "production" }) {
     });
 
     return () => {
+      isActive = false;
+      stopAllJobRequestAlertSounds();
       (Array.isArray(sections) ? sections : [sections]).forEach((section) => {
         socket.emit("job-request:leave", { section });
         socket.emit("realtime:leave", { feature: "job-request", scope: section });
@@ -246,12 +265,21 @@ export default function JobRequestShell({ sectionKey = "production" }) {
 
     pendingAlertRef.current = { key: notificationKey, time: Date.now() };
 
+    let isActive = true;
     notifyPendingJobAlert(pendingJob, sectionKey).then((result) => {
+      if (!isActive) {
+        return;
+      }
+
       if (result?.action === "open") {
         setActiveJob(sectionKey === "handover" ? { ...pendingJob, __viewOnly: true } : pendingJob);
         setIsModalOpen(true);
       }
     });
+
+    return () => {
+      isActive = false;
+    };
   }, [isChecking, isModalOpen, jobRequests, sectionKey]);
 
   if (isChecking) {
@@ -1852,96 +1880,14 @@ function getSectionFromStatus(status) {
   return "production";
 }
 
-function getAlertSoundPattern(sectionKey) {
-  const patterns = {
-    production: [
-      { frequency: 660, start: 0, duration: 0.16 },
-      { frequency: 880, start: 0.2, duration: 0.16 },
-      { frequency: 660, start: 0.4, duration: 0.16 }
-    ],
-    maintenance: [
-      { frequency: 880, start: 0, duration: 0.12 },
-      { frequency: 1175, start: 0.16, duration: 0.12 },
-      { frequency: 1480, start: 0.32, duration: 0.18 }
-    ],
-    qc: [
-      { frequency: 523, start: 0, duration: 0.2 },
-      { frequency: 392, start: 0.25, duration: 0.2 },
-      { frequency: 523, start: 0.5, duration: 0.2 }
-    ],
-    handover: [
-      { frequency: 740, start: 0, duration: 0.14 },
-      { frequency: 740, start: 0.18, duration: 0.14 },
-      { frequency: 988, start: 0.42, duration: 0.2 }
-    ]
-  };
-
-  return patterns[sectionKey] || patterns.production;
-}
-
-function startJobRequestAlertSound(sectionKey) {
-  if (typeof window === "undefined") {
-    return () => {};
-  }
-
-  let isStopped = false;
-  let timeoutId = null;
-  let activeContext = null;
-  const pattern = getAlertSoundPattern(sectionKey);
-
-  function stop() {
-    isStopped = true;
-
-    if (timeoutId) {
-      window.clearTimeout(timeoutId);
-    }
-
-    if (activeContext) {
-      activeContext.close().catch(() => {});
-    }
-  }
-
-  function playOnce() {
-    if (isStopped) {
-      return;
-    }
-
-    activeContext = playJobRequestAlertSoundPattern(pattern);
-    timeoutId = window.setTimeout(playOnce, 1450);
-  }
-
-  playOnce();
-  return stop;
-}
-
-function playJobRequestAlertSoundPattern(pattern) {
+async function closeJobRequestAlertDialogs() {
   try {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) {
-      return null;
+    const Swal = (await import("sweetalert2")).default;
+    if (Swal.isVisible()) {
+      Swal.close();
     }
-
-    const context = new AudioContext();
-    const gain = context.createGain();
-    gain.gain.setValueAtTime(0.0001, context.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.18, context.currentTime + 0.03);
-    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.95);
-    gain.connect(context.destination);
-
-    pattern.forEach((note) => {
-      const oscillator = context.createOscillator();
-      oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(note.frequency, context.currentTime + note.start);
-      oscillator.connect(gain);
-      oscillator.start(context.currentTime + note.start);
-      oscillator.stop(context.currentTime + note.start + note.duration);
-    });
-
-    window.setTimeout(() => context.close().catch(() => {}), 1100);
-    return context;
   } catch {
-    // Browser audio can be blocked until the first user interaction.
-    return null;
+    // Route cleanup should never block navigation.
   }
 }
 
