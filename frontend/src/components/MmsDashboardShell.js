@@ -1035,7 +1035,7 @@ function OverviewMachineCard({ machine }) {
   const jobOverlayLabel = state.hasJob ? `Job ${compactMmsStatus(state.jobStatus)}` : "No Job";
 
   return (
-    <article className={styles.overviewMachineCard} data-testid="mms-overview-machine-card" style={statusCardStyle(state.mmsStatus)}>
+    <article className={styles.overviewMachineCard} data-machine-no={state.machineNo} data-testid="mms-overview-machine-card" style={statusCardStyle(state.mmsStatus)}>
       <div className={styles.overviewMachineTitle}>
         <div>
           <h5>{state.machineNo}</h5>
@@ -1573,7 +1573,7 @@ function OverallMachineCard({ activeTab, date, machine, refreshKey = 0 }) {
   const downtimeRows = buildDowntimeRowsFromReport(report);
 
   return (
-    <article className={styles.overallCard}>
+    <article className={styles.overallCard} data-machine-no={machine.machineNo} data-testid="mms-overall-machine-card">
       <OverallMachineHeader date={date} machine={machine} report={report} />
       {activeTab === "output" ? (
         <div className={styles.overallChartRow}>
@@ -1969,7 +1969,7 @@ function MachineWorkingHeader({ compact = false, date = "2026-05-13", machine = 
   const metrics = getMachineWorkingMetrics(machine, report);
 
   return (
-      <div className={compact ? styles.machineSummaryTableCompact : styles.machineSummaryTable}>
+      <div className={compact ? styles.machineSummaryTableCompact : styles.machineSummaryTable} data-machine-no={machine.machineNo} data-testid="mms-machine-working-summary">
         <div className={classNames(styles.summaryCell, styles.operatorCell, styles.summaryTallCell)}>
           <img alt="Operator OP-014" className="operator-avatar" src={operatorAvatar} />
           <span>

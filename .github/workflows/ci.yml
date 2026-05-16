@@ -8,6 +8,7 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   test-and-build:
@@ -41,3 +42,76 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+
+  full-e2e:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    env:
+      DB_USER: ${{ secrets.DB_USER }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      DB_SERVER: ${{ secrets.DB_SERVER }}
+      DB_DATABASE: ${{ secrets.DB_DATABASE }}
+      DB_PORT: ${{ secrets.DB_PORT }}
+      DB_ENCRYPT: ${{ secrets.DB_ENCRYPT }}
+      DB_TRUST_SERVER_CERTIFICATE: ${{ secrets.DB_TRUST_SERVER_CERTIFICATE }}
+      FRONTEND_URL: http://localhost:3000
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:5000/api
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Check MSSQL secrets
+        run: |
+          if [ -z "$DB_SERVER" ] || [ -z "$DB_DATABASE" ] || [ -z "$DB_USER" ] || [ -z "$DB_PASSWORD" ]; then
+            echo "DB_SERVER, DB_DATABASE, DB_USER, and DB_PASSWORD secrets are required for full E2E."
+            exit 1
+          fi
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright browser
+        working-directory: frontend
+        run: npx playwright install chromium --with-deps
+
+      - name: Start backend
+        working-directory: backend
+        run: nohup node --watch server.js > ../backend-e2e.log 2>&1 &
+
+      - name: Start frontend
+        working-directory: frontend
+        run: nohup npm run dev -- -p 3000 > ../frontend-e2e.log 2>&1 &
+
+      - name: Wait for services
+        run: |
+          for i in {1..60}; do
+            if curl -fsS http://localhost:5000/api/health >/dev/null && curl -fsS http://localhost:3000 >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Services did not become ready in time."
+          cat backend-e2e.log || true
+          cat frontend-e2e.log || true
+          exit 1
+
+      - name: Run full E2E
+        run: node scripts/run_full_e2e_checks.js
+
+      - name: Upload E2E report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-e2e-report
+          path: docs/test_results/

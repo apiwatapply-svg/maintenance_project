@@ -63,9 +63,10 @@ This document is the project-wide test map for unit and end-to-end coverage. It 
 | 2 | Frontend route smoke for all App Router pages | `GET http://localhost:3000/<route>` for public and protected routes | Passed 2026-05-16, 27 routes; `/job-request` returns expected redirect 307 |
 | 3 | MMS Socket.IO telemetry smoke | Socket client emits MMS payload and listener receives all telemetry fields | Passed 2026-05-16, received machine/status/output/NG/CT/model/canProduceOutput |
 | 4 | MMS snapshot smoke | Simulation page receives a value, Dashboard opened later receives it through `mms:snapshot-request` | Passed 2026-05-16, Dashboard received `MODEL-D`, `OK 444,444`, `NG 55` |
-| 5 | Full feature E2E workflow | `node scripts/run_full_e2e_checks.js` against local backend/frontend/MSSQL | Passed 2026-05-16, 9/9 topics |
+| 5 | Full feature E2E workflow | `node scripts/run_full_e2e_checks.js` against local backend/frontend/MSSQL | Passed 2026-05-16, 11/11 topics |
 | 6 | Frontend source mock scan | `rg "mock\|Mock\|demo\|dummy\|fixture"` against `frontend/src` | Passed 2026-05-16, no frontend source mock data remains |
 | 7 | CI parity | Backend suite, frontend suite, frontend build | Passed 2026-05-16 |
+| 8 | Manual CI full E2E | GitHub Actions `workflow_dispatch` full-e2e job with MSSQL secrets | Added 2026-05-16, gated behind manual dispatch |
 
 ## Latest Execution Notes
 
@@ -74,8 +75,9 @@ This document is the project-wide test map for unit and end-to-end coverage. It 
 - Route smoke covered home, admin, job request, MMS dashboard, preventive maintenance, and tooling store pages.
 - MMS Socket.IO telemetry smoke confirmed live payload propagation without using MSSQL as the realtime state store.
 - MMS snapshot smoke confirmed a dashboard opened after the simulator still receives current simulator values through `mms:snapshot-request`.
-- Full feature E2E passed 9/9 topics: health, role matrix, MMS MSSQL API, admin CRUD, tooling stock/borrow/calibration, job request workflow, preventive workflow, MMS realtime payload, and protected frontend routes.
+- Full feature E2E passed 11/11 topics: health, role matrix, MMS MSSQL API, admin CRUD, tooling stock/borrow/calibration, job request workflow, preventive workflow, MMS realtime payload, protected frontend routes, browser-created Job Request, and MMS realtime DOM updates.
 - Frontend connected source no longer carries `mock*` tooling data. Preventive uses empty initial state until `/api/preventive/bootstrap` returns backend data.
+- Manual GitHub Actions full E2E is available for environments that provide MSSQL secrets. Normal push/PR CI remains unit/build only so it does not fail on missing external database access.
 
 ## Remaining E2E Depth To Add
 
@@ -85,7 +87,7 @@ These are deeper browser-level checks that can be added after the current API/br
 | --- | --- | --- |
 | P1 | Admin/Common Master | Browser-create master data once and verify it appears in Job Request, PM, Tooling, and MMS dropdowns |
 | P1 | Job Request + MMS | Browser-create active job and verify MMS card shows job overlay without overriding PLC/GOT status |
-| P1 | MMS | Open Simulation at mid-hour, verify closed-hour MSSQL values plus current elapsed output, then verify Dashboard snapshot on every MMS page |
+| P1 | MMS | Extend realtime DOM assertions to Graph Report and Table Report once those pages intentionally overlay live current-hour socket values |
 | P2 | Preventive | Browser-create PM type/checklist/mapping -> generate plan -> submit inspection -> report history |
 | P2 | Tooling | Browser stock in -> stock out -> borrow -> return -> movement report -> low stock state |
 | P2 | Tooling Calibration | Browser update calibration, calculate next date/status, verify due-soon/expired report |

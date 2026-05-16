@@ -337,18 +337,7 @@ async function preventiveWorkflow() {
 }
 
 async function mmsRealtimeWorkflow() {
-  const { io } = require(path.join(rootDir, "frontend", "node_modules", "socket.io-client"));
-  const socket = io("http://localhost:5000", {
-    transports: ["websocket"],
-    reconnection: false,
-    timeout: 5000
-  });
-  await new Promise((resolve, reject) => {
-    socket.once("connect", resolve);
-    socket.once("connect_error", reject);
-  });
-
-  const payload = {
+  const received = await emitMmsRealtimePayload({
     machineNo: "PNL-A-001",
     area: "Line A",
     machineType: "Control Panel",
@@ -359,7 +348,24 @@ async function mmsRealtimeWorkflow() {
     cycleTime: 2.4,
     model: "MODEL-E2E",
     jobStatus: "E2E_REALTIME"
-  };
+  });
+  assert.equal(received.outputNg, 321);
+  assert.equal(received.cycleTime, 2.4);
+  assert.equal(received.model, "MODEL-E2E");
+  return `${received.machineNo} ${received.outputOk}/${received.outputNg} CT ${received.cycleTime} ${received.model}`;
+}
+
+async function emitMmsRealtimePayload(payload) {
+  const { io } = require(path.join(rootDir, "frontend", "node_modules", "socket.io-client"));
+  const socket = io("http://localhost:5000", {
+    transports: ["websocket"],
+    reconnection: false,
+    timeout: 5000
+  });
+  await new Promise((resolve, reject) => {
+    socket.once("connect", resolve);
+    socket.once("connect_error", reject);
+  });
 
   socket.emit("realtime:join", { feature: "mms", scope: "all" });
   const received = await new Promise((resolve, reject) => {
@@ -373,10 +379,7 @@ async function mmsRealtimeWorkflow() {
     socket.emit("mms:machine-output-changed", payload);
   });
   socket.disconnect();
-  assert.equal(received.outputNg, payload.outputNg);
-  assert.equal(received.cycleTime, payload.cycleTime);
-  assert.equal(received.model, payload.model);
-  return `${received.machineNo} ${received.outputOk}/${received.outputNg} CT ${received.cycleTime} ${received.model}`;
+  return received;
 }
 
 async function mmsApiWorkflow() {
@@ -393,15 +396,7 @@ async function frontendRouteWorkflow() {
   const { chromium } = require(path.join(rootDir, "frontend", "node_modules", "playwright"));
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-  const sessions = {
-    adminSession: { user: { username: "admin", adminScope: "all", role: "admin" } },
-    pmSession: { user: { username: "mmadmin", adminScope: "maintenance", role: "admin" } },
-    toolingStoreSession: { user: { username: "tooladmin", adminScope: "tooling", role: "admin" } },
-    jobRequestSession: { user: { username: "admin", adminScope: "all", role: "admin" } }
-  };
-  await page.addInitScript((values) => {
-    Object.entries(values).forEach(([key, value]) => localStorage.setItem(key, JSON.stringify(value)));
-  }, sessions);
+  await seedBrowserSession(page);
 
   const routes = [
     ["/admin", "Admin"],
@@ -426,6 +421,158 @@ async function frontendRouteWorkflow() {
   await page.screenshot({ path: path.join(screenshotDir, "full-e2e-last-route.png"), fullPage: false });
   await browser.close();
   return loaded.join(", ");
+}
+
+async function seedBrowserSession(page) {
+  await page.addInitScript((values) => {
+    Object.entries(values).forEach(([key, value]) => localStorage.setItem(key, JSON.stringify(value)));
+  }, getBrowserSessions());
+}
+
+function getBrowserSessions() {
+  return {
+    adminSession: { user: { username: "admin", adminScope: "all", role: "admin" } },
+    pmSession: { user: { username: "mmadmin", adminScope: "maintenance", role: "admin" } },
+    toolingStoreSession: { user: { username: "tooladmin", adminScope: "tooling", role: "admin" } },
+    jobRequestSession: { user: { username: "admin", adminScope: "all", role: "admin" } }
+  };
+}
+
+async function browserJobRequestCreateWorkflow() {
+  const { chromium } = require(path.join(rootDir, "frontend", "node_modules", "playwright"));
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await seedBrowserSession(page);
+
+  const description = `${runId} browser created request`;
+  const startedAt = Date.now();
+  await page.goto(`${WEB}/job-request/production`, { waitUntil: "networkidle", timeout: 30000 });
+  await closeVisibleDialog(page);
+  await page.getByRole("button", { name: "New Request" }).click();
+  await page.getByText("Create Job Request").waitFor({ timeout: 10000 });
+  await page.getByPlaceholder("Short problem detail").fill(description);
+  await page.locator("form").getByRole("button", { name: "Save" }).click();
+  await page.getByRole("button", { name: "Submit" }).click();
+  await page.getByText("Job request has been sent to Maintenance.").waitFor({ timeout: 10000 });
+  await closeVisibleDialog(page);
+  await page.waitForTimeout(500);
+
+  const jobs = await api("GET", "/job-requests");
+  const created = (jobs.data || [])
+    .filter((job) => job.status === "WAIT_MM")
+    .filter((job) => new Date(job.requestedAt).getTime() >= startedAt - 5000)
+    .sort((first, second) => new Date(second.requestedAt).getTime() - new Date(first.requestedAt).getTime())[0];
+  assert.ok(created?.jobNo, "Browser-created job request was not persisted");
+  assert.equal(created.status, "WAIT_MM");
+  await completeJobRequest(created.jobNo);
+
+  await browser.close();
+  return `${created.jobNo} created from browser UI and completed by API cleanup`;
+}
+
+async function closeVisibleDialog(page) {
+  for (let index = 0; index < 3; index += 1) {
+    const closeButtons = page.locator('button:has-text("Close"):not([disabled])');
+    if (!(await closeButtons.count().catch(() => 0))) {
+      return;
+    }
+    await closeButtons.last().click({ timeout: 1000 }).catch(() => {});
+    await page.waitForTimeout(150);
+  }
+}
+
+async function completeJobRequest(jobNo) {
+  const transitions = [
+    ["MM_ACCEPT", "MM_REPAIR", { actionBy: "mmadmin", owner: "Maintenance" }],
+    ["MM_SEND_TO_QC", "WAIT_QC", { actionBy: "mmadmin", repairDetail: "Browser E2E repair completed" }],
+    ["QC_ACCEPT", "QC_INSPECTION", { actionBy: "qcadmin", qcBy: "qcadmin" }],
+    ["QC_PASS", "WAIT_PROD_CONFIRM", { actionBy: "qcadmin", qcStatus: "PASS", qcBy: "qcadmin" }],
+    ["PROD_CONFIRM", "COMPLETED", { actionBy: "prodadmin", progressDetail: "Browser E2E cleanup completed" }]
+  ];
+
+  for (const [actionName, toStatus, extra] of transitions) {
+    await api("POST", `/job-requests/${jobNo}/actions`, {
+      actionName,
+      toStatus,
+      ...extra
+    });
+  }
+}
+
+async function browserMmsRealtimeDomWorkflow() {
+  const { chromium } = require(path.join(rootDir, "frontend", "node_modules", "playwright"));
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await page.addInitScript((todayValue) => {
+    localStorage.setItem("mms:overview:filters", JSON.stringify({
+      area: "Line A",
+      jobStatus: "All",
+      machineNo: "PNL-A-001",
+      machineType: "Control Panel",
+      mmsStatus: "All"
+    }));
+    localStorage.setItem("mms:overall-machine-working:filters", JSON.stringify({
+      area: "Line A",
+      date: todayValue,
+      machineNos: ["PNL-A-001"],
+      machineType: "Control Panel"
+    }));
+    localStorage.setItem("mms:machine-working:filters", JSON.stringify({
+      area: "Line A",
+      date: todayValue,
+      machineNo: "PNL-A-001",
+      machineType: "Control Panel"
+    }));
+  }, today());
+
+  const payload = {
+    machineNo: "PNL-A-001",
+    area: "Line A",
+    machineType: "Control Panel",
+    plcStatus: "RUN",
+    effectiveStatus: "RUN",
+    outputOk: 654321,
+    outputNg: 123,
+    cycleTime: 2.111,
+    model: "MODEL-DOM",
+    output: 654444,
+    jobStatus: "DOM_REALTIME"
+  };
+
+  await page.goto(`${WEB}/mms-dashboard`, { waitUntil: "networkidle", timeout: 30000 });
+  const overviewCard = page.locator('[data-testid="mms-overview-machine-card"][data-machine-no="PNL-A-001"]');
+  await overviewCard.waitFor({ timeout: 10000 });
+  await emitMmsRealtimePayload(payload);
+  await assertLocatorContains(overviewCard, ["MODEL-DOM", "654,444", "123"]);
+
+  await page.goto(`${WEB}/mms-dashboard/overall-machine-working`, { waitUntil: "networkidle", timeout: 30000 });
+  const overallCard = page.locator('[data-testid="mms-overall-machine-card"][data-machine-no="PNL-A-001"]');
+  await overallCard.waitFor({ timeout: 10000 });
+  await emitMmsRealtimePayload(payload);
+  await assertLocatorContains(overallCard, ["654444", "654321/123", "2.111s"]);
+
+  await page.goto(`${WEB}/mms-dashboard/machine-working`, { waitUntil: "networkidle", timeout: 30000 });
+  const summary = page.locator('[data-testid="mms-machine-working-summary"][data-machine-no="PNL-A-001"]');
+  await summary.waitFor({ timeout: 10000 });
+  await emitMmsRealtimePayload(payload);
+  await assertLocatorContains(summary, ["MODEL-DOM", "654444", "123", "2.111s"]);
+
+  await browser.close();
+  return "Overview, Overall Working, and Machine Working DOM updated from Socket.IO payload";
+}
+
+async function assertLocatorContains(locator, expectedTexts) {
+  const deadline = Date.now() + 10000;
+  let lastText = "";
+  while (Date.now() < deadline) {
+    lastText = await locator.innerText().catch(() => "");
+    if (expectedTexts.every((item) => lastText.includes(item))) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+
+  throw new Error(`Expected locator text to contain ${expectedTexts.join(", ")}. Last text: ${lastText}`);
 }
 
 function writeReports() {
@@ -460,6 +607,8 @@ function writeReports() {
   await step("Preventive PM type/checklist/plan/inspection workflow", preventiveWorkflow);
   await step("MMS realtime Socket.IO all machine values", mmsRealtimeWorkflow);
   await step("Frontend protected routes and MMS pages", frontendRouteWorkflow);
+  await step("Job Request browser create workflow", browserJobRequestCreateWorkflow);
+  await step("MMS realtime browser DOM workflow", browserMmsRealtimeDomWorkflow);
   await runCleanup();
   writeReports();
 
