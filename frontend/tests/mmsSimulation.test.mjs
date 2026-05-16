@@ -13,6 +13,7 @@ import {
   canMmsMachineProduce,
   getDefaultMmsOverviewFilters,
   getDefaultMmsReportFilters,
+  getMmsCurrentHourProgress,
   getMmsCurrentWorkDateText,
   getMmsEffectiveStatus,
   getRandomMmsAlarmName,
@@ -22,6 +23,7 @@ import {
   mmsOverviewFilterStorageKey,
   mmsReportsFilterStorageKey,
   hydrateMmsMachine,
+  initializeMmsMachineFromHistory,
   selectOverallMmsMachines,
   selectMmsOverviewMachines,
   selectMmsReportMachines,
@@ -110,6 +112,33 @@ test("mms socket events expose status output and alarm changes", () => {
 test("mms current work date follows 07:00 to 07:00 local working day", () => {
   assert.equal(getMmsCurrentWorkDateText(new Date("2026-05-15T22:30:00.000Z")), "2026-05-15");
   assert.equal(getMmsCurrentWorkDateText(new Date("2026-05-16T00:30:00.000Z")), "2026-05-16");
+});
+
+test("mms simulation initializes current-hour output from closed MSSQL history", () => {
+  const now = new Date("2026-05-16T08:40:00.000Z");
+  const progress = getMmsCurrentHourProgress(now);
+  const runMachine = initializeMmsMachineFromHistory({
+    cycleTime: 10,
+    machineNo: "PNL-A-001",
+    outputOk: 1000,
+    outputNg: 5,
+    plcStatus: "RUN"
+  }, 0, now);
+  const stoppedMachine = initializeMmsMachineFromHistory({
+    cycleTime: 10,
+    machineNo: "PNL-A-002",
+    outputOk: 1000,
+    outputNg: 5,
+    plcStatus: "STOP"
+  }, 0, now);
+
+  assert.deepEqual(progress, { elapsedSeconds: 2400, hourLabel: "15:00" });
+  assert.equal(runMachine.currentHourEstimatedOk, 240);
+  assert.equal(runMachine.outputOk, 1240);
+  assert.equal(runMachine.output, 1245);
+  assert.equal(runMachine.lastCycleAt, now.getTime());
+  assert.equal(stoppedMachine.currentHourEstimatedOk, 0);
+  assert.equal(stoppedMachine.outputOk, 1000);
 });
 
 test("mms realtime listens to job request events that change active machine overlay", () => {

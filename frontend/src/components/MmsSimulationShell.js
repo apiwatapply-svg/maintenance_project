@@ -12,7 +12,7 @@ import {
   getMmsEffectiveStatus,
   getRandomMmsAlarmName,
   groupMmsMachinesByZone,
-  hydrateMmsMachine,
+  initializeMmsMachineFromHistory,
   mmsBaseControlStatuses,
   mmsMachineStatuses,
   mmsSocketEvents
@@ -151,7 +151,7 @@ export default function MmsSimulationShell() {
   async function loadMachines() {
     try {
       const response = await api.get("/mms/simulation/machines");
-      const hydratedMachines = (response.data?.data || []).map(hydrateMmsMachine);
+      const hydratedMachines = (response.data?.data || []).map((machine, index) => initializeMmsMachineFromHistory(machine, index));
       machinesRef.current = hydratedMachines;
       setMachines(hydratedMachines);
       broadcastMmsSnapshots(hydratedMachines, "machine-load");

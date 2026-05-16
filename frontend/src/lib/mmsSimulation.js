@@ -47,6 +47,16 @@ export function getMmsCurrentWorkDateText(now = new Date()) {
   return bangkokDate.toISOString().slice(0, 10);
 }
 
+export function getMmsCurrentHourProgress(now = new Date()) {
+  const bangkokDate = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  const hour = bangkokDate.getUTCHours();
+
+  return {
+    elapsedSeconds: (bangkokDate.getUTCMinutes() * 60) + bangkokDate.getUTCSeconds(),
+    hourLabel: `${String(hour).padStart(2, "0")}:00`
+  };
+}
+
 export const mmsReportMetricNames = [
   "OEE",
   "Output (Target)",
@@ -221,6 +231,27 @@ export function hydrateMmsMachine(machine, index = 0) {
     simMachineAlarm: Boolean(machine.simMachineAlarm),
     alarmName: machine.alarmName || "",
     lastCycleAt: Date.now()
+  };
+}
+
+export function initializeMmsMachineFromHistory(machine, index = 0, now = new Date()) {
+  const hydrated = hydrateMmsMachine(machine, index);
+  const cycleTime = Math.max(1, Number(hydrated.cycleTime || 1));
+  const progress = getMmsCurrentHourProgress(now);
+  const estimatedOk = canMmsMachineProduce(hydrated) ? Math.floor(progress.elapsedSeconds / cycleTime) : 0;
+  const cycleRemainderSeconds = canMmsMachineProduce(hydrated) ? progress.elapsedSeconds % cycleTime : 0;
+  const outputOk = Number(hydrated.outputOk || 0) + estimatedOk;
+  const outputNg = Number(hydrated.outputNg || 0);
+
+  return {
+    ...hydrated,
+    currentHourElapsedSeconds: progress.elapsedSeconds,
+    currentHourEstimatedOk: estimatedOk,
+    currentHourLabel: progress.hourLabel,
+    lastCycleAt: now.getTime() - (cycleRemainderSeconds * 1000),
+    output: outputOk + outputNg,
+    outputOk,
+    outputNg
   };
 }
 

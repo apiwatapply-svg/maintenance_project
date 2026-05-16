@@ -13,7 +13,7 @@ const {
   mmsWorkingShifts,
   normalizeMachineStatus
 } = require("../src/config/mmsSimulationConfig");
-const { getCurrentMmsWorkDate, getMmsHourSort, getMmsWorkSlot, mapMachine, mapMmsRealtimePayloadToHourlyRow } = require("../src/repositories/mmsRepository");
+const { getClosedMmsHourSortFilterSql, getCurrentMmsWorkDate, getMmsHourSort, getMmsWorkSlot, mapMachine, mapMmsRealtimePayloadToHourlyRow } = require("../src/repositories/mmsRepository");
 const { createMmsHourlyBuffer, flushClosedMmsHourlyBuffers, getMmsHourlyBufferKey, mmsSnapshotRequestEvent, queueMmsHourlyPayload } = require("../src/socket");
 
 test("mms simulation statuses include production and stop states", () => {
@@ -168,6 +168,14 @@ test("mms simulation list uses the 07:00 working day before local morning rollov
   assert.equal(getMmsHourSort("07:00"), 1);
   assert.equal(getMmsHourSort("05:00"), 23);
   assert.equal(getMmsHourSort("06:00"), 24);
+});
+
+test("mms simulation list reads only closed MSSQL hours before the live current hour", () => {
+  const filterSql = getClosedMmsHourSortFilterSql("mh");
+
+  assert.match(filterSql, /CASE mh\.hour_label/);
+  assert.match(filterSql, /< @currentHourSort/);
+  assert.doesNotMatch(filterSql, /<= @currentHourSort/);
 });
 
 test("mms repository treats realtime alarm payload as blocked output status", () => {

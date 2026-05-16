@@ -27,6 +27,10 @@ function getMmsHourSortSql(alias = "mh") {
   END`;
 }
 
+function getClosedMmsHourSortFilterSql(alias = "mh") {
+  return `${getMmsHourSortSql(alias)} < @currentHourSort`;
+}
+
 function getMmsWorkSlot(now = new Date()) {
   const bangkokDate = new Date(now.getTime() + 7 * 60 * 60 * 1000);
   const localHour = bangkokDate.getUTCHours();
@@ -153,6 +157,7 @@ async function listSimulationMachines() {
   await ensureMmsReportSchema(pool);
   const slot = getMmsWorkSlot();
   const hourSortSql = getMmsHourSortSql("mh");
+  const closedHourSortFilterSql = getClosedMmsHourSortFilterSql("mh");
   const result = await pool.request()
     .input("workDate", sql.Date, slot.workDate)
     .input("currentHourSort", sql.Int, getMmsHourSort(slot.hourLabel))
@@ -196,14 +201,14 @@ async function listSimulationMachines() {
       FROM dbo.tb_mms_machine_hourly mh
       WHERE mh.machine_no = mn.machine_no
         AND mh.work_date = @workDate
-        AND ${hourSortSql} <= @currentHourSort
+        AND ${closedHourSortFilterSql}
     ) mms
     OUTER APPLY (
       SELECT TOP 1 status
       FROM dbo.tb_mms_machine_hourly mh
       WHERE mh.machine_no = mn.machine_no
         AND mh.work_date = @workDate
-        AND ${hourSortSql} <= @currentHourSort
+        AND ${closedHourSortFilterSql}
       ORDER BY
         ${hourSortSql} DESC
     ) latest
@@ -458,6 +463,7 @@ async function upsertMmsRealtimePayload(payload = {}, now = new Date(), slotOver
 
 module.exports = {
   ensureMmsReportSchema,
+  getClosedMmsHourSortFilterSql,
   getCurrentMmsWorkDate,
   getMmsHourSort,
   getMmsWorkSlot,
