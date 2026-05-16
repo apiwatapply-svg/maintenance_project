@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const { adminResources, getAdminResource, normalizePagination } = require("../src/config/adminResources");
+const { setAdminResource } = require("../src/routes/adminRoutes");
 
 test("adminResources maps requested resources to tbm tables", () => {
   assert.equal(adminResources.users.table, "tbm_user");
@@ -20,4 +21,16 @@ test("getAdminResource returns null for unknown resource", () => {
 test("normalizePagination clamps page size and calculates offset", () => {
   assert.deepEqual(normalizePagination({ page: 3, pageSize: 20 }), { page: 3, pageSize: 20, offset: 40 });
   assert.deepEqual(normalizePagination({ page: -1, pageSize: 500 }), { page: 1, pageSize: 100, offset: 0 });
+});
+
+test("employee upload routes pass the employees resource to admin controller", () => {
+  const req = { params: {} };
+  let nextCalled = false;
+
+  setAdminResource("employees")(req, {}, () => {
+    nextCalled = true;
+  });
+
+  assert.equal(req.params.resource, "employees");
+  assert.equal(nextCalled, true);
 });

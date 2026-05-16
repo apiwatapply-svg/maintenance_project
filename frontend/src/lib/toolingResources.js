@@ -202,26 +202,6 @@ export const toolingPages = [
     ],
     filters: ["search", "status"],
     description: "Issue available tools to approved borrowers with due date tracking.",
-    mockColumns: ["Issue No.", "Request No.", "Tool Code", "Borrower", "Issue Date", "Due Date", "Status"],
-    mockRows: [
-      ["ISS-2026-001", "BRQ-2026-002", "TL-CV-002", "Narin", "2026-05-12", "2026-05-20", "Issued"],
-      ["ISS-2026-002", "BRQ-2026-004", "TL-DG-004", "Kanda", "2026-05-12", "2026-05-19", "Issued"]
-    ],
-    mockFilters: ["All", "Ready To Issue", "Issued"],
-    mockActionLabel: "Issue Tool",
-    mockModal: {
-      title: "Issue Tool",
-      submitLabel: "Save Issue",
-      image: "/tooling-images/caliper.svg",
-      fields: [
-        { key: "request", label: "Borrow Request", type: "search", options: ["BRQ-2026-002 - TL-CV-002 - Narin", "BRQ-2026-001 - TL-TQ-001 - Somchai"], value: "BRQ-2026-002 - TL-CV-002 - Narin" },
-        { key: "tool", label: "Tool", type: "search", options: ["TL-CV-002 - Caliper Vernier | Available", "TL-TQ-001 - Torque Wrench | Available"], value: "TL-CV-002 - Caliper Vernier | Available" },
-        { key: "issueBy", label: "Issue By", type: "search", options: ["tooladmin - Tooling Admin", "EMP-010 - Store Keeper"], value: "tooladmin - Tooling Admin" },
-        { key: "issueDate", label: "Issue Date", type: "date", value: "2026-05-12" },
-        { key: "dueDate", label: "Due Date", type: "date", value: "2026-05-20" },
-        { key: "remark", label: "Remark", type: "textarea", value: "Tool condition checked before issue." }
-      ]
-    }
   },
   {
     key: "return-tool",
@@ -253,25 +233,6 @@ export const toolingPages = [
     ],
     filters: ["search", "condition_status"],
     description: "Receive returned tools and update tool availability.",
-    mockColumns: ["Return No.", "Issue No.", "Tool Code", "Tool Name", "Return By", "Return Date", "Condition"],
-    mockRows: [
-      ["RTN-2026-001", "ISS-2026-001", "TL-CV-002", "Caliper Vernier", "Narin", "2026-05-13", "Good"],
-      ["RTN-2026-002", "ISS-2026-002", "TL-DG-004", "Dial Gauge", "Kanda", "2026-05-14", "Need Check"]
-    ],
-    mockFilters: ["All", "Good", "Need Check", "Damaged"],
-    mockActionLabel: "Return Tool",
-    mockModal: {
-      title: "Return Tool",
-      submitLabel: "Save Return",
-      image: "/tooling-images/dial-gauge.svg",
-      fields: [
-        { key: "issue", label: "Issue Transaction", type: "search", options: ["ISS-2026-001 - TL-CV-002 - Narin", "ISS-2026-002 - TL-DG-004 - Kanda"], value: "ISS-2026-002 - TL-DG-004 - Kanda" },
-        { key: "condition", label: "Condition", type: "search", options: ["Good", "Need Check", "Damaged"], value: "Need Check" },
-        { key: "returnBy", label: "Return By", type: "search", options: ["EMP-002 - Narin", "EMP-004 - Kanda"], value: "EMP-004 - Kanda" },
-        { key: "returnDate", label: "Return Date", type: "date", value: "2026-05-14" },
-        { key: "remark", label: "Remark", type: "textarea", value: "Need visual inspection before available status." }
-      ]
-    }
   },
   {
     key: "overdue-borrow",
@@ -304,12 +265,6 @@ export const toolingPages = [
     ],
     filters: ["search", "status"],
     description: "Monitor borrowed tools that passed their due date.",
-    mockColumns: ["Borrow No.", "Tool Code", "Tool Name", "Borrower", "Department", "Due Date", "Overdue Days"],
-    mockRows: [
-      ["BR-2026-001", "TL-TQ-001", "Torque Wrench", "Somchai", "Maintenance", "2026-05-09", "3"],
-      ["BR-2026-002", "TL-DG-004", "Dial Gauge", "Anan", "Production", "2026-05-08", "4"]
-    ],
-    mockFilters: ["All", "1-3 Days", "4-7 Days", "More Than 7 Days"]
   },
   {
     key: "stock-in",
@@ -343,26 +298,6 @@ export const toolingPages = [
     ],
     filters: ["search", "location_code"],
     description: "Receive spare parts or consumables into inventory.",
-    mockColumns: ["Receive No.", "Item Code", "Item Name", "Quantity", "Unit", "Location", "Receive Date"],
-    mockRows: [
-      ["SIN-2026-001", "ST-BRG-6204", "Bearing 6204 ZZ", "24", "PCS", "STORE-A", "2026-05-12"],
-      ["SIN-2026-002", "ST-TAPE-001", "Insulation Tape", "10", "PCS", "CAB-01", "2026-05-12"],
-      ["SIN-2026-003", "ST-GRS-001", "Grease Cartridge", "6", "PCS", "STORE-A", "2026-05-13"]
-    ],
-    mockFilters: ["All", "Today", "This Month"],
-    mockActionLabel: "Receive Stock",
-    mockModal: {
-      title: "Receive Stock",
-      submitLabel: "Save Receive",
-      fields: [
-        { key: "item", label: "Scan QR / Item Code / Item Name", type: "search", options: ["ST-BRG-6204 - Bearing 6204 ZZ", "ST-TAPE-001 - Insulation Tape", "ST-GRS-001 - Grease Cartridge", "ST-BLT-M8 - Bolt M8"], value: "ST-BRG-6204 - Bearing 6204 ZZ" },
-        { key: "quantity", label: "Receive Quantity", type: "number", value: 1 },
-        { key: "location", label: "Location", type: "search", options: ["STORE-A - Main Store", "CAB-01 - Cabinet 01", "SHELF-B2 - Shelf B2"], value: "STORE-A - Main Store" },
-        { key: "reference", label: "PO / Invoice / Reference", type: "text", value: "PO-2026-0512" },
-        { key: "receiveDate", label: "Receive Date", type: "date", value: "2026-05-12" },
-        { key: "remark", label: "Remark", type: "textarea", value: "Received from approved supplier." }
-      ]
-    }
   },
   {
     key: "stock-out",
@@ -396,26 +331,6 @@ export const toolingPages = [
     ],
     filters: ["search", "reference_type"],
     description: "Issue spare parts or consumables from inventory.",
-    mockColumns: ["Issue No.", "Item Code", "Item Name", "Quantity", "Unit", "Reference", "Issue Date"],
-    mockRows: [
-      ["SOUT-2026-001", "ST-BRG-6204", "Bearing 6204 ZZ", "4", "PCS", "PM-2026-018", "2026-05-12"],
-      ["SOUT-2026-002", "ST-TAPE-001", "Insulation Tape", "2", "PCS", "JOB-2026-043", "2026-05-12"],
-      ["SOUT-2026-003", "ST-BLT-M8", "Bolt M8", "12", "PCS", "WO-2026-021", "2026-05-13"]
-    ],
-    mockFilters: ["All", "PM", "Job", "Work Order"],
-    mockActionLabel: "Issue Stock",
-    mockModal: {
-      title: "Issue Stock",
-      submitLabel: "Save Issue",
-      fields: [
-        { key: "item", label: "Scan QR / Item Code / Item Name", type: "search", options: ["ST-BRG-6204 - Bearing 6204 ZZ | Balance 27 PCS", "ST-TAPE-001 - Insulation Tape | Balance 5 PCS", "ST-GRS-001 - Grease Cartridge | Balance 2 PCS", "ST-BLT-M8 - Bolt M8 | Balance 180 PCS"], value: "ST-TAPE-001 - Insulation Tape | Balance 5 PCS" },
-        { key: "quantity", label: "Issue Quantity", type: "number", value: 1 },
-        { key: "referenceType", label: "Reference Type", type: "search", options: ["PM", "Job Request", "Work Order", "General Use"], value: "Job Request" },
-        { key: "reference", label: "Job / PM / Reference", type: "search", options: ["JOB-2026-043 - Conveyor abnormal noise", "PM-2026-018 - Monthly line check", "WO-2026-021 - Bearing replacement"], value: "JOB-2026-043 - Conveyor abnormal noise" },
-        { key: "issueDate", label: "Issue Date", type: "date", value: "2026-05-12" },
-        { key: "remark", label: "Remark", type: "textarea", value: "Issued for maintenance repair job." }
-      ]
-    }
   },
   {
     key: "stock-balance",
@@ -448,14 +363,6 @@ export const toolingPages = [
     ],
     filters: ["search", "status", "location_code"],
     description: "Check current stock by item, location, minimum stock, and maximum stock.",
-    mockColumns: ["Item Code", "Item Name", "Current", "Min", "Max", "Unit", "Status"],
-    mockRows: [
-      ["ST-BRG-6204", "Bearing 6204 ZZ", "27", "8", "60", "PCS", "Normal"],
-      ["ST-TAPE-001", "Insulation Tape", "5", "10", "80", "PCS", "Low Stock"],
-      ["ST-GRS-001", "Grease Cartridge", "2", "6", "30", "PCS", "Low Stock"],
-      ["ST-BLT-M8", "Bolt M8", "180", "20", "150", "PCS", "Over Stock"]
-    ],
-    mockFilters: ["All", "Normal", "Low Stock", "Over Stock"]
   },
   {
     key: "movement-history",
@@ -486,14 +393,6 @@ export const toolingPages = [
     ],
     filters: ["search", "movement_type"],
     description: "Review stock in, stock out, borrow, return, adjustment, and calibration movement.",
-    mockColumns: ["Date", "Movement Type", "Code", "Name", "Quantity", "Reference", "User"],
-    mockRows: [
-      ["2026-05-12", "Stock In", "ST-BRG-6204", "Bearing 6204 ZZ", "+24", "SIN-2026-001", "tooladmin"],
-      ["2026-05-12", "Stock Out", "ST-TAPE-001", "Insulation Tape", "-2", "JOB-2026-043", "tooladmin"],
-      ["2026-05-13", "Borrow", "TL-CV-002", "Caliper Vernier", "1", "BRQ-2026-002", "tooladmin"],
-      ["2026-05-14", "Return", "TL-CV-002", "Caliper Vernier", "1", "RTN-2026-001", "tooladmin"]
-    ],
-    mockFilters: ["All", "Stock In", "Stock Out", "Borrow", "Return", "Calibration"]
   },
   {
     key: "calibration-list",
@@ -527,13 +426,6 @@ export const toolingPages = [
     ],
     filters: ["search", "status"],
     description: "Track measuring tools and calibration schedules.",
-    mockColumns: ["Tool Code", "Tool Name", "Serial Number", "Last Calibration", "Next Calibration", "Status"],
-    mockRows: [
-      ["TL-TQ-001", "Torque Wrench", "TQ-1001", "2025-11-20", "2026-05-20", "Due Soon"],
-      ["TL-DG-004", "Dial Gauge", "DG-0004", "2025-11-26", "2026-05-26", "Due Soon"],
-      ["TL-CV-002", "Caliper Vernier", "CV-2002", "2025-10-30", "2026-04-30", "Expired"]
-    ],
-    mockFilters: ["All", "Normal", "Due Soon", "Expired"]
   },
   {
     key: "calibration-due-soon",
@@ -565,12 +457,6 @@ export const toolingPages = [
     ],
     filters: ["search", "owner"],
     description: "Show tools with next calibration date within 30 days.",
-    mockColumns: ["Tool Code", "Tool Name", "Serial Number", "Next Calibration", "Days Left", "Owner"],
-    mockRows: [
-      ["TL-TQ-001", "Torque Wrench", "TQ-1001", "2026-05-20", "8", "Tooling Store"],
-      ["TL-DG-004", "Dial Gauge", "DG-0004", "2026-05-26", "14", "QC Room"]
-    ],
-    mockFilters: ["All", "Within 7 Days", "Within 30 Days"]
   },
   {
     key: "calibration-expired",
@@ -602,12 +488,6 @@ export const toolingPages = [
     ],
     filters: ["search", "owner"],
     description: "Show tools with calibration date already expired.",
-    mockColumns: ["Tool Code", "Tool Name", "Serial Number", "Expired Date", "Expired Days", "Action"],
-    mockRows: [
-      ["TL-CV-002", "Caliper Vernier", "CV-2002", "2026-04-30", "12", "Block Tool"],
-      ["TL-MC-003", "Micrometer", "MC-3003", "2026-04-18", "24", "Send Calibration"]
-    ],
-    mockFilters: ["All", "Blocked", "Send Calibration"]
   },
   {
     key: "reports",
@@ -634,14 +514,6 @@ export const toolingPages = [
     ],
     filters: ["search", "report_type"],
     description: "Export tool, spare part, stock, borrow, calibration, and movement reports to Excel.",
-    mockColumns: ["Report", "Description", "Last Generated", "Rows", "Export"],
-    mockRows: [
-      ["Tool List", "Current registered tools and status.", "2026-05-12", "18", "Excel"],
-      ["Spare Part List", "Consumable master and current balance.", "2026-05-12", "24", "Excel"],
-      ["Low Stock", "Items below minimum stock.", "2026-05-12", "3", "Excel"],
-      ["Movement History", "Stock and tool movement log.", "2026-05-12", "148", "Excel"]
-    ],
-    mockFilters: ["All", "Master", "Stock", "Borrow", "Calibration", "Movement"]
   }
 ];
 

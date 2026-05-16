@@ -27,7 +27,7 @@ import { buildConfirmAlert, buildSuccessAlert } from "@/lib/swalHelpers";
 
 const PreventiveDataContext = createContext(null);
 
-const fallbackPreventiveData = {
+const emptyPreventiveData = {
   areas: [],
   dashboardTrend: [],
   employees: [],
@@ -42,7 +42,7 @@ const fallbackPreventiveData = {
 };
 
 function usePreventiveData() {
-  return useContext(PreventiveDataContext) || fallbackPreventiveData;
+  return useContext(PreventiveDataContext) || emptyPreventiveData;
 }
 
 const navigation = [
@@ -203,7 +203,7 @@ export default function PreventiveMaintenanceShell({ pageKey = "dashboard" }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [modal, setModal] = useState(null);
   const [selectedRecord, setSelectedRecord] = useState(null);
-  const [preventiveData, setPreventiveData] = useState(fallbackPreventiveData);
+  const [preventiveData, setPreventiveData] = useState(emptyPreventiveData);
   const title = pageTitles[pageKey] || pageTitles.dashboard;
 
   async function loadPreventiveData({ quiet = false } = {}) {

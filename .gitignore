@@ -12,6 +12,7 @@ pnpm-debug.log*
 .npm-cache/
 screenshots/
 .qa/
+docs/test_results/
 
 # Playwright
 /test-results/

@@ -81,6 +81,14 @@ test("operational tooling pages are connected to backend endpoints", () => {
   });
 });
 
+test("tooling page configs do not carry frontend mock data", () => {
+  toolingPages.forEach((page) => {
+    Object.keys(page).forEach((key) => {
+      assert.equal(key.toLowerCase().startsWith("mock"), false, `${page.key} still has ${key}`);
+    });
+  });
+});
+
 test("stock in and stock out define connected transaction fields", () => {
   const stockIn = getToolingPage("stock-in");
   const stockOut = getToolingPage("stock-out");

@@ -51,8 +51,8 @@ This document is the project-wide test map for unit and end-to-end coverage. It 
 | 16 | Frontend preventive config | `cd frontend && node --test tests/preventiveConfig.test.mjs` | Passed 2026-05-16, 3 tests |
 | 17 | Frontend SweetAlert helpers | `cd frontend && node --test tests/swalHelpers.test.mjs` | Passed 2026-05-16, 4 tests |
 | 18 | Frontend tooling config | `cd frontend && node --test tests/toolingResources.test.mjs` | Passed 2026-05-16, 14 tests |
-| 19 | Full backend unit suite | `cd backend && npm test` | Passed 2026-05-16, 63 tests |
-| 20 | Full frontend unit suite | `cd frontend && npm test` | Passed 2026-05-16, 69 tests |
+| 19 | Full backend unit suite | `cd backend && npm test` | Passed 2026-05-16, 64 tests |
+| 20 | Full frontend unit suite | `cd frontend && npm test` | Passed 2026-05-16, 70 tests |
 | 21 | Frontend production build | `cd frontend && npm run build` | Passed 2026-05-16 |
 
 ## E2E Execution Topics
@@ -63,7 +63,9 @@ This document is the project-wide test map for unit and end-to-end coverage. It 
 | 2 | Frontend route smoke for all App Router pages | `GET http://localhost:3000/<route>` for public and protected routes | Passed 2026-05-16, 27 routes; `/job-request` returns expected redirect 307 |
 | 3 | MMS Socket.IO telemetry smoke | Socket client emits MMS payload and listener receives all telemetry fields | Passed 2026-05-16, received machine/status/output/NG/CT/model/canProduceOutput |
 | 4 | MMS snapshot smoke | Simulation page receives a value, Dashboard opened later receives it through `mms:snapshot-request` | Passed 2026-05-16, Dashboard received `MODEL-D`, `OK 444,444`, `NG 55` |
-| 5 | CI parity | Backend suite, frontend suite, frontend build | Passed 2026-05-16 |
+| 5 | Full feature E2E workflow | `node scripts/run_full_e2e_checks.js` against local backend/frontend/MSSQL | Passed 2026-05-16, 9/9 topics |
+| 6 | Frontend source mock scan | `rg "mock\|Mock\|demo\|dummy\|fixture"` against `frontend/src` | Passed 2026-05-16, no frontend source mock data remains |
+| 7 | CI parity | Backend suite, frontend suite, frontend build | Passed 2026-05-16 |
 
 ## Latest Execution Notes
 
@@ -72,20 +74,20 @@ This document is the project-wide test map for unit and end-to-end coverage. It 
 - Route smoke covered home, admin, job request, MMS dashboard, preventive maintenance, and tooling store pages.
 - MMS Socket.IO telemetry smoke confirmed live payload propagation without using MSSQL as the realtime state store.
 - MMS snapshot smoke confirmed a dashboard opened after the simulator still receives current simulator values through `mms:snapshot-request`.
+- Full feature E2E passed 9/9 topics: health, role matrix, MMS MSSQL API, admin CRUD, tooling stock/borrow/calibration, job request workflow, preventive workflow, MMS realtime payload, and protected frontend routes.
+- Frontend connected source no longer carries `mock*` tooling data. Preventive uses empty initial state until `/api/preventive/bootstrap` returns backend data.
 
-## E2E Topics To Automate Next
+## Remaining E2E Depth To Add
 
-These are workflow-level E2E cases that should become Playwright or API-driven test files as the project matures.
+These are deeper browser-level checks that can be added after the current API/browser E2E runner.
 
 | Priority | Feature | E2E Scenario |
 | --- | --- | --- |
-| P1 | Auth/Admin | Login as each seeded role, assert allowed and denied routes |
-| P1 | Admin/Common Master | Create master data once and verify it appears in Job Request, PM, Tooling, and MMS dropdowns |
-| P1 | Job Request | Production create -> Maintenance repair -> QC inspect -> Production confirm -> completed history |
-| P1 | Job Request + MMS | Create active job and verify MMS card shows job overlay without overriding PLC/GOT status |
-| P1 | MMS | Open Simulation at mid-hour, verify closed-hour MSSQL values plus current elapsed output, then verify Dashboard snapshot |
-| P2 | Preventive | Create PM type/checklist/mapping -> generate plan -> submit inspection -> report history |
-| P2 | Tooling | Stock in -> stock out -> borrow -> return -> movement report -> low stock state |
-| P2 | Tooling Calibration | Update calibration, calculate next date/status, verify due-soon/expired report |
+| P1 | Admin/Common Master | Browser-create master data once and verify it appears in Job Request, PM, Tooling, and MMS dropdowns |
+| P1 | Job Request + MMS | Browser-create active job and verify MMS card shows job overlay without overriding PLC/GOT status |
+| P1 | MMS | Open Simulation at mid-hour, verify closed-hour MSSQL values plus current elapsed output, then verify Dashboard snapshot on every MMS page |
+| P2 | Preventive | Browser-create PM type/checklist/mapping -> generate plan -> submit inspection -> report history |
+| P2 | Tooling | Browser stock in -> stock out -> borrow -> return -> movement report -> low stock state |
+| P2 | Tooling Calibration | Browser update calibration, calculate next date/status, verify due-soon/expired report |
 | P2 | Reports | Compare daily/monthly/yearly report UI values against seeded MSSQL aggregates |
 | P3 | UI guardrails | Sidebar collapse, filters localStorage, responsive route smoke, no horizontal overflow on monitoring pages |
